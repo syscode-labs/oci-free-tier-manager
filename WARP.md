@@ -174,9 +174,11 @@ micro_boot_volume_size     = 50
 ```
 
 **Architecture reasoning:**
-- **3 Ampere nodes**: Provides K8s quorum (3 nodes for etcd/control plane redundancy)
-  - Each node runs Proxmox as hypervisor
-  - Talos Linux VMs run on top of Proxmox for K8s cluster
+- **3 Ampere nodes**: Provides Proxmox cluster quorum (3 nodes for HA and distributed storage)
+  - Each node runs Proxmox VE as hypervisor
+  - **Ceph deployed for distributed storage** (enables VM live migration)
+  - Proxmox cluster configured for quorum (3 nodes minimum)
+  - Talos Linux VMs deployed on Proxmox after cluster setup (K8s etcd quorum separate concern)
   - Tailscale runs as LXC container in each Proxmox host for mesh networking
   - 1.33 OCPUs per node = ~4 OCPUs total (maxed free tier)
   - 8GB RAM per node = 24GB total (maxed free tier)
@@ -290,14 +292,17 @@ packer build base-hardened.pkr.hcl
 - Deploy base image directly to Micro instance
 - No additional layers needed
 
-**Layer 2b: Proxmox Image (base + Proxmox)**
+**Layer 2b: Proxmox Image (base + Proxmox + Ceph)**
 ```bash
 packer build -var 'source_image=base-hardened.qcow2' proxmox.pkr.hcl
 ```
 - Start from base hardened image
 - Install Proxmox VE via official script
-- Configure for Talos/LXC containers
+- Install Ceph packages (ceph-mon, ceph-osd, ceph-mgr)
+- Configure for Talos VMs and LXC containers
 - Output: `proxmox-ampere.qcow2`
+
+**Note:** Ceph will be pre-installed but configured post-deployment when the Proxmox cluster is formed.
 
 **Deployment Workflow:**
 1. Build `base-hardened.qcow2` with Packer
@@ -313,6 +318,44 @@ packer build -var 'source_image=base-hardened.qcow2' proxmox.pkr.hcl
 - Proxmox compatibility guaranteed
 - Fully reproducible and automated
 - Can rebuild either layer independently
+
+### Deployment Phases
+
+The infrastructure is deployed in sequential phases:
+
+**Phase 1: Image Building**
+1. Build base-hardened.qcow2 (Debian + SSH + Tailscale)
+2. Build proxmox-ampere.qcow2 (base + Proxmox + Ceph packages)
+3. Upload to OCI Object Storage
+4. Create OCI custom images
+
+**Phase 2: Infrastructure Provisioning**
+1. Deploy 3 Ampere instances with proxmox-ampere image
+2. Deploy 1 Micro bastion with base-hardened image
+3. Configure reserved IPs (bastion + future ingress)
+4. Verify Tailscale connectivity
+
+**Phase 3: Proxmox Cluster Setup**
+1. Form Proxmox cluster (3 nodes)
+2. Verify cluster quorum (requires 3 nodes)
+3. Configure Ceph storage:
+   - Initialize Ceph monitors on all 3 nodes
+   - Create OSDs from available storage
+   - Configure Ceph pool for VM storage
+4. Verify distributed storage and VM migration capability
+
+**Phase 4: Talos K8s Deployment**
+1. Deploy Talos Linux VMs on Proxmox cluster
+2. Bootstrap 3-node K8s cluster (etcd quorum in Talos VMs)
+3. Configure K8s ingress controller with reserved IP
+4. Deploy Tailscale in Proxmox as LXC containers
+
+**Phase 5: Monitoring**
+1. Deploy Grafana Alloy agents to K8s cluster
+2. Configure Grafana Cloud integration
+3. Set up dashboards for Proxmox, Ceph, K8s, Tailscale
+
+**Important:** Proxmox cluster quorum and Ceph must be configured before deploying Talos VMs. K8s etcd quorum is separate and handled by Talos.
 
 ## Monitoring Stack Deployment
 
