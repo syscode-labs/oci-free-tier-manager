@@ -20,7 +20,39 @@ This project provides:
 
 1. **Availability Checker**: Python script to monitor when free tier compute instances become available
 2. **Terraform Configurations**: Infrastructure-as-Code to provision free tier resources with budget alerts
-3. **Documentation**: Complete list of all OCI Always Free resources
+3. **Packer Image Building**: Custom images for Proxmox hypervisor and hardened bastion
+4. **Kubernetes Deployment**: 3-node K8s cluster on Proxmox with Talos Linux
+5. **Monitoring Stack**: Grafana Cloud integration with Alloy agents
+6. **Documentation**: Complete list of all OCI Always Free resources
+
+## Deployment Architecture
+
+This project deploys a complete Kubernetes infrastructure on OCI's Always Free tier:
+
+**Infrastructure**: 3 Ampere A1 nodes (ARM64) + 1 E2.1.Micro bastion (x86)
+- Region: uk-london-1 (closest to UK)
+- Total resources: 4 OCPUs, 24GB RAM, 200GB storage (all maxed)
+- Account type: PAYG recommended (better Ampere availability, $0.01 budget alert)
+
+**Hypervisor Layer**: Proxmox VE cluster on 3 Ampere nodes
+- Proxmox cluster with 3-node quorum for high availability
+- Ceph distributed storage for VM live migration
+- Tailscale mesh networking via LXC containers
+
+**Kubernetes Layer**: Talos Linux VMs on Proxmox
+- 3-node K8s cluster with etcd quorum
+- Runs on Ceph-backed storage
+- Ingress controller with reserved public IP
+
+**Bastion**: Hardened Debian minimal on Micro instance
+- SSH jump host with reserved public IP
+- Tailscale for secure mesh networking
+- Hardened via cloud-init/Ansible
+
+**Monitoring**: Grafana Cloud free tier
+- Alloy agents on K8s cluster
+- Monitors: Proxmox, Ceph, K8s, Tailscale, OCI resources
+- 10k metrics, 50GB logs/month (free tier)
 
 ## OCI Always Free Resources
 
@@ -87,11 +119,105 @@ Based on official Oracle documentation (verified November 2024), the following r
 - **Bastion**: 5 OCI Bastion instances
 - **GoldenGate Stream Analytics**: 1 OCPU
 
+## Deployment Phases
+
+The deployment follows a sequential, multi-phase approach:
+
+### Phase 1: Image Building with Packer
+
+Build custom images using a layered approach:
+
+**Base Image** (`base-hardened.qcow2`):
+- Debian 12 minimal installation
+- Hardened SSH configuration and firewall
+- Pre-installed Tailscale for mesh networking
+- Used by: Micro bastion (as-is)
+
+**Proxmox Image** (`proxmox-ampere.qcow2`):
+- Built from base-hardened image
+- Proxmox VE hypervisor installed
+- Ceph packages pre-installed (ceph-mon, ceph-osd, ceph-mgr)
+- Configured for Talos VMs and LXC containers
+- Used by: 3 Ampere nodes
+
+**Image Storage**: Both images uploaded to OCI Object Storage (within 20GB free tier limit)
+
+### Phase 2: Infrastructure Provisioning with Terraform
+
+Deploy OCI infrastructure:
+
+**Compute Instances**:
+- 3 Ampere nodes: 1.33 OCPU, 8GB RAM, 50GB storage each
+- 1 Micro bastion: 1GB RAM, 50GB storage
+- Total: 200GB storage (maxed), 4 OCPUs (maxed), 24GB RAM (maxed)
+
+**Networking**:
+- VCN with public subnet, internet gateway, security lists
+- 2 reserved public IPs (bastion + K8s ingress)
+- Ephemeral IPs for Ampere nodes (setup/management)
+- Tailscale mesh connecting all nodes
+
+**Budget Alert**: $0.01 threshold to catch any accidental charges
+
+### Phase 3: Proxmox Cluster and Ceph Setup
+
+Configure Proxmox cluster for high availability:
+
+**Proxmox Cluster**:
+- Form 3-node Proxmox cluster
+- Verify cluster quorum (requires 3 nodes minimum)
+- Deploy Tailscale as LXC containers on each node
+
+**Ceph Distributed Storage**:
+- Initialize Ceph monitors on all 3 nodes
+- Create Ceph OSDs from available storage
+- Configure Ceph pool for VM storage
+- Verify VM live migration capability
+
+**Critical**: This phase must complete before deploying Talos VMs. Ceph provides the distributed storage needed for VM migration.
+
+### Phase 4: Talos Kubernetes Deployment
+
+Deploy Kubernetes cluster:
+
+**Talos Linux VMs**:
+- Deploy Talos VMs on Proxmox cluster
+- VMs stored on Ceph distributed storage
+- Bootstrap 3-node K8s cluster
+- K8s etcd quorum (separate from Proxmox quorum)
+
+**Ingress Configuration**:
+- Deploy K8s ingress controller
+- Assign reserved public IP #2 to ingress
+- Configure DNS for external access
+
+### Phase 5: Monitoring Stack
+
+Deploy observability:
+
+**Grafana Cloud Setup**:
+- Create Grafana Cloud free tier account
+- Get API keys for Prometheus, Loki, Tempo
+
+**Alloy Agent Deployment**:
+- Deploy Alloy as DaemonSet on K8s cluster
+- Configure remote write to Grafana Cloud
+- Collect metrics from: Proxmox, Ceph, K8s, Tailscale, OCI
+- Collect logs from all nodes and pods
+
+**Dashboards**:
+- Proxmox host metrics (CPU, RAM, storage, VMs)
+- Ceph cluster health and performance
+- K8s cluster and workload metrics
+- Application logs via Loki
+- Network connectivity and Tailscale status
+
 ## Project Structure
 
 ```
 oci-free-tier-manager/
 ├── README.md                      # This file
+├── WARP.md                        # AI agent guidance
 ├── FREE_TIER_RESOURCES.md         # Detailed list of all free resources
 ├── check_availability.py          # Script to check instance availability
 ├── terraform/
@@ -100,6 +226,9 @@ oci-free-tier-manager/
 │   ├── outputs.tf                 # Output values
 │   ├── data.tf                    # Data sources
 │   └── terraform.tfvars.example   # Example configuration
+├── packer/                        # (To be created)
+│   ├── base-hardened.pkr.hcl     # Base image with SSH + Tailscale
+│   └── proxmox-ampere.pkr.hcl    # Proxmox + Ceph image
 └── .gitignore                     # Git ignore file
 ```
 
