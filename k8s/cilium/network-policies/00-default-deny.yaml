@@ -1,0 +1,70 @@
+# Default Deny All - Apply to all namespaces except kube-system
+#
+# Security principle: Deny all traffic by default, explicitly allow only required traffic
+# This creates a zero-trust network where every connection must be intentional
+
+---
+# Deny all ingress to pods in default namespace
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: default
+spec:
+  endpointSelector: {}  # Applies to all pods in namespace
+  ingress: []  # Empty list = deny all
+
+---
+# Deny all egress from pods in default namespace (except DNS)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-egress
+  namespace: default
+spec:
+  endpointSelector: {}
+  egress:
+    # Allow DNS - required for service discovery
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+---
+# Template: Apply to other namespaces
+# Copy and change metadata.namespace for each application namespace
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: cluster-default-deny
+spec:
+  description: "Cluster-wide default deny for all non-system namespaces"
+  endpointSelector:
+    matchExpressions:
+      - key: io.kubernetes.pod.namespace
+        operator: NotIn
+        values:
+          - kube-system
+          - cilium
+          - tailscale
+  ingress: []
+  egress:
+    # Allow DNS
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP

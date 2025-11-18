@@ -206,15 +206,19 @@ micro_boot_volume_size     = 50
 **Networking architecture:**
 - **Tailscale mesh**: All nodes (bastion + 3 Ampere) connected via Tailscale for secure internal communication
 - **Proxmox Tailscale deployment**: Tailscale runs as LXC containers on Proxmox hosts (not directly on host OS)
-- **Public access**: Only bastion and ingress controller have public IPs
+- **Public access**: Only bastion and OCI reserved IP #2 (via 1:1 NAT) have public IPs
+- **CNI**: Cilium kube-proxy-free with L2 announcement and Hubble observability
+- **Cloud Controller**: OCI CCM for reserved IP management (optional, 1:1 NAT is simpler)
+- **Service mesh**: Tailscale Operator for internal service exposure
 
 **IP allocation strategy (2 reserved IPs):**
 1. **Reserved IP #1 → Micro bastion**: Static IP for consistent SSH access
-2. **Reserved IP #2 → K8s ingress**: Assigned to ingress controller VM running on one of the Ampere nodes
-   - Ingress controller runs as VM inside Proxmox on an Ampere node
-   - Provides external access to K8s services
-   - Static IP ensures DNS records remain valid
-3. **Ephemeral IPs → Remaining Ampere nodes**: Used for initial setup and OCI management access
+2. **Reserved IP #2 → K8s public services**: Forwarded via 1:1 NAT on Proxmox host to K8s NodePort
+   - Proxmox iptables DNAT forwards traffic to Talos VMs
+   - Supports 1-2 public services (HTTP/HTTPS)
+   - Alternative: Use OCI CCM to attach IP via service annotation
+3. **Ephemeral IPs → Ampere nodes**: Used for initial Proxmox access and Tailscale connectivity
+4. **Tailscale IPs → Internal services**: Unlimited internal services exposed via Tailscale Operator
 
 ### Automated Deployment on Availability
 ```bash
@@ -301,11 +305,170 @@ packer build -var 'source_image=base-hardened.qcow2' proxmox.pkr.hcl
 ```
 - Start from base hardened image
 - Install Proxmox VE via official script
+- Run **Proxmox Helper Scripts** (tteck/Proxmox):
+  - Disable enterprise repository, enable no-subscription repo
+  - Post-install hardening (disable commercial nag, optimize)
+  - Optional: CPU governor, IOMMU, kernel tweaks
 - Install Ceph packages (ceph-mon, ceph-osd, ceph-mgr)
 - Configure for Talos VMs and LXC containers
 - Output: `proxmox-ampere.qcow2`
 
+**Proxmox Helper Scripts (tteck/Proxmox):**
+- **Post-install script**: `bash -c "$(wget -qLO - https://github.com/tteck/Proxmox/raw/main/misc/post-pve-install.sh)"`
+  - Removes enterprise repository warnings
+  - Configures community repositories
+  - Disables subscription nag dialog
+  - Updates system packages
+- Run during Packer provisioning for consistent base image
+
 **Note:** Ceph will be pre-installed but configured post-deployment when the Proxmox cluster is formed.
+
+### Proxmox VE Hardening and Configuration
+
+**Essential Proxmox Helper Scripts (tteck/Proxmox):**
+
+The [tteck/Proxmox repository](https://github.com/tteck/Proxmox) provides essential post-install scripts for production Proxmox deployments:
+
+**1. Post-PVE-Install Script (mandatory)**
+```bash
+bash -c "$(wget -qLO - https://github.com/tteck/Proxmox/raw/main/misc/post-pve-install.sh)"
+```
+- Disables enterprise repository (requires paid subscription)
+- Enables no-subscription (community) repository
+- Removes subscription nag dialog on web UI login
+- Updates package lists and system
+- Corrects APT sources for non-enterprise use
+
+**2. Proxmox VE Processor Microcode (recommended)**
+```bash
+bash -c "$(wget -qLO - https://github.com/tteck/Proxmox/raw/main/misc/microcode.sh)"
+```
+- Installs latest CPU microcode for ARM64 (critical for Ampere)
+- Improves security and stability
+- Patches CPU vulnerabilities (Spectre, Meltdown variants)
+
+**3. Kernel Clean-Up (optional, saves space)**
+```bash
+bash -c "$(wget -qLO - https://github.com/tteck/Proxmox/raw/main/misc/kernel-clean.sh)"
+```
+- Removes old kernel versions to free boot partition space
+- Important on 50GB boot volumes with limited space
+- Keep 2 most recent kernels for safety
+
+**Additional Proxmox hardening steps:**
+
+**Disable unnecessary services:**
+```bash
+systemctl disable --now pve-ha-lrm pve-ha-crm  # Disable HA if not using
+systemctl disable --now corosync pve-cluster    # Disable if single-node
+```
+
+**Configure Ceph-specific optimizations (for ARM):**
+```bash
+# Set appropriate OSD journal size for limited RAM
+ceph config set osd osd_memory_target 2147483648  # 2GB per OSD
+ceph config set osd osd_journal_size 1024         # 1GB journal
+```
+
+**Enable automatic security updates:**
+```bash
+apt install unattended-upgrades
+dpkg-reconfigure -plow unattended-upgrades
+```
+
+**Set up email alerts (optional, if SMTP configured):**
+```bash
+pveum user modify root@pam --email your@email.com
+echo "root: your@email.com" >> /etc/aliases
+newaliases
+```
+
+**Proxmox-specific best practices for OCI free tier:**
+
+1. **Storage optimization:**
+   - Use `dir` storage backend for VM images (not LVM on ARM)
+   - Enable thin provisioning where possible
+   - Configure Ceph with `size=2 min_size=1` for 3-node cluster (allows operation with 1 node down)
+
+2. **Memory management:**
+   - Set RAM limits for VMs to prevent OOM on host
+   - Reserve 2GB per Proxmox host for Ceph services
+   - Use `balloon` device in VMs for dynamic memory allocation
+
+3. **Network configuration:**
+   - Bridge VMs through `vmbr0` connected to Tailscale
+   - Use Proxmox SDN for advanced networking (optional)
+   - Configure firewall rules per-VM in Proxmox UI
+
+4. **Backup strategy (within free tier):**
+   - Use Proxmox Backup Server as LXC container (not separate VM)
+   - Store backups in Ceph pool with replication
+   - Alternatively, backup to OCI Object Storage (20GB free)
+
+**Packer provisioning order:**
+1. Base Debian/Ubuntu install
+2. Run tteck post-pve-install script
+3. Install Proxmox VE packages
+4. Run microcode script
+5. Install Ceph packages (don't configure yet)
+6. Run kernel cleanup
+7. Create image snapshot
+
+### Manifest Hosting Strategy
+
+**Problem:** Cilium + OCI CCM + Tailscale Operator manifests exceed Talos 1MB inline manifest limit.
+
+**Solution:** Host manifests in external repository and reference via URL in Talos config.
+
+**Repository structure:**
+```
+github.com/your-user/k8s-manifests-private/
+├── cilium/
+│   └── manifest.yaml
+├── oci-ccm/
+│   └── manifest.yaml
+└── tailscale-operator/
+    └── manifest.yaml
+```
+
+**Generate manifests:**
+```bash
+# Cilium
+helm template cilium cilium/cilium \
+  --version 1.16.5 \
+  --namespace kube-system \
+  --values k8s/cilium/values.yaml \
+  > manifests-repo/cilium/manifest.yaml
+
+# OCI CCM (from upstream)
+kubectl kustomize github.com/oracle/oci-cloud-controller-manager \
+  > manifests-repo/oci-ccm/manifest.yaml
+
+# Tailscale Operator
+helm template tailscale-operator tailscale/tailscale-operator \
+  --namespace tailscale \
+  --set oauth.clientId="$TS_CLIENT_ID" \
+  --set oauth.clientSecret="$TS_CLIENT_SECRET" \
+  > manifests-repo/tailscale-operator/manifest.yaml
+```
+
+**Talos configuration:**
+```yaml
+cluster:
+  externalCloudProvider:
+    enabled: true
+    manifests:
+      - https://raw.githubusercontent.com/your-user/k8s-manifests-private/main/cilium/manifest.yaml
+      - https://raw.githubusercontent.com/your-user/k8s-manifests-private/main/oci-ccm/manifest.yaml
+      - https://raw.githubusercontent.com/your-user/k8s-manifests-private/main/tailscale-operator/manifest.yaml
+```
+
+**Security options:**
+1. **Private repo with token:** Use GitHub personal access token in URL
+2. **Self-hosted:** Host on bastion via HTTPS with basic auth
+3. **Encrypted repo:** Use git-crypt for manifest encryption
+
+**Recommended:** Private repo, regenerate manifests locally, never commit secrets to public repos.
 
 **Deployment Workflow:**
 1. Build `base-hardened.qcow2` with Packer
@@ -335,8 +498,9 @@ The infrastructure is deployed in sequential phases:
 **Phase 2: Infrastructure Provisioning**
 1. Deploy 3 Ampere instances with proxmox-ampere image
 2. Deploy 1 Micro bastion with base-hardened image
-3. Configure reserved IPs (bastion + future ingress)
+3. Configure reserved IPs (bastion + Cilium LoadBalancer)
 4. Verify Tailscale connectivity
+5. Verify Proxmox web UI accessible (https://node:8006) with enterprise nag disabled
 
 **Phase 3: Proxmox Cluster Setup**
 1. Form Proxmox cluster (3 nodes)
@@ -350,9 +514,13 @@ The infrastructure is deployed in sequential phases:
 
 **Phase 4: Talos K8s Deployment**
 1. Deploy Talos Linux VMs on Proxmox cluster
-2. Bootstrap 3-node K8s cluster (etcd quorum in Talos VMs)
-3. Configure K8s ingress controller with reserved IP
-4. Deploy Tailscale in Proxmox as LXC containers
+2. Bootstrap 3-node K8s cluster with CNI disabled and kube-proxy disabled
+3. Install Cilium CNI from external manifest (kube-proxy-free + Hubble)
+4. Install OCI Cloud Controller Manager from external manifest (optional)
+5. Install Tailscale Operator from external manifest
+6. Apply default-deny network policies
+7. Configure 1:1 NAT on Proxmox for reserved IP #2 → K8s NodePort
+8. Test service exposure: public (via NAT) and internal (via Tailscale)
 
 **Phase 5: Monitoring**
 1. Deploy Grafana Alloy agents to K8s cluster
