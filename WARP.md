@@ -529,6 +529,282 @@ The infrastructure is deployed in sequential phases:
 
 **Important:** Proxmox cluster quorum and Ceph must be configured before deploying Talos VMs. K8s etcd quorum is separate and handled by Talos.
 
+### Talos Custom Schematic for GPU Support
+
+**Requirement:** If using GPU passthrough in Proxmox VMs (e.g. for AI/ML workloads), Talos requires NVIDIA drivers and container runtime support.
+
+**Solution:** Build a custom Talos schematic with NVIDIA extensions using the [Talos Image Factory](https://factory.talos.dev/).
+
+#### What is a Schematic?
+
+A Talos schematic is a declarative configuration that defines:
+- Base Talos version
+- System extensions (drivers, tools, firmware)
+- Custom kernel modules
+
+Schematics are built server-side by the Image Factory - no Packer or local builds required.
+
+#### Building a GPU-Enabled Schematic
+
+**Method 1: Using Image Factory API (Recommended)**
+
+1. **Create schematic configuration file (`gpu-schematic.yaml`):**
+```yaml
+customization:
+  systemExtensions:
+    officialExtensions:
+      - siderolabs/nvidia-container-toolkit
+      - siderolabs/nonfree-kmod-nvidia
+      - siderolabs/nvidia-fabricmanager  # Only for multi-GPU setups
+```
+
+2. **Submit to Image Factory and get schematic ID:**
+```bash
+# Submit schematic and get ID
+curl -X POST --data-binary @gpu-schematic.yaml \
+  https://factory.talos.dev/schematics \
+  | jq -r '.id'
+
+# Example output: 376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba
+```
+
+3. **Download Talos image with schematic:**
+```bash
+# Set schematic ID from previous step
+SCHEMATIC_ID="376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba"
+TALOS_VERSION="v1.8.3"  # Use latest stable
+
+# Download installer image (for Proxmox deployment)
+curl -LO "https://factory.talos.dev/image/${SCHEMATIC_ID}/${TALOS_VERSION}/nocloud-amd64.raw.xz"
+
+# Or get ISO for initial provisioning
+curl -LO "https://factory.talos.dev/image/${SCHEMATIC_ID}/${TALOS_VERSION}/metal-amd64.iso"
+```
+
+4. **Verify schematic contents:**
+```bash
+# Query schematic metadata
+curl "https://factory.talos.dev/schematics/${SCHEMATIC_ID}" | jq
+```
+
+**Method 2: Using `talosctl` CLI**
+
+```bash
+# Generate schematic via talosctl (requires talosctl v1.6+)
+talosctl image factory schematic create \
+  --extension siderolabs/nvidia-container-toolkit \
+  --extension siderolabs/nonfree-kmod-nvidia \
+  --output gpu-schematic.yaml
+
+# Get schematic ID
+talosctl image factory schematic show gpu-schematic.yaml
+```
+
+#### NVIDIA Extensions Explained
+
+**Required extensions:**
+
+1. **`siderolabs/nonfree-kmod-nvidia`** (CRITICAL)
+   - Proprietary NVIDIA kernel module driver
+   - Provides GPU hardware access
+   - Built against Talos kernel version
+   - Must match Talos version exactly
+
+2. **`siderolabs/nvidia-container-toolkit`** (CRITICAL)
+   - NVIDIA Container Toolkit (formerly nvidia-docker2)
+   - Exposes GPUs to containers via containerd
+   - Provides `nvidia-ctk` and `nvidia-container-runtime`
+   - Required for K8s GPU workloads
+
+3. **`siderolabs/nvidia-fabricmanager`** (Optional)
+   - Only needed for multi-GPU NVLink/NVSwitch setups
+   - Manages high-speed GPU interconnects
+   - Skip for single-GPU configurations
+
+**Extension versioning:**
+- Extensions are tied to Talos version
+- Image Factory automatically selects compatible versions
+- To see available extensions: `curl https://factory.talos.dev/extensions`
+
+#### Proxmox GPU Passthrough Configuration
+
+**Before deploying Talos VMs, configure Proxmox hosts:**
+
+1. **Enable IOMMU (required for GPU passthrough):**
+```bash
+# Edit GRUB config on Proxmox host
+vim /etc/default/grub
+
+# Add to GRUB_CMDLINE_LINUX_DEFAULT:
+# For Intel CPUs:
+GRUB_CMDLINE_LINUX_DEFAULT="quiet intel_iommu=on iommu=pt"
+
+# For AMD CPUs (Ampere A1 in OCI):
+GRUB_CMDLINE_LINUX_DEFAULT="quiet amd_iommu=on iommu=pt"
+
+# Update GRUB and reboot
+update-grub
+reboot
+```
+
+2. **Load VFIO modules on boot:**
+```bash
+# Add to /etc/modules
+echo "vfio" >> /etc/modules
+echo "vfio_iommu_type1" >> /etc/modules
+echo "vfio_pci" >> /etc/modules
+echo "vfio_virqfd" >> /etc/modules
+
+update-initramfs -u -k all
+```
+
+3. **Identify GPU PCI address:**
+```bash
+lspci -nn | grep -i nvidia
+# Example output: 01:00.0 VGA compatible controller [0300]: NVIDIA Corporation ...
+```
+
+4. **Attach GPU to Talos VM (via Proxmox CLI or UI):**
+```bash
+# Via CLI (replace VM ID and PCI address)
+qm set 100 --hostpci0 01:00.0,pcie=1
+
+# Via Proxmox UI: VM → Hardware → Add → PCI Device → Select GPU → Enable PCIe
+```
+
+**Note:** OCI Ampere A1 instances do NOT have physical GPUs. This configuration is for:
+- Using OCI instances with GPU shapes (if available in future)
+- Running this stack on local hardware with GPUs
+- Testing GPU workloads in development
+
+#### Talos Machine Config for GPU Workloads
+
+**Add to Talos machine configuration:**
+```yaml
+machine:
+  kernel:
+    modules:
+      - name: nvidia
+      - name: nvidia_uvm
+      - name: nvidia_drm
+      - name: nvidia_modeset
+  sysctls:
+    # Increase shared memory for GPU workloads
+    kernel.shm_rmid_forced: "0"
+```
+
+#### Kubernetes GPU Device Plugin
+
+**After Talos cluster is running, deploy NVIDIA device plugin:**
+```bash
+# Deploy NVIDIA device plugin (DaemonSet)
+kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.17.0/deployments/static/nvidia-device-plugin.yml
+
+# Verify GPUs are detected
+kubectl get nodes -o json | jq '.items[].status.capacity'
+# Look for: "nvidia.com/gpu": "1"
+```
+
+**Test GPU access in pod:**
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-test
+spec:
+  containers:
+  - name: cuda-test
+    image: nvidia/cuda:12.6.0-base-ubuntu22.04
+    command: ["nvidia-smi"]
+    resources:
+      limits:
+        nvidia.com/gpu: 1
+  restartPolicy: Never
+```
+
+```bash
+kubectl apply -f gpu-test.yaml
+kubectl logs gpu-test
+# Should show nvidia-smi output with GPU info
+```
+
+#### Schematic Update Workflow
+
+**When upgrading Talos version:**
+
+1. **Rebuild schematic for new version:**
+```bash
+# Same YAML, new Talos version
+NEW_VERSION="v1.9.0"
+curl -X POST --data-binary @gpu-schematic.yaml \
+  https://factory.talos.dev/schematics | jq -r '.id'
+
+# Download new image
+SCHEMATIC_ID="<new_id>"
+curl -LO "https://factory.talos.dev/image/${SCHEMATIC_ID}/${NEW_VERSION}/nocloud-amd64.raw.xz"
+```
+
+2. **Upgrade Talos nodes using new schematic:**
+```bash
+talosctl upgrade \
+  --nodes <node-ip> \
+  --image factory.talos.dev/installer/${SCHEMATIC_ID}:${NEW_VERSION}
+```
+
+#### Automation: Scripted Schematic Creation
+
+**Example script (`build-talos-gpu-schematic.sh`):**
+```bash
+#!/bin/bash
+set -euo pipefail
+
+TALOS_VERSION="${1:-v1.8.3}"
+SCHEMATIC_FILE="gpu-schematic.yaml"
+OUTPUT_DIR="./talos-images"
+
+mkdir -p "$OUTPUT_DIR"
+
+# Create schematic configuration
+cat > "$SCHEMATIC_FILE" <<EOF
+customization:
+  systemExtensions:
+    officialExtensions:
+      - siderolabs/nvidia-container-toolkit
+      - siderolabs/nonfree-kmod-nvidia
+EOF
+
+# Submit to Image Factory
+echo "Submitting schematic to Image Factory..."
+SCHEMATIC_ID=$(curl -sSX POST --data-binary @"$SCHEMATIC_FILE" \
+  https://factory.talos.dev/schematics | jq -r '.id')
+
+echo "Schematic ID: $SCHEMATIC_ID"
+
+# Download images
+echo "Downloading Talos images with GPU support..."
+curl -L "https://factory.talos.dev/image/${SCHEMATIC_ID}/${TALOS_VERSION}/nocloud-amd64.raw.xz" \
+  -o "${OUTPUT_DIR}/talos-gpu-${TALOS_VERSION}.raw.xz"
+
+echo "Image saved to: ${OUTPUT_DIR}/talos-gpu-${TALOS_VERSION}.raw.xz"
+echo "Use this image when creating Talos VMs in Proxmox"
+
+# Save schematic ID for reference
+echo "$SCHEMATIC_ID" > "${OUTPUT_DIR}/schematic-id.txt"
+```
+
+**Usage:**
+```bash
+chmod +x build-talos-gpu-schematic.sh
+./build-talos-gpu-schematic.sh v1.8.3
+```
+
+#### References
+
+- **Talos Image Factory:** https://factory.talos.dev/
+- **System Extensions Catalog:** https://github.com/siderolabs/extensions
+- **NVIDIA Extensions Docs:** https://github.com/siderolabs/extensions/tree/main/nvidia
+- **Talos GPU Guide:** https://www.talos.dev/latest/talos-guides/configuration/nvidia-gpu/
+
 ### Testing VM Live Migration
 
 After Ceph is configured, test VM migration programmatically:
