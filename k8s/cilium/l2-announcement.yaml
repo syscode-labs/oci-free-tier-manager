@@ -1,0 +1,163 @@
+# Cilium L2 Announcement Policy for LoadBalancer services
+# 
+# CRITICAL: L2 announcement requires LoadBalancer IPs to be in the SAME subnet
+# as the Kubernetes nodes. This is a Layer 2 networking requirement.
+#
+# OCI ARCHITECTURE CONSIDERATION:
+# - Talos VMs run inside Proxmox on Ampere instances
+# - Proxmox hosts have OCI public subnet IPs (e.g., 150.x.x.x/24)
+# - Talos VMs may be on private subnet (e.g., 10.0.0.0/24 via Proxmox bridge)
+# - OCI reserved public IP #2 is on different subnet than Talos VMs
+#
+# SOLUTION OPTIONS:
+# 1. Bridge Talos VMs directly to OCI network (complex, requires Proxmox networking changes)
+# 2. Use Tailscale IP range for LoadBalancer (recommended for this setup)
+# 3. Use private IPs and expose via Proxmox DNAT/port forwarding
+#
+# This file provides both configurations - choose based on your network design.
+
+---
+# Option 1: Using Tailscale IP range (RECOMMENDED for your architecture)
+# Tailscale provides mesh networking across all nodes
+# LoadBalancer services accessible via Tailscale IPs only
+apiVersion: cilium.io/v2alpha1
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: tailscale-pool
+spec:
+  blocks:
+    - cidr: 100.64.0.0/24  # Replace with your Tailscale subnet
+      # Tailscale typically uses 100.64.0.0/10 range
+      # Allocate a /24 within your Tailscale network
+  serviceSelector:
+    matchLabels:
+      io.cilium/lb-ipam: tailscale
+
+---
+# L2 announcement policy for Tailscale interface
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: tailscale-l2-policy
+spec:
+  interfaces:
+    - tailscale0  # Tailscale interface in Talos VMs
+  loadBalancerIPs: true
+  externalIPs: true
+  serviceSelector:
+    matchLabels:
+      io.cilium/lb-ipam: tailscale
+
+---
+# Option 2: Using OCI reserved public IP (requires Proxmox bridge mode)
+# ONLY USE IF: Talos VMs are bridged directly to OCI network
+# This will NOT work if VMs are on private subnet behind NAT
+apiVersion: cilium.io/v2alpha1
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: oci-public-pool
+spec:
+  blocks:
+    - start: "YOUR_RESERVED_IP_2"  # Replace with actual OCI reserved IP
+      stop: "YOUR_RESERVED_IP_2"   # Single IP
+  serviceSelector:
+    matchLabels:
+      io.cilium/lb-ipam: oci-public
+
+---
+# L2 announcement policy for OCI public network
+# Announces on eth0 (primary interface)
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: oci-public-l2-policy
+spec:
+  interfaces:
+    - eth0  # Primary network interface in Talos VMs
+  loadBalancerIPs: true
+  externalIPs: true
+  serviceSelector:
+    matchLabels:
+      io.cilium/lb-ipam: oci-public
+
+---
+# Option 3: Using Proxmox private network with manual DNAT
+# Use private IPs for LoadBalancer, expose via Proxmox port forwarding
+apiVersion: cilium.io/v2alpha1
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: private-pool
+spec:
+  blocks:
+    - cidr: 10.0.100.0/24  # Private IP range for LoadBalancers
+  serviceSelector:
+    matchLabels:
+      io.cilium/lb-ipam: private
+
+---
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: private-l2-policy
+spec:
+  interfaces:
+    - eth0
+  loadBalancerIPs: true
+  externalIPs: true
+  serviceSelector:
+    matchLabels:
+      io.cilium/lb-ipam: private
+
+---
+# Example service using Tailscale LoadBalancer (Option 1 - RECOMMENDED)
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: my-service
+#   labels:
+#     io.cilium/lb-ipam: tailscale  # Match pool selector
+# spec:
+#   type: LoadBalancer
+#   selector:
+#     app: my-app
+#   ports:
+#     - port: 80
+#       targetPort: 8080
+
+---
+# Example service using OCI public IP (Option 2)
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: my-public-service
+#   labels:
+#     io.cilium/lb-ipam: oci-public  # Match pool selector
+# spec:
+#   type: LoadBalancer
+#   selector:
+#     app: my-app
+#   ports:
+#     - port: 443
+#       targetPort: 8443
+
+---
+# TROUBLESHOOTING:
+#
+# 1. Check IP pool status:
+#    kubectl get ciliumloadbalancerippool
+#
+# 2. Check L2 announcement policy:
+#    kubectl get ciliuml2announcementpolicy
+#
+# 3. Verify LoadBalancer IP assignment:
+#    kubectl get svc -A | grep LoadBalancer
+#
+# 4. Check Cilium agent logs for L2 errors:
+#    kubectl logs -n kube-system ds/cilium | grep -i l2
+#
+# 5. Verify network interfaces in Talos VM:
+#    talosctl get links -n <node-ip>
+#
+# 6. Test connectivity from outside:
+#    If using Tailscale: ping <service-lb-ip> from Tailscale network
+#    If using public IP: ping <service-lb-ip> from internet (if firewall allows)

@@ -1,0 +1,142 @@
+# Cilium Helm values for Talos + OCI Free Tier
+# Kube-proxy-free mode with L2 announcement and Hubble observability
+
+# Kube-proxy replacement (required for kube-proxy-free mode)
+kubeProxyReplacement: true
+
+# Talos API server access via KubePrism
+k8sServiceHost: localhost
+k8sServicePort: 7445
+
+# IPAM mode - Kubernetes (default for most deployments)
+ipam:
+  mode: kubernetes
+
+# Enable IPv4 (IPv6 optional if OCI supports it)
+ipv4:
+  enabled: true
+ipv6:
+  enabled: false
+
+# L2 announcements for LoadBalancer services
+l2announcements:
+  enabled: true
+
+# LB IPAM for LoadBalancer service IP allocation
+# IP pool will be configured via CiliumLoadBalancerIPPool CRD
+externalIPs:
+  enabled: true
+
+# Hubble for network observability
+hubble:
+  enabled: true
+  
+  relay:
+    enabled: true
+    # Expose Hubble relay
+    service:
+      type: ClusterIP
+  
+  ui:
+    enabled: true
+    # Expose Hubble UI
+    service:
+      type: ClusterIP
+    # For external access, use kubectl port-forward or create LoadBalancer service
+  
+  metrics:
+    enabled:
+      - dns:query
+      - drop
+      - tcp
+      - flow
+      - icmp
+      - http
+    serviceMonitor:
+      enabled: false  # Enable if using Prometheus Operator
+  
+  # Hubble export for Grafana Alloy
+  export:
+    fileMaxSizeMb: 10
+    fileMaxBackups: 5
+
+# Operator configuration
+operator:
+  replicas: 1  # Single replica for 3-node cluster
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: false  # Enable if using Prometheus Operator
+
+# Cilium agent configuration
+agent:
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: false  # Enable if using Prometheus Operator
+
+# Gateway API support (modern ingress alternative)
+gatewayAPI:
+  enabled: true
+
+# Security - encryption (optional, has performance impact on ARM)
+encryption:
+  enabled: false  # Enable if you need pod-to-pod encryption (WireGuard)
+  type: wireguard
+
+# BPF masquerade for NAT (more efficient than iptables)
+bpf:
+  masquerade: true
+
+# Bandwidth manager (requires kernel 5.10+, Talos has this)
+bandwidthManager:
+  enabled: true
+  bbr: true  # Use BBR congestion control
+
+# Cilium agent resources (conservative for ARM Ampere)
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Debug mode (disable in production)
+debug:
+  enabled: false
+
+# Install CRDs
+installCRDs: true
+
+# Rollout strategy
+rollOutCiliumPods: true
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 1
+
+# BGP control plane (disabled, using L2 announcement instead)
+bgpControlPlane:
+  enabled: false
+
+# MTU detection
+autoDirectNodeRoutes: true
+endpointRoutes:
+  enabled: true
+
+# Monitoring
+monitor:
+  enabled: true
+
+# Cluster mesh (disabled for single cluster)
+clustermesh:
+  useAPIServer: false
+
+# Node selector for Cilium (all nodes)
+nodeSelector:
+  kubernetes.io/os: linux
+
+# Tolerations for control plane nodes
+tolerations:
+  - operator: Exists

@@ -1,0 +1,141 @@
+# Allow essential system traffic
+#
+# These policies allow traffic required for cluster operation:
+# - Kubelet health checks
+# - Metrics collection
+# - System component communication
+
+---
+# Allow kubelet health/liveness/readiness probes from nodes
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: allow-kubelet-probes
+spec:
+  description: "Allow kubelet to perform health checks on pods"
+  endpointSelector: {}  # All pods
+  ingress:
+    - fromEntities:
+        - host  # Traffic from node (kubelet)
+      toPorts:
+        - ports:
+            - port: "8080"  # Common health check port
+            - port: "9090"  # Common metrics port
+            - port: "10250"  # Kubelet API
+
+---
+# Allow kube-apiserver to reach webhooks
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-apiserver-webhooks
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels:
+      component: kube-apiserver
+  egress:
+    - toEndpoints:
+        - {}  # Allow apiserver to reach all pods for webhooks
+      toPorts:
+        - ports:
+            - port: "443"
+            - port: "9443"  # Common webhook ports
+
+---
+# Allow CoreDNS to function
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-coredns
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s-app: kube-dns
+  ingress:
+    - fromEndpoints:
+        - {}  # Allow from all pods (DNS queries)
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+  egress:
+    - toEntities:
+        - world  # Allow external DNS queries
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            k8s-app: kube-dns  # Allow CoreDNS inter-pod communication
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+---
+# Allow metrics collection by monitoring system
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: allow-metrics-collection
+spec:
+  description: "Allow Grafana Alloy to scrape metrics"
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+            app: grafana-alloy
+      toPorts:
+        - ports:
+            - port: "9090"  # Prometheus metrics
+            - port: "8080"  # Common metrics port
+
+---
+# Allow Hubble metrics collection
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-hubble-metrics
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s-app: cilium
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s-app: cilium-hubble-relay
+      toPorts:
+        - ports:
+            - port: "4244"  # Hubble metrics
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9965"  # Cilium agent metrics
+
+---
+# Allow Tailscale operator to access services
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: allow-tailscale-operator
+spec:
+  description: "Allow Tailscale operator to proxy services"
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: tailscale
+            app: tailscale-operator
