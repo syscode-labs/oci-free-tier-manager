@@ -79,12 +79,35 @@ terraform version
 
 ### Terraform Infrastructure (`terraform/`)
 
+**Two-layer Terraform structure:**
+
+#### Layer 1: OCI Infrastructure (`terraform/oci/`)
 **File structure follows standard practices:**
 - `main.tf` - primary resource definitions (VCN, compute, storage, budgets)
 - `variables.tf` - input variable declarations with validation
 - `data.tf` - data sources (availability domains, OS images)
-- `outputs.tf` - output values (IPs, SSH commands)
+- `outputs.tf` - output values (IPs, SSH commands, Proxmox access)
 - `terraform.tfvars.example` - example configuration (copy to `terraform.tfvars`)
+
+#### Layer 2: Proxmox + Talos (`terraform/proxmox/`)
+**Automated Talos K8s deployment:**
+- `providers.tf` - Proxmox provider (`bpg/proxmox`) and Kubernetes provider
+- `talos.tf` - Talos VM definitions and machine configs
+- `talos-config.yaml.tpl` - Talos machine config template
+- `flux.tf` - Automated Age secret injection for SOPS
+- `variables.tf` - Talos-specific variables (node count, resources, Flux repo URL)
+- `outputs.tf` - Kubeconfig, cluster endpoints
+
+**Deployment flow:**
+```bash
+# Step 1: Deploy OCI infrastructure (Proxmox hosts)
+cd terraform/oci
+terraform apply
+
+# Step 2: Deploy Talos VMs on Proxmox (fully automated)
+cd ../proxmox
+terraform apply  # Creates VMs, injects configs, bootstraps cluster
+```
 
 **Resource architecture:**
 1. **Networking layer** - VCN, subnet, internet gateway, route table, security list (SSH/HTTP/HTTPS/ICMP)
@@ -698,14 +721,109 @@ The infrastructure is deployed in sequential phases:
 4. Verify distributed storage and VM migration capability
 5. Test VM live migration programmatically (see Testing section below)
 
-**Phase 4: Talos K8s Deployment**
-1. Deploy Talos Linux VMs on Proxmox cluster
-2. Bootstrap 3-node K8s cluster with CNI disabled and kube-proxy disabled
-3. Install Cilium CNI from external manifest (kube-proxy-free + Hubble)
-4. Install OCI Cloud Controller Manager from external manifest (optional)
-5. Install Tailscale Operator from external manifest
-6. Apply default-deny network policies
-7. Configure 1:1 NAT on Proxmox for reserved IP #2 → K8s NodePort
+**Phase 4: Automated Talos K8s Deployment**
+
+**Fully automated via Terraform + Proxmox provider:**
+
+1. **Terraform provisions Talos VMs** on Proxmox cluster:
+   - Uses Proxmox Terraform provider (`bpg/proxmox`)
+   - Downloads Talos nocloud image from Image Factory
+   - Creates 3 VMs (1 control plane + 2 workers, or 3 control planes)
+   - Injects Talos machine config via cloud-init
+   - Auto-starts VMs
+
+2. **Talos machine config embedded** in Terraform (rendered as template):
+   ```hcl
+   # terraform/talos.tf
+   resource "proxmox_virtual_environment_vm" "talos_controlplane" {
+     count = 3
+     
+     initialization {
+       user_data_file_id = proxmox_virtual_environment_file.talos_config[count.index].id
+     }
+   }
+   
+   resource "proxmox_virtual_environment_file" "talos_config" {
+     count = 3
+     
+     content_type = "snippets"
+     datastore_id = "local"
+     node_name    = "pve1"
+     
+     source_raw {
+       data = templatefile("${path.module}/talos-config.yaml.tpl", {
+         hostname       = "talos-cp-${count.index}"
+         cluster_name   = "oci-k8s"
+         flux_repo_url  = "https://github.com/syscode-labs/oci-free-tier-flux"
+       })
+       file_name = "talos-config-${count.index}.yaml"
+     }
+   }
+   ```
+
+3. **Talos config template** (`talos-config.yaml.tpl`):
+   ```yaml
+   version: v1alpha1
+   machine:
+     type: controlplane
+     network:
+       hostname: ${hostname}
+   cluster:
+     clusterName: ${cluster_name}
+     network:
+       cni:
+         name: none  # Cilium via external manifest
+     proxy:
+       disabled: true  # kube-proxy-free mode
+     externalCloudProvider:
+       enabled: true
+       manifests:
+         - https://raw.githubusercontent.com/syscode-labs/oci-free-tier-flux/main/bootstrap/cilium.yaml
+         - https://github.com/fluxcd/flux2/releases/download/v2.4.0/install.yaml
+         - https://raw.githubusercontent.com/syscode-labs/oci-free-tier-flux/main/bootstrap/flux-sync.yaml
+   ```
+
+4. **Terraform provisions Age secret** to cluster:
+   ```hcl
+   # After cluster is up, use kubernetes provider
+   resource "kubernetes_secret" "sops_age" {
+     metadata {
+       name      = "sops-age"
+       namespace = "flux-system"
+     }
+     
+     data = {
+       "age.agekey" = file("${path.module}/../secrets/age-key.txt")
+     }
+     
+     depends_on = [null_resource.wait_for_flux]
+   }
+   ```
+
+5. **Full automation flow:**
+   - `terraform apply` → VMs created with Talos
+   - Talos boots → fetches Cilium manifest → networking active
+   - Talos applies Flux → GitOps active
+   - Flux fetches from GitHub → deploys infrastructure
+   - Terraform injects Age key → SOPS decryption active
+   - Flux deploys Tailscale, cert-manager, etc.
+   - **No manual talosctl or kubectl commands needed**
+
+6. **Post-deployment verification** (automated in Terraform):
+   ```hcl
+   resource "null_resource" "verify_cluster" {
+     provisioner "local-exec" {
+       command = <<-EOT
+         kubectl wait --for=condition=ready nodes --all --timeout=5m
+         kubectl wait --for=condition=ready -n kube-system pods --all --timeout=5m
+         kubectl get pods -A
+       EOT
+     }
+     depends_on = [kubernetes_secret.sops_age]
+   }
+   ```
+
+7. Configure 1:1 NAT on Proxmox for reserved IP #2 → K8s NodePort (via Terraform)
 8. Test service exposure: public (via NAT) and internal (via Tailscale)
 
 **Phase 5: Monitoring**
