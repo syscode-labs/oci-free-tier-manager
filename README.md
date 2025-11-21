@@ -113,7 +113,8 @@ Ampere instances are often out of capacity:
 ```bash
 cd tofu/oci
 cp terraform.tfvars.example terraform.tfvars
-vim terraform.tfvars  # Add OCI credentials
+vim terraform.tfvars  # Set compartment_ocid, SSH key, region (uk-london-1)
+                      # OCI credentials read from ~/.oci/config automatically
 
 tofu init
 tofu plan
