@@ -6,7 +6,8 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 This is an OCI (Oracle Cloud Infrastructure) Free Tier management toolkit that maximizes Always Free resources. The project consists of:
 - **Python availability checker** (`check_availability.py`) - monitors when free tier compute instances become available
-- **Terraform infrastructure** (`terraform/`) - provisions free tier resources with budget alerts
+- **OpenTofu infrastructure** (`tofu/`) - provisions free tier resources with budget alerts, Proxmox cluster, and Talos K8s
+- **Flux GitOps repository** (separate repo: `oci-free-tier-flux`) - Kubernetes infrastructure as code
 - **Documentation** - comprehensive guides on OCI Always Free resources
 
 **Account Type:** This project works with both:
@@ -30,28 +31,28 @@ This is an OCI (Oracle Cloud Infrastructure) Free Tier management toolkit that m
 */30 * * * * /path/to/check_availability.py >> /path/to/availability.log 2>&1
 ```
 
-### Terraform Workflow
+### OpenTofu Workflow
 ```bash
 # Initialize (first time only)
-cd terraform
-terraform init
+cd tofu/oci
+tofu init
 
 # Preview changes
-terraform plan
+tofu plan
 
 # Deploy infrastructure
-terraform apply
+tofu apply
 
 # Destroy all resources
-terraform destroy
+tofu destroy
 
 # Format and validate
-terraform fmt
-terraform validate
+tofu fmt
+tofu validate
 
 # View outputs
-terraform output
-terraform output -json > outputs.json
+tofu output
+tofu output -json > outputs.json
 ```
 
 ### Prerequisites Check
@@ -59,8 +60,11 @@ terraform output -json > outputs.json
 # Verify OCI CLI is configured
 oci iam region list
 
-# Verify Terraform is installed
-terraform version
+# Verify OpenTofu is installed
+tofu version
+
+# Install OpenTofu (if needed)
+brew install opentofu
 ```
 
 ## Architecture
@@ -77,37 +81,79 @@ terraform version
 - `check_micro_availability()` - queries VM.Standard.E2.1.Micro capacity
 - `get_availability_domains()` - lists all ADs in region
 
-### Terraform Infrastructure (`terraform/`)
+### OpenTofu Infrastructure (`tofu/`)
 
-**Two-layer Terraform structure:**
+**Three-layer OpenTofu structure for modularity and intervention points:**
 
-#### Layer 1: OCI Infrastructure (`terraform/oci/`)
-**File structure follows standard practices:**
-- `main.tf` - primary resource definitions (VCN, compute, storage, budgets)
-- `variables.tf` - input variable declarations with validation
-- `data.tf` - data sources (availability domains, OS images)
-- `outputs.tf` - output values (IPs, SSH commands, Proxmox access)
-- `terraform.tfvars.example` - example configuration (copy to `terraform.tfvars`)
+#### Layer 1: OCI Infrastructure (`tofu/oci/`)
+**Provisions bare metal OCI resources:**
+- `main.tf` - VCN, compute instances, storage, budgets
+- `variables.tf` - OCI-specific variables with validation
+- `data.tf` - availability domains, OS images
+- `outputs.tf` - public IPs, instance IDs, SSH access
+- `terraform.tfvars.example` - example OCI configuration
 
-#### Layer 2: Proxmox + Talos (`terraform/proxmox/`)
-**Automated Talos K8s deployment:**
-- `providers.tf` - Proxmox provider (`bpg/proxmox`) and Kubernetes provider
-- `talos.tf` - Talos VM definitions and machine configs
-- `talos-config.yaml.tpl` - Talos machine config template
-- `flux.tf` - Automated Age secret injection for SOPS
-- `variables.tf` - Talos-specific variables (node count, resources, Flux repo URL)
-- `outputs.tf` - Kubeconfig, cluster endpoints
+**Outputs:** Ampere instance IPs for Proxmox installation
 
-**Deployment flow:**
+**Intervention point:** Verify OCI instances before installing Proxmox
+
+#### Layer 2: Proxmox Cluster (`tofu/proxmox-cluster/`)
+**Configures Proxmox VE cluster and Ceph:**
+- `providers.tf` - SSH/Ansible provider for Proxmox setup
+- `main.tf` - Proxmox cluster formation, Ceph configuration
+- `ansible-playbook.yaml` - Proxmox installation and hardening
+- `variables.tf` - cluster name, Ceph pool settings
+- `outputs.tf` - Proxmox API endpoints, credentials
+
+**Inputs:** Instance IPs from Layer 1 (via remote state or manual)
+
+**Outputs:** Proxmox API URL, authentication tokens
+
+**Intervention point:** Verify Proxmox cluster health before deploying VMs
+
+#### Layer 3: Talos Kubernetes (`tofu/talos/`)
+**Deploys Talos VMs and bootstraps K8s:**
+- `providers.tf` - Proxmox provider (`bpg/proxmox`), Kubernetes provider
+- `talos-vms.tf` - VM definitions (CPU, RAM, disk)
+- `talos-config.tf` - Machine configs with Flux URLs
+- `talos-config.yaml.tpl` - Talos config template
+- `flux-secrets.tf` - Age key injection to cluster
+- `variables.tf` - node count, resources, Flux repo URL
+- `outputs.tf` - kubeconfig, cluster endpoints
+
+**Inputs:** Proxmox API from Layer 2
+
+**Outputs:** Kubeconfig, Talos API endpoints
+
+**Intervention point:** Access Talos nodes before K8s bootstrap if needed
+
+#### Deployment Flow (Independent Layers)
 ```bash
-# Step 1: Deploy OCI infrastructure (Proxmox hosts)
-cd terraform/oci
-terraform apply
+# Layer 1: Deploy OCI infrastructure
+cd tofu/oci
+tofu init
+tofu apply
+# Intervention: Verify instances are running, SSH access works
 
-# Step 2: Deploy Talos VMs on Proxmox (fully automated)
-cd ../proxmox
-terraform apply  # Creates VMs, injects configs, bootstraps cluster
+# Layer 2: Install Proxmox cluster
+cd ../proxmox-cluster
+tofu init
+tofu apply  # Installs Proxmox, forms cluster, configures Ceph
+# Intervention: Access Proxmox UI, verify cluster quorum, check Ceph
+
+# Layer 3: Deploy Talos VMs and bootstrap K8s
+cd ../talos
+tofu init
+tofu apply  # Creates VMs, injects configs, auto-bootstraps
+# Intervention: Access Talos nodes if needed, verify before bootstrap
 ```
+
+**Benefits of separated layers:**
+- Each layer can be destroyed/redeployed independently
+- Clear intervention points for troubleshooting
+- Can manually configure Proxmox if needed between layers
+- Easier to debug - smaller blast radius per layer
+- Can use different state backends per layer
 
 **Resource architecture:**
 1. **Networking layer** - VCN, subnet, internet gateway, route table, security list (SSH/HTTP/HTTPS/ICMP)
@@ -144,7 +190,7 @@ Ampere instances are frequently out of capacity. The availability checker is des
 ### Storage Calculations
 Example: 4 Ampere instances × 47GB boot = 188GB, leaving only 12GB for additional volumes.
 
-### Terraform Variable Validation
+### OpenTofu Variable Validation
 All variables include validation blocks. Key validations:
 - `ampere_instance_count`: 0-4
 - `ampere_ocpus_per_instance`: 1-4 (total must be ≤4)
@@ -246,14 +292,14 @@ micro_boot_volume_size     = 50
 ### Automated Deployment on Availability
 ```bash
 if ./check_availability.py; then
-    cd terraform && terraform apply -auto-approve
+    cd tofu/oci && tofu apply -auto-approve
 fi
 ```
 
 ### SSH Access
 After deployment, get SSH commands:
 ```bash
-terraform output ssh_connection_commands
+tofu output ssh_connection_commands
 ```
 
 ## Important Constraints
@@ -284,7 +330,7 @@ terraform output ssh_connection_commands
 ### Safety Checks
 
 **Before deploying:**
-- Verify Terraform plan shows only Always Free resources
+- Verify OpenTofu plan shows only Always Free resources
 - Check total storage: `(ampere_count × ampere_boot_size) + (micro_count × micro_boot_size) ≤ 200GB`
 - Check total OCPUs: `ampere_count × ampere_ocpus ≤ 4`
 - Check total RAM: `ampere_count × ampere_memory ≤ 24GB`
@@ -301,7 +347,7 @@ terraform output ssh_connection_commands
 **OCI CLI authentication:**
 - Python script requires OCI CLI configured: `oci setup config`
 - Config file expected at `~/.oci/config`
-- Terraform requires API key credentials in `terraform.tfvars`
+- OpenTofu requires API key credentials in `terraform.tfvars`
 
 ## Custom Image Building with Packer
 
@@ -685,13 +731,13 @@ spec:
 2. Build `proxmox-ampere.qcow2` from base with Packer
 3. Upload both to OCI Object Storage (free tier: 20GB)
 4. Create custom images via OCI CLI
-5. Reference OCIDs in Terraform:
+5. Reference OCIDs in OpenTofu:
    - Micro bastion: base-hardened image
    - Ampere nodes: proxmox-ampere image
 6. Generate Age key and encrypt secrets with SOPS
 7. Commit Flux manifests to public GitHub repo
-8. Bootstrap Talos cluster (includes Cilium + Flux URLs)
-9. Store Age key in cluster for SOPS decryption
+8. Deploy with OpenTofu (automated: OCI → Proxmox → Talos)
+9. OpenTofu injects Age key for SOPS decryption
 10. Flux automatically deploys all infrastructure
 
 ### Deployment Phases
@@ -732,9 +778,9 @@ The infrastructure is deployed in sequential phases:
    - Injects Talos machine config via cloud-init
    - Auto-starts VMs
 
-2. **Talos machine config embedded** in Terraform (rendered as template):
+2. **Talos machine config embedded** in OpenTofu (rendered as template):
    ```hcl
-   # terraform/talos.tf
+   # tofu/talos/talos-vms.tf
    resource "proxmox_virtual_environment_vm" "talos_controlplane" {
      count = 3
      
@@ -783,8 +829,9 @@ The infrastructure is deployed in sequential phases:
          - https://raw.githubusercontent.com/syscode-labs/oci-free-tier-flux/main/bootstrap/flux-sync.yaml
    ```
 
-4. **Terraform provisions Age secret** to cluster:
+4. **OpenTofu provisions Age secret** to cluster:
    ```hcl
+   # tofu/talos/flux-secrets.tf
    # After cluster is up, use kubernetes provider
    resource "kubernetes_secret" "sops_age" {
      metadata {
@@ -793,7 +840,7 @@ The infrastructure is deployed in sequential phases:
      }
      
      data = {
-       "age.agekey" = file("${path.module}/../secrets/age-key.txt")
+       "age.agekey" = file("${path.module}/../../secrets/age-key.txt")
      }
      
      depends_on = [null_resource.wait_for_flux]
@@ -801,15 +848,15 @@ The infrastructure is deployed in sequential phases:
    ```
 
 5. **Full automation flow:**
-   - `terraform apply` → VMs created with Talos
+   - `tofu apply` → VMs created with Talos
    - Talos boots → fetches Cilium manifest → networking active
    - Talos applies Flux → GitOps active
    - Flux fetches from GitHub → deploys infrastructure
-   - Terraform injects Age key → SOPS decryption active
+   - OpenTofu injects Age key → SOPS decryption active
    - Flux deploys Tailscale, cert-manager, etc.
    - **No manual talosctl or kubectl commands needed**
 
-6. **Post-deployment verification** (automated in Terraform):
+6. **Post-deployment verification** (automated in OpenTofu):
    ```hcl
    resource "null_resource" "verify_cluster" {
      provisioner "local-exec" {
@@ -823,7 +870,7 @@ The infrastructure is deployed in sequential phases:
    }
    ```
 
-7. Configure 1:1 NAT on Proxmox for reserved IP #2 → K8s NodePort (via Terraform)
+7. Configure 1:1 NAT on Proxmox for reserved IP #2 → K8s NodePort (via OpenTofu)
 8. Test service exposure: public (via NAT) and internal (via Tailscale)
 
 **Phase 5: Monitoring**
