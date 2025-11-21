@@ -414,61 +414,248 @@ newaliases
 6. Run kernel cleanup
 7. Create image snapshot
 
-### Manifest Hosting Strategy
+### GitOps with Flux and SOPS
 
-**Problem:** Cilium + OCI CCM + Tailscale Operator manifests exceed Talos 1MB inline manifest limit.
+**Architecture:** Use Flux CD for GitOps deployment with SOPS encryption for secrets.
 
-**Solution:** Host manifests in external repository and reference via URL in Talos config.
+**Repository:** `oci-free-tier-flux` (public GitHub repo)
+- Configurations are public and shareable
+- Secrets encrypted with SOPS + Age (only decryptable by cluster)
+- HTTPS access (no SSH keys required)
+- Single source of truth for all Kubernetes resources
 
 **Repository structure:**
 ```
-github.com/your-user/k8s-manifests-private/
-├── cilium/
-│   └── manifest.yaml
-├── oci-ccm/
-│   └── manifest.yaml
-└── tailscale-operator/
-    └── manifest.yaml
+oci-free-tier-flux/
+├── .sops.yaml                         # SOPS configuration (public)
+├── age-key.txt.example                # Example Age key format
+├── README.md                          # Setup and usage instructions
+│
+├── bootstrap/
+│   ├── cilium.yaml                    # Cilium CNI manifest (kube-proxy-free)
+│   └── flux-sync.yaml                 # Flux GitRepository + Kustomization
+│
+├── clusters/
+│   └── oci-free-tier/
+│       ├── flux-system/
+│       │   ├── gotk-components.yaml   # Flux controllers
+│       │   ├── gotk-sync.yaml         # Git sync config
+│       │   └── kustomization.yaml
+│       ├── infrastructure.yaml         # Infrastructure Kustomization
+│       └── apps.yaml                   # Applications Kustomization
+│
+├── infrastructure/
+│   ├── base/
+│   │   ├── cert-manager/              # Cert-manager (for Tailscale)
+│   │   ├── tailscale-operator/        # Tailscale mesh networking
+│   │   ├── oci-ccm/                   # OCI Cloud Controller Manager
+│   │   └── nvidia-device-plugin/      # GPU device plugin
+│   │
+│   └── overlays/
+│       └── prod/
+│           ├── kustomization.yaml
+│           ├── secrets.enc.yaml       # Encrypted secrets (SOPS)
+│           └── patches/
+│
+└── apps/
+    ├── base/
+    │   └── monitoring/
+    │       └── grafana-alloy/
+    └── overlays/
+        └── prod/
 ```
 
-**Generate manifests:**
-```bash
-# Cilium
-helm template cilium cilium/cilium \
-  --version 1.16.5 \
-  --namespace kube-system \
-  --values k8s/cilium/values.yaml \
-  > manifests-repo/cilium/manifest.yaml
+#### Bootstrap Sequence
 
-# OCI CCM (from upstream)
-kubectl kustomize github.com/oracle/oci-cloud-controller-manager \
-  > manifests-repo/oci-ccm/manifest.yaml
+**Critical ordering:** Cilium CNI must be deployed before Flux (Flux pods need networking).
 
-# Tailscale Operator
-helm template tailscale-operator tailscale/tailscale-operator \
-  --namespace tailscale \
-  --set oauth.clientId="$TS_CLIENT_ID" \
-  --set oauth.clientSecret="$TS_CLIENT_SECRET" \
-  > manifests-repo/tailscale-operator/manifest.yaml
-```
-
-**Talos configuration:**
+**Talos machine configuration:**
 ```yaml
 cluster:
+  network:
+    cni:
+      name: none  # Disable default CNI
+  proxy:
+    disabled: true  # Cilium replaces kube-proxy
+  
   externalCloudProvider:
     enabled: true
     manifests:
-      - https://raw.githubusercontent.com/your-user/k8s-manifests-private/main/cilium/manifest.yaml
-      - https://raw.githubusercontent.com/your-user/k8s-manifests-private/main/oci-ccm/manifest.yaml
-      - https://raw.githubusercontent.com/your-user/k8s-manifests-private/main/tailscale-operator/manifest.yaml
+      # 1. Cilium CNI (must be first - provides networking)
+      - https://raw.githubusercontent.com/your-user/oci-free-tier-flux/main/bootstrap/cilium.yaml
+      
+      # 2. Flux installation (GitOps controller)
+      - https://github.com/fluxcd/flux2/releases/download/v2.4.0/install.yaml
+      
+      # 3. Flux sync config (watches Git repo for changes)
+      - https://raw.githubusercontent.com/your-user/oci-free-tier-flux/main/bootstrap/flux-sync.yaml
 ```
 
-**Security options:**
-1. **Private repo with token:** Use GitHub personal access token in URL
-2. **Self-hosted:** Host on bastion via HTTPS with basic auth
-3. **Encrypted repo:** Use git-crypt for manifest encryption
+**What happens at bootstrap:**
+1. Talos fetches and applies Cilium manifest → networking active
+2. Talos fetches and applies Flux controllers → GitOps active
+3. Talos fetches and applies Flux sync config → Flux watches Git repo
+4. Flux automatically deploys infrastructure (Tailscale, OCI CCM, etc.)
+5. Flux continuously reconciles Git state to cluster state
 
-**Recommended:** Private repo, regenerate manifests locally, never commit secrets to public repos.
+#### SOPS Encryption for Secrets
+
+**Why SOPS:** Allows public Git repository while keeping secrets encrypted.
+
+**Setup (one-time):**
+```bash
+# 1. Generate Age encryption key
+age-keygen -o age-key.txt
+# Output: Public key: age1qqz7hjxv8qp2kamxl8txqmjvhcj4jz0qc6zk7z...
+
+# 2. Create .sops.yaml with public key
+cat > .sops.yaml <<EOF
+creation_rules:
+  - path_regex: .*\.enc\.yaml$
+    encrypted_regex: ^(data|stringData|values)$
+    age: age1qqz7hjxv8qp2kamxl8txqmjvhcj4jz0qc6zk7z...
+EOF
+
+# 3. Encrypt secret file
+sops --encrypt secrets.yaml > secrets.enc.yaml
+
+# 4. Commit encrypted file to public repo (safe)
+git add secrets.enc.yaml
+git commit -m "feat: add encrypted secrets"
+
+# 5. After cluster bootstrap, store Age key in cluster
+kubectl create secret generic sops-age \
+  --namespace=flux-system \
+  --from-file=age.agekey=age-key.txt
+```
+
+**Example encrypted secret:**
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tailscale-oauth
+  namespace: tailscale
+stringData:
+  client-id: ENC[AES256_GCM,data:Q2xpZW50SUQ=,iv:...]
+  client-secret: ENC[AES256_GCM,data:U2VjcmV0,iv:...]
+sops:
+  age:
+    - recipient: age1qqz7hjxv8qp2kamxl8txqmjvhcj4jz0qc6zk7z...
+      enc: |
+        -----BEGIN AGE ENCRYPTED FILE-----
+        ...
+        -----END AGE ENCRYPTED FILE-----
+```
+
+**Flux decrypts automatically** when applying manifests (uses `sops-age` secret).
+
+#### Generating Bootstrap Manifests
+
+**Cilium (kube-proxy-free mode):**
+```bash
+# Create Cilium values for Talos
+cat > cilium-values.yaml <<EOF
+kubeProxyReplacement: true
+k8sServiceHost: 127.0.0.1  # Talos API server
+k8sServicePort: 7445       # Talos port
+ipam:
+  mode: kubernetes
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+tunnel: vxlan
+autoDirectNodeRoutes: true
+EOF
+
+# Render to manifest
+helm template cilium cilium/cilium \
+  --version 1.16.5 \
+  --namespace kube-system \
+  --values cilium-values.yaml \
+  > bootstrap/cilium.yaml
+```
+
+**Flux sync configuration:**
+```yaml
+# bootstrap/flux-sync.yaml
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: flux-system
+  namespace: flux-system
+spec:
+  interval: 1m0s
+  ref:
+    branch: main
+  url: https://github.com/your-user/oci-free-tier-flux
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: flux-system
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./clusters/oci-free-tier
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+```
+
+#### Infrastructure Deployment via Flux
+
+**Flux automatically deploys in order:**
+1. **cert-manager** (dependency for Tailscale Operator)
+2. **Tailscale Operator** (mesh networking)
+3. **OCI CCM** (optional, for LoadBalancer services)
+4. **NVIDIA Device Plugin** (GPU support)
+5. **Grafana Alloy** (monitoring agents)
+
+**Example HelmRelease (Tailscale with encrypted secrets):**
+```yaml
+# infrastructure/base/tailscale-operator/helmrelease.yaml
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: tailscale-operator
+  namespace: tailscale
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: tailscale-operator
+      version: 1.76.1
+      sourceRef:
+        kind: HelmRepository
+        name: tailscale
+        namespace: flux-system
+  valuesFrom:
+    - kind: Secret
+      name: tailscale-oauth  # Created from SOPS-encrypted file
+      valuesKey: client-id
+      targetPath: oauth.clientId
+    - kind: Secret
+      name: tailscale-oauth
+      valuesKey: client-secret
+      targetPath: oauth.clientSecret
+```
+
+**Benefits:**
+- ✅ GitOps workflow: commit → Flux applies automatically
+- ✅ Public repository (shareable infrastructure-as-code)
+- ✅ Secrets encrypted (SOPS + Age)
+- ✅ Declarative and reproducible
+- ✅ Self-healing (Flux reverts manual changes)
+- ✅ No manual kubectl apply needed
 
 **Deployment Workflow:**
 1. Build `base-hardened.qcow2` with Packer
@@ -478,12 +665,11 @@ cluster:
 5. Reference OCIDs in Terraform:
    - Micro bastion: base-hardened image
    - Ampere nodes: proxmox-ampere image
-
-**Benefits:**
-- Common hardened base for all nodes
-- Proxmox compatibility guaranteed
-- Fully reproducible and automated
-- Can rebuild either layer independently
+6. Generate Age key and encrypt secrets with SOPS
+7. Commit Flux manifests to public GitHub repo
+8. Bootstrap Talos cluster (includes Cilium + Flux URLs)
+9. Store Age key in cluster for SOPS decryption
+10. Flux automatically deploys all infrastructure
 
 ### Deployment Phases
 
