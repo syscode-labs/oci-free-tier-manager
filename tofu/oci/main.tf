@@ -24,11 +24,16 @@ terraform {
 }
 
 provider "oci" {
-  tenancy_ocid     = var.tenancy_ocid
-  user_ocid        = var.user_ocid
-  fingerprint      = var.fingerprint
-  private_key_path = var.private_key_path
+  # Use variables if provided, otherwise falls back to ~/.oci/config
+  tenancy_ocid     = var.tenancy_ocid != "" ? var.tenancy_ocid : null
+  user_ocid        = var.user_ocid != "" ? var.user_ocid : null
+  fingerprint      = var.fingerprint != "" ? var.fingerprint : null
+  private_key_path = var.private_key_path != "" ? var.private_key_path : null
   region           = var.region
+  
+  # When above values are null, provider automatically reads from:
+  # - Environment variables: TF_VAR_* or OCI_*
+  # - Config file: ~/.oci/config (default profile)
 }
 
 # Virtual Cloud Network

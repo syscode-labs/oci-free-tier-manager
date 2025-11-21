@@ -1,13 +1,19 @@
 # OCI Authentication Configuration
-# Get these values from: https://cloud.oracle.com/identity/domains/my-profile
-tenancy_ocid     = "ocid1.tenancy.oc1..aaaaaaaxxxxx"
-user_ocid        = "ocid1.user.oc1..aaaaaaaxxxxx"
+# These values are automatically read from ~/.oci/config by the OCI provider
+# Run `oci setup config` if you haven't configured OCI CLI yet
+# Only override these if you need to use different credentials than your OCI CLI default profile
+
+# Uncomment and set these only if NOT using OCI CLI config:
+# tenancy_ocid     = "ocid1.tenancy.oc1..aaaaaaaxxxxx"
+# user_ocid        = "ocid1.user.oc1..aaaaaaaxxxxx"
+# fingerprint      = "aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99"
+# private_key_path = "~/.oci/oci_api_key.pem"
+
+# Compartment (required - cannot be auto-detected)
 compartment_ocid = "ocid1.compartment.oc1..aaaaaaaxxxxx"
-fingerprint      = "aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99"
-private_key_path = "~/.oci/oci_api_key.pem"
 
 # Region
-region = "us-ashburn-1"  # Change to your preferred region
+region = "uk-london-1"  # Closest to UK (or use eu-frankfurt-1)
 
 # SSH Key
 # Run: cat ~/.ssh/id_rsa.pub
@@ -18,15 +24,17 @@ budget_alert_email = "your-email@example.com"
 
 # Ampere A1 Configuration (ARM-based, Always Free)
 # Total across all instances: max 4 OCPUs and 24GB RAM
-ampere_instance_count      = 4   # Number of instances (0-4)
-ampere_ocpus_per_instance  = 1   # OCPUs per instance
-ampere_memory_per_instance = 6   # GB RAM per instance
-ampere_boot_volume_size    = 47  # GB (minimum is 47)
+# Recommended for K8s: 3 Ampere + 1 Micro (maxes out free tier)
+ampere_instance_count      = 3    # Number of instances (0-4)
+ampere_ocpus_per_instance  = 1.33 # OCPUs per instance (total: 3.99)
+ampere_memory_per_instance = 8    # GB RAM per instance (total: 24GB)
+ampere_boot_volume_size    = 50   # GB (minimum is 47)
 
 # AMD E2.1.Micro Configuration (x86-based, Always Free)
 # Maximum: 2 instances
-micro_instance_count    = 2   # Number of instances (0-2)
-micro_boot_volume_size  = 47  # GB (minimum is 47)
+# Recommended: 1 instance as bastion/jump host
+micro_instance_count    = 1   # Number of instances (0-2)
+micro_boot_volume_size  = 50  # GB (minimum is 47)
 
 # Additional Block Volume (Optional)
 # Note: Total storage (boot volumes + block volumes) must be ≤ 200GB
