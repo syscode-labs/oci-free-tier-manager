@@ -1,0 +1,67 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/main/.schema/devbox.schema.json",
+  "packages": [
+    "opentofu@latest",
+    "terraform-docs@latest",
+    "tflint@latest",
+    "kubectl@latest",
+    "kubernetes-helm@latest",
+    "age@latest",
+    "sops@latest",
+    "python312@latest",
+    "python312Packages.pip@latest",
+    "pre-commit@latest",
+    "yamllint@latest",
+    "shellcheck@latest",
+    "hadolint@latest",
+    "markdownlint-cli@latest",
+    "jq@latest",
+    "yq-go@latest",
+    "gh@latest"
+  ],
+  "env": {
+    "KUBECONFIG": "$PWD/.kube/config",
+    "SOPS_AGE_KEY_FILE": "$PWD/secrets/age-key.txt"
+  },
+  "shell": {
+    "init_hook": [
+      "echo '🚀 OCI Free Tier Development Environment'",
+      "echo ''",
+      "echo 'Available tools:'",
+      "echo '  - opentofu: Infrastructure as Code'",
+      "echo '  - kubectl: Kubernetes CLI'",
+      "echo '  - helm: Kubernetes package manager'",
+      "echo '  - sops: Secrets encryption'",
+      "echo '  - age: Encryption tool for SOPS'",
+      "echo '  - pre-commit: Git hooks for linting'",
+      "echo ''",
+      "echo 'Quick start:'",
+      "echo '  pre-commit install    # Install git hooks'",
+      "echo '  cd tofu/oci          # Navigate to infrastructure'",
+      "echo '  tofu init            # Initialize OpenTofu'",
+      "echo ''",
+      "# Create directories if they don't exist",
+      "mkdir -p .kube secrets",
+      "# Install pre-commit hooks automatically",
+      "if [ ! -f .git/hooks/pre-commit ]; then",
+      "  pre-commit install",
+      "  echo '✅ Pre-commit hooks installed'",
+      "fi"
+    ],
+    "scripts": {
+      "lint": [
+        "echo '🔍 Running linters...'",
+        "pre-commit run --all-files"
+      ],
+      "fmt": [
+        "echo '✨ Formatting code...'",
+        "tofu fmt -recursive tofu/ || true",
+        "python -m black check_availability.py || true"
+      ],
+      "check": [
+        "echo '🔍 Validating infrastructure...'",
+        "cd tofu/oci && tofu validate || true"
+      ]
+    }
+  }
+}

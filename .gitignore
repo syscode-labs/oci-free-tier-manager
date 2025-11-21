@@ -1,4 +1,17 @@
-# Terraform
+# OpenTofu/Terraform
+tofu/**/.terraform/
+tofu/**/.terraform.lock.hcl
+tofu/**/terraform.tfstate
+tofu/**/terraform.tfstate.backup
+tofu/**/terraform.tfvars
+tofu/**/*.tfplan
+tofu/**/crash.log
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+
+# Terraform (legacy - keeping for backwards compatibility)
 terraform/.terraform/
 terraform/.terraform.lock.hcl
 terraform/terraform.tfstate
@@ -54,3 +67,15 @@ secrets/
 *.secret
 .env
 .env.local
+age-key.txt
+
+# Devbox
+.devbox/
+devbox.lock
+
+# Pre-commit
+.pre-commit-config.yaml.bak
+
+# Kubernetes
+.kube/config
+kubeconfig*
