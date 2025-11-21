@@ -146,7 +146,9 @@ def get_tenancy_id() -> str:
         )
         
         # Try to read from config file
-        with open("/Users/giovanni/.oci/config", "r") as f:
+        import os
+        config_path = os.path.expanduser("~/.oci/config")
+        with open(config_path, "r") as f:
             for line in f:
                 if line.startswith("tenancy="):
                     return line.split("=")[1].strip()

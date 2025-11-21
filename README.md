@@ -22,13 +22,19 @@ curl -fsSL https://get.jetpack.io/devbox | bash
 # 2. Enter development environment
 devbox shell  # Installs all tools automatically
 
-# 3. Check OCI capacity
+# 3. Run automated setup (OCI CLI + SSH keys + tfvars)
+./scripts/setup.sh
+
+# 4. Setup Flux repository (Cilium + SOPS + secrets)
+./scripts/setup-flux.sh ../oci-free-tier-flux
+
+# 5. Check OCI capacity
 ./check_availability.py
 
-# 4. Deploy infrastructure (3 independent layers)
-cd tofu/oci && tofu apply          # Layer 1: OCI instances
-cd ../proxmox-cluster && tofu apply  # Layer 2: Proxmox + Ceph
-cd ../talos && tofu apply            # Layer 3: Talos K8s
+# 6. Deploy infrastructure (fully automated)
+cd tofu/oci && tofu init && tofu apply          # Layer 1: OCI instances
+cd ../proxmox-cluster && tofu init && tofu apply  # Layer 2: Proxmox + Ceph
+cd ../talos && tofu init && tofu apply            # Layer 3: Talos K8s + Flux
 ```
 
 ## Architecture
@@ -86,13 +92,9 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for details.
 ### OCI Account
 
 1. **Create OCI Account** (PAYG recommended for Ampere availability)
-2. **Configure OCI CLI**:
+2. **Run automated setup** (configures OCI CLI, generates SSH keys, creates tfvars):
    ```bash
-   oci setup config
-   ```
-3. **Generate SSH Key**:
-   ```bash
-   ssh-keygen -t ed25519 -f ~/.ssh/oci_key
+   ./scripts/setup.sh
    ```
 
 ## Deployment
@@ -112,14 +114,12 @@ Ampere instances are often out of capacity:
 
 ```bash
 cd tofu/oci
-cp terraform.tfvars.example terraform.tfvars
-vim terraform.tfvars  # Set compartment_ocid, SSH key, region (uk-london-1)
-                      # OCI credentials read from ~/.oci/config automatically
-
 tofu init
-tofu plan
-tofu apply
+tofu plan   # Review what will be created
+tofu apply  # Deploy infrastructure
 ```
+
+**Note**: Configuration was created by `scripts/setup.sh`. Edit `terraform.tfvars` if changes needed.
 
 **Outputs**: Instance IPs, SSH commands
 
