@@ -28,10 +28,15 @@ devbox shell  # Installs all tools automatically
 # 4. Setup Flux repository (Cilium + SOPS + secrets)
 ./scripts/setup-flux.sh ../oci-free-tier-flux
 
-# 5. Check OCI capacity
+# 5. Build custom images with Packer (one-time)
+packer build packer/base-hardened.pkr.hcl
+packer build packer/proxmox-ampere.pkr.hcl
+# Upload to OCI Object Storage and create custom images
+
+# 6. Check OCI capacity
 ./check_availability.py
 
-# 6. Deploy infrastructure (fully automated)
+# 7. Deploy infrastructure (fully automated)
 cd tofu/oci && tofu init && tofu apply          # Layer 1: OCI instances
 cd ../proxmox-cluster && tofu init && tofu apply  # Layer 2: Proxmox + Ceph
 cd ../talos && tofu init && tofu apply            # Layer 3: Talos K8s + Flux
@@ -68,8 +73,9 @@ cd ../talos && tofu init && tofu apply            # Layer 3: Talos K8s + Flux
 
 ## Documentation
 
+- **[ARCHITECTURE-DIAGRAMS.md](docs/ARCHITECTURE-DIAGRAMS.md)** - Visual architecture diagrams
 - **[DEVELOPMENT.md](DEVELOPMENT.md)** - Development environment setup
-- **[WARP.md](WARP.md)** - Architecture and planning
+- **[WARP.md](WARP.md)** - Complete architecture reference
 - **[FREE_TIER_RESOURCES.md](FREE_TIER_RESOURCES.md)** - Complete OCI free tier list
 - **[Flux Repository](https://github.com/syscode-labs/oci-free-tier-flux)** - Kubernetes manifests
 
@@ -99,6 +105,33 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for details.
 
 ## Deployment
 
+### Step 0: Build Custom Images (One-Time)
+
+Build Packer images before deploying:
+
+```bash
+# Build base hardened image (Debian + SSH + Tailscale)
+packer build packer/base-hardened.pkr.hcl
+
+# Build Proxmox image (base + Proxmox VE + Ceph packages)
+packer build packer/proxmox-ampere.pkr.hcl
+
+# Upload to OCI Object Storage
+oci os object put --bucket-name <bucket> --file base-hardened.qcow2
+oci os object put --bucket-name <bucket> --file proxmox-ampere.qcow2
+
+# Create custom images
+oci compute image create --compartment-id <compartment> \
+  --display-name base-hardened \
+  --bucket-name <bucket> --object-name base-hardened.qcow2
+
+oci compute image create --compartment-id <compartment> \
+  --display-name proxmox-ampere \
+  --bucket-name <bucket> --object-name proxmox-ampere.qcow2
+```
+
+**Note**: Reference the custom image OCIDs in `tofu/oci/main.tf` or `data.tf`.
+
 ### Step 1: Check Capacity
 
 Ampere instances are often out of capacity:
@@ -116,14 +149,14 @@ Ampere instances are often out of capacity:
 cd tofu/oci
 tofu init
 tofu plan   # Review what will be created
-tofu apply  # Deploy infrastructure
+tofu apply  # Deploy 3 Ampere (proxmox-ampere image) + 1 Micro (base-hardened image)
 ```
 
-**Note**: Configuration was created by `scripts/setup.sh`. Edit `terraform.tfvars` if changes needed.
+**Note**: Configuration was created by `scripts/setup.sh`. Custom image OCIDs must be set in variables.
 
 **Outputs**: Instance IPs, SSH commands
 
-**Intervention Point**: Verify instances running before continuing
+**Intervention Point**: Verify instances running, Proxmox UI accessible
 
 ### Step 3: Deploy Proxmox Cluster
 
