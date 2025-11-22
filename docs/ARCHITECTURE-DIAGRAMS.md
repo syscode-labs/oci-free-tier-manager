@@ -50,15 +50,7 @@ This diagram shows the complete deployment pipeline from initial setup to runnin
 ```mermaid
 ---
 config:
-  theme: dark
-  themeVariables:
-    darkMode: true
-    fontFamily: "arial"
-    fontSize: "14px"
-  flowchart:
-    useMaxWidth: true
-    htmlLabels: true
-    curve: basis
+  theme: neutral
 ---
 flowchart TB
     Setup["⚙️ Setup<br/><small>OCI CLI + Flux</small>"] --> Build["🔨 Build<br/><small>Images</small>"]
@@ -80,15 +72,7 @@ Initializes the development environment by configuring OCI CLI, generating SSH k
 ```mermaid
 ---
 config:
-  theme: dark
-  themeVariables:
-    darkMode: true
-    fontFamily: "arial"
-    fontSize: "14px"
-  flowchart:
-    useMaxWidth: true
-    htmlLabels: true
-    curve: basis
+  theme: neutral
 ---
 flowchart TB
     Start(["task setup"]) --> CheckOCI{"OCI<br/>CLI?"}
@@ -117,15 +101,7 @@ Builds two custom images using Dagger: a base hardened Debian image with SSH and
 ```mermaid
 ---
 config:
-  theme: dark
-  themeVariables:
-    darkMode: true
-    fontFamily: "arial"
-    fontSize: "14px"
-  flowchart:
-    useMaxWidth: true
-    htmlLabels: true
-    curve: basis
+  theme: neutral
 ---
 flowchart TB
     Start(["task<br/>build:images"]) --> Base["Base Image<br/><small>Debian 12</small>"]
@@ -155,15 +131,7 @@ Provisions Oracle Cloud Infrastructure resources: VCN with networking components
 ```mermaid
 ---
 config:
-  theme: dark
-  themeVariables:
-    darkMode: true
-    fontFamily: "arial"
-    fontSize: "14px"
-  flowchart:
-    useMaxWidth: true
-    htmlLabels: true
-    curve: basis
+  theme: neutral
 ---
 flowchart LR
     Start(["task deploy:oci"]) --> Plan["tofu<br/>plan/apply"]
@@ -185,15 +153,7 @@ Forms a 3-node Proxmox VE cluster using pvecm, then initializes Ceph distributed
 ```mermaid
 ---
 config:
-  theme: dark
-  themeVariables:
-    darkMode: true
-    fontFamily: "arial"
-    fontSize: "14px"
-  flowchart:
-    useMaxWidth: true
-    htmlLabels: true
-    curve: basis
+  theme: neutral
 ---
 flowchart LR
     Start(["task deploy:proxmox"]) --> Cluster["Form<br/>Cluster"]
@@ -219,15 +179,7 @@ Downloads Talos Linux images, creates 3 VMs on Proxmox, and automatically bootst
 ```mermaid
 ---
 config:
-  theme: dark
-  themeVariables:
-    darkMode: true
-    fontFamily: "arial"
-    fontSize: "14px"
-  flowchart:
-    useMaxWidth: true
-    htmlLabels: true
-    curve: basis
+  theme: neutral
 ---
 flowchart LR
     Start(["task deploy:talos"]) --> VMs["Create<br/>VMs"]
@@ -250,15 +202,7 @@ Runs comprehensive checks across all deployment phases to ensure: images are wit
 ```mermaid
 ---
 config:
-  theme: dark
-  themeVariables:
-    darkMode: true
-    fontFamily: "arial"
-    fontSize: "14px"
-  flowchart:
-    useMaxWidth: true
-    htmlLabels: true
-    curve: basis
+  theme: neutral
 ---
 flowchart TB
     Start(["task validate"]) --> Images["Images"]
@@ -295,15 +239,7 @@ Shows the complete technology stack from OCI bare metal instances through Proxmo
 ```mermaid
 ---
 config:
-  theme: dark
-  themeVariables:
-    darkMode: true
-    fontFamily: "arial"
-    fontSize: "14px"
-  flowchart:
-    useMaxWidth: true
-    htmlLabels: true
-    curve: basis
+  theme: neutral
 ---
 graph LR
     subgraph OCI["OCI Infrastructure"]
@@ -340,15 +276,7 @@ Detailed timeline of Talos K8s bootstrapping process. Terraform creates VMs on P
 ```mermaid
 ---
 config:
-  theme: dark
-  themeVariables:
-    darkMode: true
-    fontFamily: "arial"
-    fontSize: "14px"
-  flowchart:
-    useMaxWidth: true
-    htmlLabels: true
-    curve: basis
+  theme: neutral
 ---
 sequenceDiagram
     participant TF as Terraform
@@ -395,15 +323,7 @@ Shows the three independent Terraform layers with intervention points between ea
 ```mermaid
 ---
 config:
-  theme: dark
-  themeVariables:
-    darkMode: true
-    fontFamily: "arial"
-    fontSize: "14px"
-  flowchart:
-    useMaxWidth: true
-    htmlLabels: true
-    curve: basis
+  theme: neutral
 ---
 flowchart TB
     subgraph L1["Layer 1: OCI"]
@@ -442,15 +362,7 @@ Detailed view of OCI networking and compute resources. The VCN provides network 
 ```mermaid
 ---
 config:
-  theme: dark
-  themeVariables:
-    darkMode: true
-    fontFamily: "arial"
-    fontSize: "14px"
-  flowchart:
-    useMaxWidth: true
-    htmlLabels: true
-    curve: basis
+  theme: neutral
 ---
 graph TB
     VCN["VCN<br/>10.0.0.0/16"] --> IGW["Internet<br/>Gateway"]
@@ -476,15 +388,7 @@ Proxmox cluster provisioning workflow using SSH provisioners and Ansible. Reads 
 ```mermaid
 ---
 config:
-  theme: dark
-  themeVariables:
-    darkMode: true
-    fontFamily: "arial"
-    fontSize: "14px"
-  flowchart:
-    useMaxWidth: true
-    htmlLabels: true
-    curve: basis
+  theme: neutral
 ---
 flowchart LR
     Inputs["OCI IPs"] --> SSH["SSH"] --> Cluster["Cluster"] --> Ceph["Ceph"] --> LXC["Tailscale"] --> Test["Test"] --> Outputs["Outputs"]
@@ -499,15 +403,7 @@ Talos Kubernetes deployment pipeline using the Proxmox Terraform provider. Downl
 ```mermaid
 ---
 config:
-  theme: dark
-  themeVariables:
-    darkMode: true
-    fontFamily: "arial"
-    fontSize: "14px"
-  flowchart:
-    useMaxWidth: true
-    htmlLabels: true
-    curve: basis
+  theme: neutral
 ---
 flowchart LR
     Inputs["Proxmox API"] --> Image["Download"] --> Config["Config"] --> VMs["VMs"] --> Bootstrap["Bootstrap"] --> SOPS["SOPS"] --> Outputs["kubeconfig"]
@@ -526,15 +422,7 @@ Complete network architecture showing OCI VCN (10.0.0.0/16), compute instances w
 ```mermaid
 ---
 config:
-  theme: dark
-  themeVariables:
-    darkMode: true
-    fontFamily: "arial"
-    fontSize: "14px"
-  flowchart:
-    useMaxWidth: true
-    htmlLabels: true
-    curve: basis
+  theme: neutral
 ---
 graph TB
     Internet["🌐 Internet"]
@@ -590,15 +478,7 @@ Explains how the 2 free reserved IPs are allocated: #1 for bastion SSH access, #
 ```mermaid
 ---
 config:
-  theme: dark
-  themeVariables:
-    darkMode: true
-    fontFamily: "arial"
-    fontSize: "14px"
-  flowchart:
-    useMaxWidth: true
-    htmlLabels: true
-    curve: basis
+  theme: neutral
 ---
 graph TB
     subgraph Free["Free Tier: 2 Reserved IPs"]
@@ -635,15 +515,7 @@ Shows how free tier limits are enforced at multiple stages: Terraform variable v
 ```mermaid
 ---
 config:
-  theme: dark
-  themeVariables:
-    darkMode: true
-    fontFamily: "arial"
-    fontSize: "14px"
-  flowchart:
-    useMaxWidth: true
-    htmlLabels: true
-    curve: basis
+  theme: neutral
 ---
 graph TB
     subgraph Limits["Free Tier Limits"]
@@ -703,15 +575,7 @@ Simplified validation workflow showing all five checks (images, OCI, Proxmox, Ta
 ```mermaid
 ---
 config:
-  theme: dark
-  themeVariables:
-    darkMode: true
-    fontFamily: "arial"
-    fontSize: "14px"
-  flowchart:
-    useMaxWidth: true
-    htmlLabels: true
-    curve: basis
+  theme: neutral
 ---
 flowchart TB
     V["task validate"] --> I["Images<br/><20GB"]
@@ -742,15 +606,7 @@ flowchart TB
 ```mermaid
 ---
 config:
-  theme: dark
-  themeVariables:
-    darkMode: true
-    fontFamily: "arial"
-    fontSize: "14px"
-  flowchart:
-    useMaxWidth: true
-    htmlLabels: true
-    curve: basis
+  theme: neutral
 ---
 gantt
     title Deployment Timeline (End-to-End)
