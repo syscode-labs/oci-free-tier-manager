@@ -1,14 +1,15 @@
 # Mermaid Diagram Theme Configuration
 # 
-# This file defines the standard theme for all Mermaid diagrams in this project.
-# Use this template when creating new diagrams to ensure consistency.
+# This file defines the standard approach for all Mermaid diagrams in this project.
+# Use this template when creating new diagrams to ensure readability on all backgrounds.
 #
-# Usage: Copy the config block below into your mermaid code block
+# Usage: Copy the init directive AND add style lines for all nodes.
 
----
-config:
-  theme: neutral
----
+# Init directive (put at the very top of the diagram):
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#0891b2','primaryTextColor':'#fff','primaryBorderColor':'#06b6d4','lineColor':'#3b82f6','textColor':'#fff'}}}%%
+
+# Then add explicit style commands for EVERY node:
+# style NodeName fill:#0891b2,stroke:#06b6d4,stroke-width:2px,color:#fff
 
 # Custom Class Definitions
 # Add these after your diagram definition for consistent styling
