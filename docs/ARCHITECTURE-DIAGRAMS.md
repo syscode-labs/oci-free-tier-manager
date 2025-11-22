@@ -1,14 +1,39 @@
 # Architecture Diagrams
 
-Visual representations of the OCI Free Tier infrastructure using clean, readable Mermaid diagrams.
+Visual representations of the OCI Free Tier infrastructure using clean, readable Mermaid diagrams. All diagrams are optimized for both light and dark backgrounds, and sized to avoid horizontal scrolling.
 
 ## Table of Contents
 
-1. [Deployment Pipeline](#deployment-pipeline)
-2. [Talos Kubernetes](#talos-kubernetes)  
-3. [Terraform Layers](#terraform-layers)
-4. [Network Architecture](#network-architecture)
-5. [Cost Enforcement](#cost-enforcement)
+### 1. [Deployment Pipeline](#deployment-pipeline)
+   - [Complete Flow](#complete-flow)
+   - [Phase 0: Setup](#phase-0-setup)
+   - [Phase 1: Build Images](#phase-1-build-images)
+   - [Phase 2: OCI Infrastructure](#phase-2-oci-infrastructure)
+   - [Phase 3: Proxmox Cluster](#phase-3-proxmox-cluster)
+   - [Phase 4: Talos Kubernetes](#phase-4-talos-kubernetes)
+   - [Phase 5: Validation](#phase-5-validation)
+
+### 2. [Talos Kubernetes](#talos-kubernetes)
+   - [Architecture Overview](#architecture-overview)
+   - [Bootstrap Sequence](#bootstrap-sequence)
+
+### 3. [Terraform Layers](#terraform-layers)
+   - [Three-Layer Architecture](#three-layer-architecture)
+   - [Layer 1: OCI Resources](#layer-1-oci-resources)
+   - [Layer 2: Proxmox Setup](#layer-2-proxmox-setup)
+   - [Layer 3: Talos Deployment](#layer-3-talos-deployment)
+
+### 4. [Network Architecture](#network-architecture)
+   - [Physical + Logical Topology](#physical--logical-topology)
+   - [IP Allocation Strategy](#ip-allocation-strategy)
+
+### 5. [Cost Enforcement](#cost-enforcement)
+   - [Free Tier Validation Flow](#free-tier-validation-flow)
+   - [Validation Matrix](#validation-matrix)
+
+### 6. [Deployment Timeline](#deployment-timeline)
+
+### 7. [Legend](#legend)
 
 ---
 
@@ -19,8 +44,8 @@ Visual representations of the OCI Free Tier infrastructure using clean, readable
 End-to-end deployment in 6 phases.
 
 ```mermaid
-%%{init: {'theme':'forest'}}%%
-flowchart LR
+%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+flowchart TB
     Setup["⚙️ Setup<br/><small>OCI CLI + Flux</small>"] --> Build["🔨 Build<br/><small>Images</small>"]
     Build --> OCI["☁️ OCI<br/><small>Infrastructure</small>"]
     OCI --> Proxmox["🗄️ Proxmox<br/><small>Cluster</small>"]
@@ -34,8 +59,8 @@ flowchart LR
 ### Phase 0: Setup
 
 ```mermaid
-%%{init: {'theme':'forest'}}%%
-flowchart LR
+%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+flowchart TB
     Start(["task setup"]) --> CheckOCI{"OCI<br/>CLI?"}
     CheckOCI -->|Missing| InstallOCI["oci setup<br/>config"]
     CheckOCI -->|Exists| GenTF["Generate<br/>tfvars"]
@@ -56,8 +81,8 @@ flowchart LR
 ### Phase 1: Build Images
 
 ```mermaid
-%%{init: {'theme':'forest'}}%%
-flowchart LR
+%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+flowchart TB
     Start(["task<br/>build:images"]) --> Base["Base Image<br/><small>Debian 12</small>"]
     Start --> Proxmox["Proxmox Image<br/><small>+PVE +Ceph</small>"]
     
@@ -79,8 +104,8 @@ flowchart LR
 ### Phase 2: OCI Infrastructure
 
 ```mermaid
-%%{init: {'theme':'forest'}}%%
-flowchart LR
+%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+flowchart TB
     Start(["task<br/>deploy:oci"]) --> Plan["tofu plan"]
     Plan --> Apply["tofu apply"]
     
@@ -99,8 +124,8 @@ flowchart LR
 ### Phase 3: Proxmox Cluster
 
 ```mermaid
-%%{init: {'theme':'forest'}}%%
-flowchart LR
+%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+flowchart TB
     Start(["task<br/>deploy:proxmox"]) --> Node1["pvecm create"]
     Node1 --> Nodes["pvecm add<br/><small>nodes 2-3</small>"]
     
@@ -122,8 +147,8 @@ flowchart LR
 ### Phase 4: Talos Kubernetes
 
 ```mermaid
-%%{init: {'theme':'forest'}}%%
-flowchart LR
+%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+flowchart TB
     Start(["task<br/>deploy:talos"]) --> Image["Download<br/>Talos"]
     Image --> VMs["Create 3×<br/>VMs"]
     VMs --> Boot["Boot"]
@@ -143,7 +168,7 @@ flowchart LR
 ### Phase 5: Validation
 
 ```mermaid
-%%{init: {'theme':'forest'}}%%
+%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
 flowchart TB
     Start(["task validate"]) --> Images["Images"]
     Start --> OCI["OCI"]
@@ -173,7 +198,7 @@ flowchart TB
 ### Architecture Overview
 
 ```mermaid
-%%{init: {'theme':'forest'}}%%
+%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
 graph TB
     subgraph OCI["☁️ OCI Infrastructure"]
         Ampere["3× Ampere A1<br/>ARM64, 1.33 OCPU, 8GB"]
@@ -212,7 +237,7 @@ graph TB
 ### Bootstrap Sequence
 
 ```mermaid
-%%{init: {'theme':'forest'}}%%
+%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
 sequenceDiagram
     participant TF as Terraform
     participant PVE as Proxmox
@@ -252,8 +277,8 @@ sequenceDiagram
 ### Three-Layer Architecture
 
 ```mermaid
-%%{init: {'theme':'forest'}}%%
-graph LR
+%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+flowchart TB
     subgraph L1["Layer 1: OCI"]
         OCI_Main["main.tf<br/><small>VCN + Compute</small>"]
         OCI_Out["outputs.tf<br/><small>IPs</small>"]
@@ -284,7 +309,7 @@ graph LR
 ### Layer 1: OCI Resources
 
 ```mermaid
-%%{init: {'theme':'forest'}}%%
+%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
 graph TB
     VCN["VCN<br/>10.0.0.0/16"] --> IGW["Internet<br/>Gateway"]
     IGW --> RT["Route<br/>Table"]
@@ -303,8 +328,8 @@ graph TB
 ### Layer 2: Proxmox Setup
 
 ```mermaid
-%%{init: {'theme':'forest'}}%%
-graph LR
+%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+flowchart TB
     Inputs["OCI IPs<br/><small>remote state</small>"] --> SSH["SSH<br/>Provisioner"]
     SSH --> Cluster["Form Cluster<br/><small>pvecm</small>"]
     Cluster --> Ceph["Configure Ceph<br/><small>pveceph</small>"]
@@ -316,8 +341,8 @@ graph LR
 ### Layer 3: Talos Deployment
 
 ```mermaid
-%%{init: {'theme':'forest'}}%%
-graph LR
+%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+flowchart TB
     Inputs["Proxmox API<br/><small>remote state</small>"] --> Image["Download<br/>Talos Image"]
     Image --> CloudInit["Render<br/>cloud-init"]
     CloudInit --> VMs["Create<br/>3 VMs"]
@@ -333,7 +358,7 @@ graph LR
 ### Physical + Logical Topology
 
 ```mermaid
-%%{init: {'theme':'forest'}}%%
+%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
 graph TB
     Internet["🌐 Internet"]
     
@@ -382,7 +407,7 @@ graph TB
 ### IP Allocation Strategy
 
 ```mermaid
-%%{init: {'theme':'forest'}}%%
+%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
 graph TB
     subgraph Free["Free Tier: 2 Reserved IPs"]
         R1["Reserved IP #1<br/>→ Bastion<br/><small>Static SSH access</small>"]
@@ -412,7 +437,7 @@ graph TB
 ### Free Tier Validation Flow
 
 ```mermaid
-%%{init: {'theme':'forest'}}%%
+%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
 graph TB
     subgraph Limits["Free Tier Limits"]
         C["Compute<br/>4 OCPU, 24GB"]
@@ -465,8 +490,8 @@ graph TB
 ### Validation Matrix
 
 ```mermaid
-%%{init: {'theme':'forest'}}%%
-graph LR
+%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+flowchart TB
     V["task validate"] --> I["Images<br/><20GB"]
     V --> O["OCI<br/>free tier"]
     V --> P["Proxmox<br/>quorum"]
@@ -493,7 +518,7 @@ graph LR
 ## Deployment Timeline
 
 ```mermaid
-%%{init: {'theme':'forest'}}%%
+%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
 gantt
     title Deployment Timeline (End-to-End)
     dateFormat HH:mm
