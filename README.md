@@ -15,48 +15,50 @@ Complete infrastructure-as-code toolkit for deploying a production-ready Kuberne
 
 ## Quick Start
 
+**Status**: Layer 1 (OCI infrastructure) is implemented. Layers 2-3 (Proxmox, Talos) are planned.
+
 ```bash
 # 1. Install devbox (one-time)
 curl -fsSL https://get.jetpack.io/devbox | bash
 
 # 2. Enter development environment
-devbox shell  # Installs all tools automatically
+devbox shell  # Installs: task, dagger, opentofu, kubectl, sops, etc.
 
 # 3. Run automated setup (OCI CLI + SSH keys + tfvars)
-./scripts/setup.sh
+task setup
 
 # 4. Setup Flux repository (Cilium + SOPS + secrets)
-./scripts/setup-flux.sh ../oci-free-tier-flux
+task setup:flux
 
-# 5. Build custom images with Packer (one-time)
-packer build packer/base-hardened.pkr.hcl
-packer build packer/proxmox-ampere.pkr.hcl
-# Upload to OCI Object Storage and create custom images
+# 5. Build custom images with Dagger (one-time)
+task build:images      # Builds base-hardened + proxmox-ampere
+task build:validate    # Validates images < 20GB
+task build:upload COMPARTMENT_ID=<your-compartment-id>
 
 # 6. Check OCI capacity
 ./check_availability.py
 
-# 7. Deploy infrastructure (fully automated)
-cd tofu/oci && tofu init && tofu apply          # Layer 1: OCI instances
-cd ../proxmox-cluster && tofu init && tofu apply  # Layer 2: Proxmox + Ceph
-cd ../talos && tofu init && tofu apply            # Layer 3: Talos K8s + Flux
+# 7. Deploy infrastructure
+task deploy:oci        # Layer 1: OCI instances ✅ Implemented
+task deploy:proxmox    # Layer 2: Proxmox + Ceph 🚧 Planned
+task deploy:talos      # Layer 3: Talos K8s 🚧 Planned
 ```
 
 ## Architecture
 
 ### Three-Layer OpenTofu Structure
 
-**Layer 1: OCI Infrastructure** (`tofu/oci/`)
+**Layer 1: OCI Infrastructure** (`tofu/oci/`) ✅ **Implemented**
 - Provisions bare metal compute instances
 - Configures networking (VCN, subnets, security rules)
 - Sets up budget alerts
 
-**Layer 2: Proxmox Cluster** (`tofu/proxmox-cluster/`)
+**Layer 2: Proxmox Cluster** (`tofu/proxmox-cluster/`) 🚧 **Planned**
 - Forms 3-node Proxmox cluster (pre-installed via Packer)
 - Configures Ceph for distributed storage
 - Deploys Tailscale as LXC containers
 
-**Layer 3: Talos Kubernetes** (`tofu/talos/`)
+**Layer 3: Talos Kubernetes** (`tofu/talos/`) 🚧 **Planned**
 - Deploys Talos VMs on Proxmox
 - Bootstraps Kubernetes cluster
 - Injects Flux CD for GitOps
@@ -107,30 +109,27 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for details.
 
 ### Step 0: Build Custom Images (One-Time)
 
-Build Packer images before deploying:
+Build images using Dagger:
 
 ```bash
-# Build base hardened image (Debian + SSH + Tailscale)
-packer build packer/base-hardened.pkr.hcl
+# Build both images (base-hardened + proxmox-ampere)
+task build:images
 
-# Build Proxmox image (base + Proxmox VE + Ceph packages)
-packer build packer/proxmox-ampere.pkr.hcl
+# Validate images meet size requirements (< 20GB total)
+task build:validate
 
-# Upload to OCI Object Storage
-oci os object put --bucket-name <bucket> --file base-hardened.qcow2
-oci os object put --bucket-name <bucket> --file proxmox-ampere.qcow2
-
-# Create custom images
-oci compute image create --compartment-id <compartment> \
-  --display-name base-hardened \
-  --bucket-name <bucket> --object-name base-hardened.qcow2
-
-oci compute image create --compartment-id <compartment> \
-  --display-name proxmox-ampere \
-  --bucket-name <bucket> --object-name proxmox-ampere.qcow2
+# Upload to OCI Object Storage and create custom images
+task build:upload COMPARTMENT_ID=<your-compartment-id>
 ```
 
-**Note**: Reference the custom image OCIDs in `tofu/oci/main.tf` or `data.tf`.
+**What this does:**
+- Dagger builds `base-hardened.qcow2` (Debian + SSH + Tailscale)
+- Dagger builds `proxmox-ampere.qcow2` (base + Proxmox VE + Ceph)
+- Validates total size < 20GB (OCI Object Storage free tier limit)
+- Uploads to OCI Object Storage
+- Creates custom compute images
+
+**Note**: Image OCIDs are automatically referenced in `tofu/oci/data.tf`.
 
 ### Step 1: Check Capacity
 
@@ -146,50 +145,35 @@ Ampere instances are often out of capacity:
 ### Step 2: Deploy OCI Infrastructure
 
 ```bash
-cd tofu/oci
-tofu init
-tofu plan   # Review what will be created
-tofu apply  # Deploy 3 Ampere (proxmox-ampere image) + 1 Micro (base-hardened image)
+# Review plan
+task deploy:oci:plan
+
+# Deploy infrastructure
+task deploy:oci  # Deploys 3 Ampere (proxmox-ampere) + 1 Micro (base-hardened)
 ```
 
-**Note**: Configuration was created by `scripts/setup.sh`. Custom image OCIDs must be set in variables.
+**What this does:**
+- Initializes OpenTofu
+- Creates VCN, subnet, security lists
+- Deploys 3 Ampere A1 instances with Proxmox pre-installed
+- Deploys 1 Micro bastion with base hardened image
+- Sets up budget alert ($0.01 threshold)
 
 **Outputs**: Instance IPs, SSH commands
 
-**Intervention Point**: Verify instances running, Proxmox UI accessible
+**Intervention Point**: Verify instances running, Proxmox UI accessible (https://<ampere-ip>:8006)
 
-### Step 3: Deploy Proxmox Cluster
+### Step 3: Manual Configuration (Coming Soon)
 
-```bash
-cd ../proxmox-cluster
-tofu init
-tofu apply  # Forms cluster (pvecm), configures Ceph (pveceph)
-```
+**Layers 2-3 automation is planned.** For now, manually:
 
-**Outputs**: Proxmox API endpoint, credentials
+1. **SSH into Ampere instances** (use outputs from Step 2)
+2. **Form Proxmox cluster** - Follow [WARP.md#proxmox-cluster](WARP.md#proxmox-cluster)
+3. **Configure Ceph** - Follow [PLAN.md#configure-ceph](PLAN.md#phase-3-proxmox-cluster-and-ceph)
+4. **Deploy Talos VMs** - Follow [WARP.md#talos-kubernetes](WARP.md#talos-kubernetes)
+5. **Bootstrap K8s + Flux** - Follow [WARP.md#gitops-with-flux-and-sops](WARP.md#gitops-with-flux-and-sops)
 
-**Intervention Point**: Access Proxmox UI, verify cluster quorum
-
-### Step 4: Deploy Talos Kubernetes
-
-```bash
-cd ../talos
-tofu init
-tofu apply  # Creates VMs, bootstraps K8s, deploys Flux
-```
-
-**Outputs**: Kubeconfig, cluster endpoints
-
-**Intervention Point**: Check cluster before Flux takes over
-
-### Step 5: Flux Deploys Infrastructure
-
-Flux automatically deploys:
-- Cilium CNI (kube-proxy-free)
-- Tailscale Operator
-- OCI Cloud Controller Manager
-- NVIDIA Device Plugin (if GPU enabled)
-- Grafana Alloy (monitoring)
+See [PLAN.md](PLAN.md) for complete manual deployment steps.
 
 ## OCI Free Tier Resources
 
@@ -236,20 +220,31 @@ micro_boot_volume_size     = 50
 
 ```bash
 # Development
-devbox shell                    # Enter dev environment
-devbox run fmt                  # Format all code
-devbox run lint                 # Run all linters
-pre-commit run --all-files      # Run pre-commit hooks
+devbox shell                 # Enter dev environment
+task --list                  # List all available tasks
 
-# Infrastructure
-cd tofu/oci && tofu apply       # Deploy OCI layer
-cd tofu/proxmox-cluster && tofu apply  # Deploy Proxmox layer
-cd tofu/talos && tofu apply     # Deploy Talos layer
+# Setup
+task setup                   # Initial setup (OCI CLI, SSH, tfvars)
+task setup:flux              # Setup Flux repository
 
-# Kubernetes
-kubectl get nodes               # Check cluster
-kubectl get pods -A             # Check all pods
-flux get all                    # Check Flux resources
+# Build
+task build:images            # Build custom images with Dagger
+task build:validate          # Validate image sizes
+task build:upload COMPARTMENT_ID=<id>  # Upload to OCI
+
+# Deploy
+task deploy:oci              # Deploy OCI infrastructure (Layer 1)
+task deploy:oci:plan         # Preview OCI changes
+task deploy:proxmox          # Deploy Proxmox cluster (Layer 2, planned)
+task deploy:talos            # Deploy Talos K8s (Layer 3, planned)
+
+# Destroy
+task destroy:oci             # Destroy OCI infrastructure
+
+# Kubernetes (after K8s is deployed)
+kubectl get nodes            # Check cluster
+kubectl get pods -A          # Check all pods
+flux get all                 # Check Flux resources
 ```
 
 ## Troubleshooting
