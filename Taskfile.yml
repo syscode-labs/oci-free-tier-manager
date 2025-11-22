@@ -61,6 +61,48 @@ tasks:
         msg: "OCI CLI not configured. Run: task setup"
   
   # ============================================================================
+  # State Management
+  # ============================================================================
+  
+  state:setup:
+    desc: Bootstrap OCI Object Storage backend for state
+    cmds:
+      - ./scripts/bootstrap-state-backend.sh
+      - echo ""
+      - echo "Next: Uncomment backend block in tofu/oci/backend.tf"
+      - echo "Then run: task state:migrate"
+  
+  state:migrate:
+    desc: Migrate local state to OCI Object Storage
+    dir: tofu/oci
+    prompt: "This will migrate state to OCI Object Storage. Continue?"
+    cmds:
+      - tofu init -migrate-state
+      - echo "✓ State migrated to OCI Object Storage"
+  
+  state:pull:
+    desc: Download current state from OCI backend
+    dir: tofu/oci
+    cmds:
+      - tofu state pull > terraform.tfstate.backup
+      - echo "✓ State downloaded to terraform.tfstate.backup"
+  
+  state:backup:
+    desc: Create versioned backup of current state
+    dir: tofu/oci
+    cmds:
+      - |
+        BACKUP_FILE="state-backup-$(date +%Y%m%d-%H%M%S).tfstate"
+        tofu state pull > "$BACKUP_FILE"
+        echo "✓ State backed up to $BACKUP_FILE"
+  
+  state:list:
+    desc: List all resources in state
+    dir: tofu/oci
+    cmds:
+      - tofu state list
+  
+  # ============================================================================
   # Phase 2: OCI Infrastructure
   # ============================================================================
   
