@@ -41,3 +41,14 @@ jobs:
         tofu init -backend=false
         tofu validate
         tofu fmt -check
+
+    - name: Install Pluto
+      run: |
+        curl -L https://github.com/FairwindsOps/pluto/releases/download/v5.20.2/pluto_5.20.2_linux_amd64.tar.gz | tar xz
+        sudo mv pluto /usr/local/bin/
+        pluto version
+
+    - name: Check for deprecated APIs with Pluto
+      run: |
+        cd tofu/oci
+        pluto detect-files -d . --target-versions k8s=v1.30.0
