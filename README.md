@@ -33,7 +33,7 @@ task setup:flux
 # 5. Build custom images with Dagger (one-time)
 task build:images      # Builds base-hardened + proxmox-ampere
 task build:validate    # Validates images < 20GB
-task build:upload COMPARTMENT_ID=<your-compartment-id>
+task build:upload      # Uploads to OCI (auto-fetches compartment from config)
 
 # 6. Check OCI capacity
 ./check_availability.py
@@ -119,7 +119,7 @@ task build:images
 task build:validate
 
 # Upload to OCI Object Storage and create custom images
-task build:upload COMPARTMENT_ID=<your-compartment-id>
+task build:upload  # Auto-fetches compartment ID from OCI config
 ```
 
 **What this does:**
@@ -230,7 +230,7 @@ task setup:flux              # Setup Flux repository
 # Build
 task build:images            # Build custom images with Dagger
 task build:validate          # Validate image sizes
-task build:upload COMPARTMENT_ID=<id>  # Upload to OCI
+task build:upload            # Upload to OCI (auto-detects compartment)
 
 # Deploy
 task deploy:oci              # Deploy OCI infrastructure (Layer 1)
