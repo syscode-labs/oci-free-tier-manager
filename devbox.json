@@ -17,7 +17,10 @@
     "markdownlint-cli@latest",
     "jq@latest",
     "yq-go@latest",
-    "gh@latest"
+    "gh@latest",
+    "go-task@latest",
+    "dagger@latest",
+    "packer@latest"
   ],
   "env": {
     "KUBECONFIG": "$PWD/.kube/config",

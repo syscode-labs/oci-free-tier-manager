@@ -1,0 +1,5 @@
+{
+  "name": "oci-free-tier",
+  "sdk": "python",
+  "source": "dagger"
+}
