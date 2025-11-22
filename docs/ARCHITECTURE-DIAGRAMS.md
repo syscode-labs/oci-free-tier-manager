@@ -2,6 +2,8 @@
 
 Visual representations of the OCI Free Tier infrastructure using clean, readable Mermaid diagrams. All diagrams are optimized for both light and dark backgrounds, and sized to avoid horizontal scrolling.
 
+> **Theme Template**: All diagrams use a standardized theme configuration for consistency. See [`mermaid-theme.yaml`](./mermaid-theme.yaml) for the reusable template and color palette reference.
+
 ## Table of Contents
 
 ### 1. [Deployment Pipeline](#deployment-pipeline)
