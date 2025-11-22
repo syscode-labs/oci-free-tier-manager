@@ -1,0 +1,95 @@
+# Mermaid Diagram Theme Configuration
+# 
+# This file defines the standard theme for all Mermaid diagrams in this project.
+# Use this template when creating new diagrams to ensure consistency.
+#
+# Usage: Copy the config block below into your mermaid code block
+
+---
+config:
+  look: neo
+  theme: base
+  themeVariables:
+    # Primary colors (teal/cyan for main nodes)
+    primaryColor: "#2dd4bf"
+    primaryTextColor: "#0f172a"
+    primaryBorderColor: "#14b8a6"
+    
+    # Secondary/tertiary colors
+    secondaryColor: "#a855f7"
+    tertiaryColor: "#f59e0b"
+    
+    # Backgrounds (transparent to adapt to light/dark mode)
+    background: "transparent"
+    mainBkg: "transparent"
+    secondBkg: "#f1f5f9"
+    
+    # Lines and borders (blue for visibility on all backgrounds)
+    lineColor: "#60a5fa"
+    border1: "#60a5fa"
+    border2: "#60a5fa"
+    arrowheadColor: "#60a5fa"
+    
+    # Typography
+    fontFamily: "arial"
+    fontSize: "14px"
+    
+    # Labels and text (dark slate - readable on light/dark)
+    labelBackground: "transparent"
+    textColor: "#0f172a"
+    
+    # Node styling
+    nodeBorder: "#60a5fa"
+    
+    # Cluster/subgraph styling
+    clusterBkg: "#f8fafc"
+    clusterBorder: "#60a5fa"
+    edgeLabelBackground: "transparent"
+    
+    # Sequence diagram specific
+    actorBorder: "#60a5fa"
+    actorBkg: "#e0f2fe"
+    actorTextColor: "#0f172a"
+    actorLineColor: "#60a5fa"
+    signalColor: "#60a5fa"
+    signalTextColor: "#0f172a"
+    labelBoxBkgColor: "#e0f2fe"
+    labelBoxBorderColor: "#60a5fa"
+    labelTextColor: "#0f172a"
+    
+  # Flowchart options
+  flowchart:
+    useMaxWidth: true
+    htmlLabels: true
+    curve: basis
+---
+
+# Custom Class Definitions
+# Add these after your diagram definition for consistent styling
+
+# Success/completion nodes (emerald green)
+classDef success fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff
+
+# Error/failure nodes (red)
+classDef error fill:#ef4444,stroke:#dc2626,stroke-width:2px,color:#fff
+
+# Layer-specific colors for multi-layer architectures
+classDef layer1 fill:#3b82f6,stroke:#2563eb,stroke-width:2px,color:#fff  # Blue
+classDef layer2 fill:#a855f7,stroke:#9333ea,stroke-width:2px,color:#fff  # Purple
+classDef layer3 fill:#2dd4bf,stroke:#14b8a6,stroke-width:2px,color:#fff  # Teal
+
+# Color Palette Reference
+# Primary: #2dd4bf (Teal) - Main nodes
+# Success: #10b981 (Emerald) - Success states
+# Error: #ef4444 (Red) - Error states
+# Lines: #60a5fa (Blue) - Arrows and borders
+# Text: #0f172a (Dark slate) - All text
+# Secondary: #a855f7 (Purple) - Alternative nodes
+# Tertiary: #f59e0b (Amber) - Warnings/highlights
+
+# Why These Colors?
+# - Blue arrows (#60a5fa): Visible on both light and dark backgrounds
+# - Dark text (#0f172a): Readable on both light and dark backgrounds
+# - Transparent backgrounds: Adapts to GitHub's theme automatically
+# - Neo look: Modern, professional appearance with smooth curves
+# - Base theme: Allows full customization via themeVariables
