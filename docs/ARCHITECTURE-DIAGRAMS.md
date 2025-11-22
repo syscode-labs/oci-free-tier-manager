@@ -41,7 +41,9 @@ Visual representations of the OCI Free Tier infrastructure using clean, readable
 
 ### Complete Flow
 
-End-to-end deployment in 6 phases.
+This diagram shows the complete deployment pipeline from initial setup to running applications. Each phase depends on the successful completion of the previous phase. The entire process takes approximately 3 hours including image builds, or 1 hour with pre-built images.
+
+**Related files:** [`Taskfile.yml`](../Taskfile.yml), [`QUICKSTART.md`](./QUICKSTART.md)
 
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
@@ -57,6 +59,10 @@ flowchart TB
 ```
 
 ### Phase 0: Setup
+
+Initializes the development environment by configuring OCI CLI, generating SSH keys, creating terraform.tfvars, and setting up the Flux GitOps repository with SOPS encryption. This phase ensures all prerequisites are met before deploying infrastructure.
+
+**Related files:** [`scripts/setup.sh`](../scripts/setup.sh), [`scripts/setup-flux.sh`](../scripts/setup-flux.sh)
 
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
@@ -79,6 +85,10 @@ flowchart TB
 ```
 
 ### Phase 1: Build Images
+
+Builds two custom images using Dagger: a base hardened Debian image with SSH and Tailscale, and a Proxmox image with PVE and Ceph packages. Both images must total less than 20GB to fit within OCI's free tier object storage limit.
+
+**Related files:** [`packer/base-hardened.pkr.hcl`](../packer/base-hardened.pkr.hcl), [`packer/proxmox-ampere.pkr.hcl`](../packer/proxmox-ampere.pkr.hcl), [`dagger/src/main/__init__.py`](../dagger/src/main/__init__.py)
 
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
@@ -103,6 +113,10 @@ flowchart TB
 
 ### Phase 2: OCI Infrastructure
 
+Provisions Oracle Cloud Infrastructure resources: VCN with networking components, 3 Ampere A1 instances (ARM64), and 1 E2.1.Micro bastion instance. All resources stay within free tier limits (4 OCPU, 24GB RAM, 200GB storage). Tailscale mesh network connects all nodes securely.
+
+**Related files:** [`tofu/oci/main.tf`](../tofu/oci/main.tf), [`tofu/oci/variables.tf`](../tofu/oci/variables.tf)
+
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
 flowchart TB
@@ -122,6 +136,10 @@ flowchart TB
 ```
 
 ### Phase 3: Proxmox Cluster
+
+Forms a 3-node Proxmox VE cluster using pvecm, then initializes Ceph distributed storage for VM live migration. The cluster provides high availability and shared storage across all nodes. Validation checks ensure cluster quorum and Ceph health before proceeding.
+
+**Related files:** [`tofu/proxmox-cluster/main.tf`](../tofu/proxmox-cluster/main.tf), [`WARP.md`](../WARP.md#proxmox-cluster)
 
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
@@ -146,6 +164,10 @@ flowchart TB
 
 ### Phase 4: Talos Kubernetes
 
+Downloads Talos Linux images, creates 3 VMs on Proxmox, and automatically bootstraps a Kubernetes cluster. Cilium provides CNI in kube-proxy-free mode, Flux enables GitOps, and SOPS keys decrypt secrets. The entire K8s setup is fully automated via Terraform.
+
+**Related files:** [`tofu/talos/talos-vms.tf`](../tofu/talos/talos-vms.tf), [`tofu/talos/talos-config.yaml.tpl`](../tofu/talos/talos-config.yaml.tpl)
+
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
 flowchart TB
@@ -166,6 +188,10 @@ flowchart TB
 ```
 
 ### Phase 5: Validation
+
+Runs comprehensive checks across all deployment phases to ensure: images are within size limits, OCI resources match free tier constraints, Proxmox cluster has quorum, Talos nodes are ready, and billing shows $0.00. All validations must pass for successful deployment.
+
+**Related files:** [`scripts/validate-*.sh`](../scripts/), [`Taskfile.yml`](../Taskfile.yml) (validate tasks)
 
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
@@ -197,44 +223,74 @@ flowchart TB
 
 ### Architecture Overview
 
+Shows the complete technology stack from OCI bare metal instances through Proxmox virtualization to Talos Kubernetes and deployed applications. Three Ampere instances run Proxmox with Ceph storage, hosting Talos VMs that form the K8s cluster. A separate Micro instance serves as the SSH bastion.
+
+**Related files:** [`WARP.md`](../WARP.md#architecture), [`PLAN.md`](../PLAN.md#infrastructure-configuration)
+
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
-graph TB
-    subgraph OCI["☁️ OCI Infrastructure"]
-        Ampere["3× Ampere A1<br/>ARM64, 1.33 OCPU, 8GB"]
-        Bastion["1× Micro<br/>x86, 1GB RAM"]
+flowchart TB
+    subgraph OCI["OCI Infrastructure"]
+        A["3x Ampere A1<br/>ARM64, 1.33 OCPU, 8GB"]
+        B["1x Micro Bastion<br/>x86, 1GB RAM"]
     end
     
-    subgraph PVE["🗄️ Proxmox Cluster"]
-        Node1["Node 1"]
-        Node2["Node 2"]
-        Node3["Node 3"]
-        Ceph["Ceph Storage<br/>150GB"]
+    subgraph PVE["Proxmox Cluster"]
+        N1["Proxmox Node 1"]
+        N2["Proxmox Node 2"]
+        N3["Proxmox Node 3"]
     end
     
-    subgraph K8s["🐧 Talos K8s"]
+    subgraph Storage["Ceph Storage"]
+        C["Distributed Storage<br/>150GB"]
+    end
+    
+    subgraph K8s["Talos Kubernetes"]
         CP1["Control Plane 1"]
         CP2["Control Plane 2"]
         CP3["Control Plane 3"]
     end
     
-    subgraph Apps["📦 Applications"]
-        Tailscale["Tailscale"]
-        Cert["cert-manager"]
-        Alloy["Grafana Alloy"]
+    subgraph Apps["Applications"]
+        T["Tailscale Operator"]
+        CM["cert-manager"]
+        GA["Grafana Alloy"]
     end
     
-    Ampere -.-> Node1 & Node2 & Node3
-    Node1 & Node2 & Node3 -.-> Ceph
-    Node1 --> CP1
-    Node2 --> CP2
-    Node3 --> CP3
-    CP1 & CP2 & CP3 --> Tailscale & Cert & Alloy
+    A --> N1
+    A --> N2
+    A --> N3
     
-    Bastion -.SSH.-> Node1 & Node2 & Node3
+    N1 --> C
+    N2 --> C
+    N3 --> C
+    
+    N1 --> CP1
+    N2 --> CP2
+    N3 --> CP3
+    
+    CP1 --> T
+    CP1 --> CM
+    CP1 --> GA
+    
+    CP2 --> T
+    CP2 --> CM
+    CP2 --> GA
+    
+    CP3 --> T
+    CP3 --> CM
+    CP3 --> GA
+    
+    B -.SSH.-> N1
+    B -.SSH.-> N2
+    B -.SSH.-> N3
 ```
 
 ### Bootstrap Sequence
+
+Detailed timeline of Talos K8s bootstrapping process. Terraform creates VMs on Proxmox, Talos boots and fetches Cilium CNI and Flux GitOps manifests from GitHub, then SOPS keys are injected for secret decryption. Flux continuously reconciles the cluster state with the Git repository.
+
+**Related files:** [`tofu/talos/`](../tofu/talos/), [oci-free-tier-flux repo](https://github.com/syscode-labs/oci-free-tier-flux)
 
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
@@ -276,6 +332,10 @@ sequenceDiagram
 
 ### Three-Layer Architecture
 
+Shows the three independent Terraform layers with intervention points between each. Each layer outputs state consumed by the next via remote state data sources. This separation allows independent deployment and destruction of each layer, with clear boundaries and rollback points.
+
+**Related files:** [`tofu/oci/`](../tofu/oci/), [`tofu/proxmox-cluster/`](../tofu/proxmox-cluster/), [`tofu/talos/`](../tofu/talos/)
+
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
 flowchart TB
@@ -308,6 +368,10 @@ flowchart TB
 
 ### Layer 1: OCI Resources
 
+Detailed view of OCI networking and compute resources. The VCN provides network isolation, internet gateway enables external access, security list controls traffic, and budget alert monitors for any charges. All components are defined in `tofu/oci/main.tf`.
+
+**Related files:** [`tofu/oci/main.tf`](../tofu/oci/main.tf), [`tofu/oci/data.tf`](../tofu/oci/data.tf)
+
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
 graph TB
@@ -327,6 +391,10 @@ graph TB
 
 ### Layer 2: Proxmox Setup
 
+Proxmox cluster provisioning workflow using SSH provisioners and Ansible. Reads OCI instance IPs from remote state, forms the cluster, configures Ceph for distributed storage, deploys Tailscale LXC containers for mesh networking, and tests VM live migration.
+
+**Related files:** [`tofu/proxmox-cluster/main.tf`](../tofu/proxmox-cluster/main.tf), [`packer/scripts/tteck-post-install.sh`](../packer/scripts/tteck-post-install.sh)
+
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
 flowchart TB
@@ -339,6 +407,10 @@ flowchart TB
 ```
 
 ### Layer 3: Talos Deployment
+
+Talos Kubernetes deployment pipeline using the Proxmox Terraform provider. Downloads Talos nocloud image from factory.talos.dev, renders machine config template with Flux URLs, creates VMs with cloud-init, automatically bootstraps K8s, and injects SOPS Age key for secret decryption.
+
+**Related files:** [`tofu/talos/talos-vms.tf`](../tofu/talos/talos-vms.tf), [`tofu/talos/flux-secrets.tf`](../tofu/talos/flux-secrets.tf), [`tofu/talos/talos-config.yaml.tpl`](../tofu/talos/talos-config.yaml.tpl)
 
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
@@ -356,6 +428,10 @@ flowchart TB
 ## Network Architecture
 
 ### Physical + Logical Topology
+
+Complete network architecture showing OCI VCN (10.0.0.0/16), compute instances with assigned IPs, Tailscale mesh overlay (100.x.x.x), and Kubernetes internal networks (pods at 10.244.0.0/16, services at 10.96.0.0/12). Traffic flows from internet through IGW to instances, with Tailscale providing secure mesh and K8s ingress handling public services.
+
+**Related files:** [`tofu/oci/main.tf`](../tofu/oci/main.tf#L39-L126) (networking), [`WARP.md`](../WARP.md#networking-architecture)
 
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
@@ -406,6 +482,10 @@ graph TB
 
 ### IP Allocation Strategy
 
+Explains how the 2 free reserved IPs are allocated: #1 for bastion SSH access, #2 for K8s ingress via 1:1 NAT on Proxmox. Ampere nodes use ephemeral IPs for setup, then rely on Tailscale mesh for internal communication. Unlimited internal services can be exposed via Tailscale without consuming public IPs.
+
+**Related files:** [`WARP.md`](../WARP.md#ip-allocation-strategy), [`PLAN.md`](../PLAN.md#networking)
+
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
 graph TB
@@ -435,6 +515,10 @@ graph TB
 ## Cost Enforcement
 
 ### Free Tier Validation Flow
+
+Shows how free tier limits are enforced at multiple stages: Terraform variable validations prevent invalid configs, pre-deployment checks validate plans and image sizes, runtime budget alerts catch unexpected charges, and post-deployment validation confirms $0.00 billing across OCI and Grafana Cloud.
+
+**Related files:** [`tofu/oci/variables.tf`](../tofu/oci/variables.tf) (validations), [`scripts/validate-cost.sh`](../scripts/validate-cost.sh)
 
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
@@ -488,6 +572,10 @@ graph TB
 ```
 
 ### Validation Matrix
+
+Simplified validation workflow showing all five checks (images, OCI, Proxmox, Talos, cost) that must pass for successful deployment. Runs via `task validate` command which executes individual validation scripts for each phase.
+
+**Related files:** [`Taskfile.yml`](../Taskfile.yml#L175-L216) (validate tasks), [`scripts/validate-*.sh`](../scripts/)
 
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
