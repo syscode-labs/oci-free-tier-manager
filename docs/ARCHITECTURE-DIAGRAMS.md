@@ -466,9 +466,9 @@ sequenceDiagram
 
 ### Layer 2: Proxmox Setup (Detailed)
 
-Detailed sequence of Proxmox cluster formation and Ceph configuration.
+Detailed sequence of Proxmox cluster formation and Ceph configuration. Proxmox is pre-installed via Packer images.
 
-**Related files:** [`tofu/proxmox-cluster/main.tf`](../tofu/proxmox-cluster/main.tf)
+**Related files:** [`tofu/proxmox-cluster/main.tf`](../tofu/proxmox-cluster/main.tf), [`packer/proxmox-ampere.pkr.hcl`](../packer/proxmox-ampere.pkr.hcl)
 
 ```mermaid
 %%{init: {'theme':'base', 'themeVariables': {
@@ -486,35 +486,37 @@ Detailed sequence of Proxmox cluster formation and Ceph configuration.
 }}}%%
 sequenceDiagram
     participant TF as Terraform
-    participant N1 as Node 1
-    participant N2 as Node 2
-    participant N3 as Node 3
+    participant N1 as Node 1 (PVE)
+    participant N2 as Node 2 (PVE)
+    participant N3 as Node 3 (PVE)
     
     Note over TF,N3: Read OCI State
-    TF->>TF: Fetch instance IPs
+    TF->>TF: Fetch instance IPs from Layer 1
     
-    Note over TF,N3: Install Proxmox
-    TF->>N1: SSH + Ansible
-    TF->>N2: SSH + Ansible
-    TF->>N3: SSH + Ansible
-    N1-->>TF: Proxmox installed
-    N2-->>TF: Proxmox installed
-    N3-->>TF: Proxmox installed
+    Note over TF,N3: Proxmox Already Installed
+    Note over N1,N3: Images built with Packer<br/>Proxmox + Ceph packages pre-installed
     
     Note over TF,N3: Form Cluster
     TF->>N1: pvecm create cluster
     TF->>N2: pvecm add node1
     TF->>N3: pvecm add node1
-    N1-->>TF: Quorum established
+    N1-->>TF: Quorum established (3 nodes)
     
     Note over TF,N3: Configure Ceph
-    TF->>N1: ceph-mon init
-    TF->>N2: ceph-mon init
-    TF->>N3: ceph-mon init
-    TF->>N1: Create OSD
-    TF->>N2: Create OSD
-    TF->>N3: Create OSD
+    TF->>N1: pveceph init
+    TF->>N2: pveceph init
+    TF->>N3: pveceph init
+    TF->>N1: pveceph createosd
+    TF->>N2: pveceph createosd
+    TF->>N3: pveceph createosd
+    TF->>N1: pveceph pool create
     N1-->>TF: Ceph healthy
+    
+    Note over TF,N3: Deploy Tailscale
+    TF->>N1: Create Tailscale LXC
+    TF->>N2: Create Tailscale LXC
+    TF->>N3: Create Tailscale LXC
+    N1-->>TF: Mesh connected
 ```
 
 ### Layer 3: Talos Deployment (Detailed)
