@@ -136,7 +136,7 @@ resource "oci_core_public_ip" "ingress" {
 
 Deploy:
 ```bash
-cd terraform
+cd tofu/oci
 terraform init
 terraform plan  # Verify only free tier resources
 terraform apply

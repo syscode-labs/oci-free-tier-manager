@@ -354,7 +354,7 @@ Then:
     - cd oci-free-tier-manager
     ↓
 [Configure Credentials]
-    - Edit terraform/terraform.tfvars
+    - Edit tofu/oci/terraform.tfvars
     - Add OCI API keys, compartment IDs
     - Add SSH public key
     ↓
@@ -371,7 +371,7 @@ Then:
     - Create custom images
     ↓
 [Phase 2: Deploy Infrastructure]
-    - cd terraform
+    - cd tofu/oci
     - terraform init
     - terraform plan (verify $0 cost)
     - terraform apply
