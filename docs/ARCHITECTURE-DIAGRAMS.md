@@ -54,7 +54,7 @@ config:
   theme: base
   themeVariables:
     primaryColor: "#2dd4bf"
-    primaryTextColor: "#0f172a"
+    primaryTextColor: "#1e293b"
     primaryBorderColor: "#14b8a6"
     secondaryColor: "#a855f7"
     tertiaryColor: "#f59e0b"
@@ -68,20 +68,20 @@ config:
     fontFamily: "arial"
     fontSize: "14px"
     labelBackground: "transparent"
-    textColor: "#0f172a"
+    textColor: "#64748b"
     nodeBorder: "#60a5fa"
     clusterBkg: "#f8fafc"
     clusterBorder: "#60a5fa"
     edgeLabelBackground: "transparent"
     actorBorder: "#60a5fa"
     actorBkg: "#e0f2fe"
-    actorTextColor: "#0f172a"
+    actorTextColor: "#1e293b"
     actorLineColor: "#60a5fa"
     signalColor: "#60a5fa"
-    signalTextColor: "#0f172a"
+    signalTextColor: "#1e293b"
     labelBoxBkgColor: "#e0f2fe"
     labelBoxBorderColor: "#60a5fa"
-    labelTextColor: "#0f172a"
+    labelTextColor: "#1e293b"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -111,7 +111,7 @@ config:
   theme: base
   themeVariables:
     primaryColor: "#2dd4bf"
-    primaryTextColor: "#0f172a"
+    primaryTextColor: "#1e293b"
     primaryBorderColor: "#14b8a6"
     secondaryColor: "#a855f7"
     tertiaryColor: "#f59e0b"
@@ -125,20 +125,20 @@ config:
     fontFamily: "arial"
     fontSize: "14px"
     labelBackground: "transparent"
-    textColor: "#0f172a"
+    textColor: "#64748b"
     nodeBorder: "#60a5fa"
     clusterBkg: "#f8fafc"
     clusterBorder: "#60a5fa"
     edgeLabelBackground: "transparent"
     actorBorder: "#60a5fa"
     actorBkg: "#e0f2fe"
-    actorTextColor: "#0f172a"
+    actorTextColor: "#1e293b"
     actorLineColor: "#60a5fa"
     signalColor: "#60a5fa"
-    signalTextColor: "#0f172a"
+    signalTextColor: "#1e293b"
     labelBoxBkgColor: "#e0f2fe"
     labelBoxBorderColor: "#60a5fa"
-    labelTextColor: "#0f172a"
+    labelTextColor: "#1e293b"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -175,7 +175,7 @@ config:
   theme: base
   themeVariables:
     primaryColor: "#2dd4bf"
-    primaryTextColor: "#0f172a"
+    primaryTextColor: "#1e293b"
     primaryBorderColor: "#14b8a6"
     secondaryColor: "#a855f7"
     tertiaryColor: "#f59e0b"
@@ -189,20 +189,20 @@ config:
     fontFamily: "arial"
     fontSize: "14px"
     labelBackground: "transparent"
-    textColor: "#0f172a"
+    textColor: "#64748b"
     nodeBorder: "#60a5fa"
     clusterBkg: "#f8fafc"
     clusterBorder: "#60a5fa"
     edgeLabelBackground: "transparent"
     actorBorder: "#60a5fa"
     actorBkg: "#e0f2fe"
-    actorTextColor: "#0f172a"
+    actorTextColor: "#1e293b"
     actorLineColor: "#60a5fa"
     signalColor: "#60a5fa"
-    signalTextColor: "#0f172a"
+    signalTextColor: "#1e293b"
     labelBoxBkgColor: "#e0f2fe"
     labelBoxBorderColor: "#60a5fa"
-    labelTextColor: "#0f172a"
+    labelTextColor: "#1e293b"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -240,7 +240,7 @@ config:
   theme: base
   themeVariables:
     primaryColor: "#2dd4bf"
-    primaryTextColor: "#0f172a"
+    primaryTextColor: "#1e293b"
     primaryBorderColor: "#14b8a6"
     secondaryColor: "#a855f7"
     tertiaryColor: "#f59e0b"
@@ -254,20 +254,20 @@ config:
     fontFamily: "arial"
     fontSize: "14px"
     labelBackground: "transparent"
-    textColor: "#0f172a"
+    textColor: "#64748b"
     nodeBorder: "#60a5fa"
     clusterBkg: "#f8fafc"
     clusterBorder: "#60a5fa"
     edgeLabelBackground: "transparent"
     actorBorder: "#60a5fa"
     actorBkg: "#e0f2fe"
-    actorTextColor: "#0f172a"
+    actorTextColor: "#1e293b"
     actorLineColor: "#60a5fa"
     signalColor: "#60a5fa"
-    signalTextColor: "#0f172a"
+    signalTextColor: "#1e293b"
     labelBoxBkgColor: "#e0f2fe"
     labelBoxBorderColor: "#60a5fa"
-    labelTextColor: "#0f172a"
+    labelTextColor: "#1e293b"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -297,7 +297,7 @@ config:
   theme: base
   themeVariables:
     primaryColor: "#2dd4bf"
-    primaryTextColor: "#0f172a"
+    primaryTextColor: "#1e293b"
     primaryBorderColor: "#14b8a6"
     secondaryColor: "#a855f7"
     tertiaryColor: "#f59e0b"
@@ -311,20 +311,20 @@ config:
     fontFamily: "arial"
     fontSize: "14px"
     labelBackground: "transparent"
-    textColor: "#0f172a"
+    textColor: "#64748b"
     nodeBorder: "#60a5fa"
     clusterBkg: "#f8fafc"
     clusterBorder: "#60a5fa"
     edgeLabelBackground: "transparent"
     actorBorder: "#60a5fa"
     actorBkg: "#e0f2fe"
-    actorTextColor: "#0f172a"
+    actorTextColor: "#1e293b"
     actorLineColor: "#60a5fa"
     signalColor: "#60a5fa"
-    signalTextColor: "#0f172a"
+    signalTextColor: "#1e293b"
     labelBoxBkgColor: "#e0f2fe"
     labelBoxBorderColor: "#60a5fa"
-    labelTextColor: "#0f172a"
+    labelTextColor: "#1e293b"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -358,7 +358,7 @@ config:
   theme: base
   themeVariables:
     primaryColor: "#2dd4bf"
-    primaryTextColor: "#0f172a"
+    primaryTextColor: "#1e293b"
     primaryBorderColor: "#14b8a6"
     secondaryColor: "#a855f7"
     tertiaryColor: "#f59e0b"
@@ -372,20 +372,20 @@ config:
     fontFamily: "arial"
     fontSize: "14px"
     labelBackground: "transparent"
-    textColor: "#0f172a"
+    textColor: "#64748b"
     nodeBorder: "#60a5fa"
     clusterBkg: "#f8fafc"
     clusterBorder: "#60a5fa"
     edgeLabelBackground: "transparent"
     actorBorder: "#60a5fa"
     actorBkg: "#e0f2fe"
-    actorTextColor: "#0f172a"
+    actorTextColor: "#1e293b"
     actorLineColor: "#60a5fa"
     signalColor: "#60a5fa"
-    signalTextColor: "#0f172a"
+    signalTextColor: "#1e293b"
     labelBoxBkgColor: "#e0f2fe"
     labelBoxBorderColor: "#60a5fa"
-    labelTextColor: "#0f172a"
+    labelTextColor: "#1e293b"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -416,7 +416,7 @@ config:
   theme: base
   themeVariables:
     primaryColor: "#2dd4bf"
-    primaryTextColor: "#0f172a"
+    primaryTextColor: "#1e293b"
     primaryBorderColor: "#14b8a6"
     secondaryColor: "#a855f7"
     tertiaryColor: "#f59e0b"
@@ -430,20 +430,20 @@ config:
     fontFamily: "arial"
     fontSize: "14px"
     labelBackground: "transparent"
-    textColor: "#0f172a"
+    textColor: "#64748b"
     nodeBorder: "#60a5fa"
     clusterBkg: "#f8fafc"
     clusterBorder: "#60a5fa"
     edgeLabelBackground: "transparent"
     actorBorder: "#60a5fa"
     actorBkg: "#e0f2fe"
-    actorTextColor: "#0f172a"
+    actorTextColor: "#1e293b"
     actorLineColor: "#60a5fa"
     signalColor: "#60a5fa"
-    signalTextColor: "#0f172a"
+    signalTextColor: "#1e293b"
     labelBoxBkgColor: "#e0f2fe"
     labelBoxBorderColor: "#60a5fa"
-    labelTextColor: "#0f172a"
+    labelTextColor: "#1e293b"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -488,7 +488,7 @@ config:
   theme: base
   themeVariables:
     primaryColor: "#2dd4bf"
-    primaryTextColor: "#0f172a"
+    primaryTextColor: "#1e293b"
     primaryBorderColor: "#14b8a6"
     secondaryColor: "#a855f7"
     tertiaryColor: "#f59e0b"
@@ -502,20 +502,20 @@ config:
     fontFamily: "arial"
     fontSize: "14px"
     labelBackground: "transparent"
-    textColor: "#0f172a"
+    textColor: "#64748b"
     nodeBorder: "#60a5fa"
     clusterBkg: "#f8fafc"
     clusterBorder: "#60a5fa"
     edgeLabelBackground: "transparent"
     actorBorder: "#60a5fa"
     actorBkg: "#e0f2fe"
-    actorTextColor: "#0f172a"
+    actorTextColor: "#1e293b"
     actorLineColor: "#60a5fa"
     signalColor: "#60a5fa"
-    signalTextColor: "#0f172a"
+    signalTextColor: "#1e293b"
     labelBoxBkgColor: "#e0f2fe"
     labelBoxBorderColor: "#60a5fa"
-    labelTextColor: "#0f172a"
+    labelTextColor: "#1e293b"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -560,7 +560,7 @@ config:
   theme: base
   themeVariables:
     primaryColor: "#2dd4bf"
-    primaryTextColor: "#0f172a"
+    primaryTextColor: "#1e293b"
     primaryBorderColor: "#14b8a6"
     secondaryColor: "#a855f7"
     tertiaryColor: "#f59e0b"
@@ -574,20 +574,20 @@ config:
     fontFamily: "arial"
     fontSize: "14px"
     labelBackground: "transparent"
-    textColor: "#0f172a"
+    textColor: "#64748b"
     nodeBorder: "#60a5fa"
     clusterBkg: "#f8fafc"
     clusterBorder: "#60a5fa"
     edgeLabelBackground: "transparent"
     actorBorder: "#60a5fa"
     actorBkg: "#e0f2fe"
-    actorTextColor: "#0f172a"
+    actorTextColor: "#1e293b"
     actorLineColor: "#60a5fa"
     signalColor: "#60a5fa"
-    signalTextColor: "#0f172a"
+    signalTextColor: "#1e293b"
     labelBoxBkgColor: "#e0f2fe"
     labelBoxBorderColor: "#60a5fa"
-    labelTextColor: "#0f172a"
+    labelTextColor: "#1e293b"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -642,7 +642,7 @@ config:
   theme: base
   themeVariables:
     primaryColor: "#2dd4bf"
-    primaryTextColor: "#0f172a"
+    primaryTextColor: "#1e293b"
     primaryBorderColor: "#14b8a6"
     secondaryColor: "#a855f7"
     tertiaryColor: "#f59e0b"
@@ -656,20 +656,20 @@ config:
     fontFamily: "arial"
     fontSize: "14px"
     labelBackground: "transparent"
-    textColor: "#0f172a"
+    textColor: "#64748b"
     nodeBorder: "#60a5fa"
     clusterBkg: "#f8fafc"
     clusterBorder: "#60a5fa"
     edgeLabelBackground: "transparent"
     actorBorder: "#60a5fa"
     actorBkg: "#e0f2fe"
-    actorTextColor: "#0f172a"
+    actorTextColor: "#1e293b"
     actorLineColor: "#60a5fa"
     signalColor: "#60a5fa"
-    signalTextColor: "#0f172a"
+    signalTextColor: "#1e293b"
     labelBoxBkgColor: "#e0f2fe"
     labelBoxBorderColor: "#60a5fa"
-    labelTextColor: "#0f172a"
+    labelTextColor: "#1e293b"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -716,7 +716,7 @@ config:
   theme: base
   themeVariables:
     primaryColor: "#2dd4bf"
-    primaryTextColor: "#0f172a"
+    primaryTextColor: "#1e293b"
     primaryBorderColor: "#14b8a6"
     secondaryColor: "#a855f7"
     tertiaryColor: "#f59e0b"
@@ -730,20 +730,20 @@ config:
     fontFamily: "arial"
     fontSize: "14px"
     labelBackground: "transparent"
-    textColor: "#0f172a"
+    textColor: "#64748b"
     nodeBorder: "#60a5fa"
     clusterBkg: "#f8fafc"
     clusterBorder: "#60a5fa"
     edgeLabelBackground: "transparent"
     actorBorder: "#60a5fa"
     actorBkg: "#e0f2fe"
-    actorTextColor: "#0f172a"
+    actorTextColor: "#1e293b"
     actorLineColor: "#60a5fa"
     signalColor: "#60a5fa"
-    signalTextColor: "#0f172a"
+    signalTextColor: "#1e293b"
     labelBoxBkgColor: "#e0f2fe"
     labelBoxBorderColor: "#60a5fa"
-    labelTextColor: "#0f172a"
+    labelTextColor: "#1e293b"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -777,7 +777,7 @@ config:
   theme: base
   themeVariables:
     primaryColor: "#2dd4bf"
-    primaryTextColor: "#0f172a"
+    primaryTextColor: "#1e293b"
     primaryBorderColor: "#14b8a6"
     secondaryColor: "#a855f7"
     tertiaryColor: "#f59e0b"
@@ -791,20 +791,20 @@ config:
     fontFamily: "arial"
     fontSize: "14px"
     labelBackground: "transparent"
-    textColor: "#0f172a"
+    textColor: "#64748b"
     nodeBorder: "#60a5fa"
     clusterBkg: "#f8fafc"
     clusterBorder: "#60a5fa"
     edgeLabelBackground: "transparent"
     actorBorder: "#60a5fa"
     actorBkg: "#e0f2fe"
-    actorTextColor: "#0f172a"
+    actorTextColor: "#1e293b"
     actorLineColor: "#60a5fa"
     signalColor: "#60a5fa"
-    signalTextColor: "#0f172a"
+    signalTextColor: "#1e293b"
     labelBoxBkgColor: "#e0f2fe"
     labelBoxBorderColor: "#60a5fa"
-    labelTextColor: "#0f172a"
+    labelTextColor: "#1e293b"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -827,7 +827,7 @@ config:
   theme: base
   themeVariables:
     primaryColor: "#2dd4bf"
-    primaryTextColor: "#0f172a"
+    primaryTextColor: "#1e293b"
     primaryBorderColor: "#14b8a6"
     secondaryColor: "#a855f7"
     tertiaryColor: "#f59e0b"
@@ -841,20 +841,20 @@ config:
     fontFamily: "arial"
     fontSize: "14px"
     labelBackground: "transparent"
-    textColor: "#0f172a"
+    textColor: "#64748b"
     nodeBorder: "#60a5fa"
     clusterBkg: "#f8fafc"
     clusterBorder: "#60a5fa"
     edgeLabelBackground: "transparent"
     actorBorder: "#60a5fa"
     actorBkg: "#e0f2fe"
-    actorTextColor: "#0f172a"
+    actorTextColor: "#1e293b"
     actorLineColor: "#60a5fa"
     signalColor: "#60a5fa"
-    signalTextColor: "#0f172a"
+    signalTextColor: "#1e293b"
     labelBoxBkgColor: "#e0f2fe"
     labelBoxBorderColor: "#60a5fa"
-    labelTextColor: "#0f172a"
+    labelTextColor: "#1e293b"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -881,7 +881,7 @@ config:
   theme: base
   themeVariables:
     primaryColor: "#2dd4bf"
-    primaryTextColor: "#0f172a"
+    primaryTextColor: "#1e293b"
     primaryBorderColor: "#14b8a6"
     secondaryColor: "#a855f7"
     tertiaryColor: "#f59e0b"
@@ -895,20 +895,20 @@ config:
     fontFamily: "arial"
     fontSize: "14px"
     labelBackground: "transparent"
-    textColor: "#0f172a"
+    textColor: "#64748b"
     nodeBorder: "#60a5fa"
     clusterBkg: "#f8fafc"
     clusterBorder: "#60a5fa"
     edgeLabelBackground: "transparent"
     actorBorder: "#60a5fa"
     actorBkg: "#e0f2fe"
-    actorTextColor: "#0f172a"
+    actorTextColor: "#1e293b"
     actorLineColor: "#60a5fa"
     signalColor: "#60a5fa"
-    signalTextColor: "#0f172a"
+    signalTextColor: "#1e293b"
     labelBoxBkgColor: "#e0f2fe"
     labelBoxBorderColor: "#60a5fa"
-    labelTextColor: "#0f172a"
+    labelTextColor: "#1e293b"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -972,7 +972,7 @@ config:
   theme: base
   themeVariables:
     primaryColor: "#2dd4bf"
-    primaryTextColor: "#0f172a"
+    primaryTextColor: "#1e293b"
     primaryBorderColor: "#14b8a6"
     secondaryColor: "#a855f7"
     tertiaryColor: "#f59e0b"
@@ -986,20 +986,20 @@ config:
     fontFamily: "arial"
     fontSize: "14px"
     labelBackground: "transparent"
-    textColor: "#0f172a"
+    textColor: "#64748b"
     nodeBorder: "#60a5fa"
     clusterBkg: "#f8fafc"
     clusterBorder: "#60a5fa"
     edgeLabelBackground: "transparent"
     actorBorder: "#60a5fa"
     actorBkg: "#e0f2fe"
-    actorTextColor: "#0f172a"
+    actorTextColor: "#1e293b"
     actorLineColor: "#60a5fa"
     signalColor: "#60a5fa"
-    signalTextColor: "#0f172a"
+    signalTextColor: "#1e293b"
     labelBoxBkgColor: "#e0f2fe"
     labelBoxBorderColor: "#60a5fa"
-    labelTextColor: "#0f172a"
+    labelTextColor: "#1e293b"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -1044,7 +1044,7 @@ config:
   theme: base
   themeVariables:
     primaryColor: "#2dd4bf"
-    primaryTextColor: "#0f172a"
+    primaryTextColor: "#1e293b"
     primaryBorderColor: "#14b8a6"
     secondaryColor: "#a855f7"
     tertiaryColor: "#f59e0b"
@@ -1058,20 +1058,20 @@ config:
     fontFamily: "arial"
     fontSize: "14px"
     labelBackground: "transparent"
-    textColor: "#0f172a"
+    textColor: "#64748b"
     nodeBorder: "#60a5fa"
     clusterBkg: "#f8fafc"
     clusterBorder: "#60a5fa"
     edgeLabelBackground: "transparent"
     actorBorder: "#60a5fa"
     actorBkg: "#e0f2fe"
-    actorTextColor: "#0f172a"
+    actorTextColor: "#1e293b"
     actorLineColor: "#60a5fa"
     signalColor: "#60a5fa"
-    signalTextColor: "#0f172a"
+    signalTextColor: "#1e293b"
     labelBoxBkgColor: "#e0f2fe"
     labelBoxBorderColor: "#60a5fa"
-    labelTextColor: "#0f172a"
+    labelTextColor: "#1e293b"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -1139,7 +1139,7 @@ config:
   theme: base
   themeVariables:
     primaryColor: "#2dd4bf"
-    primaryTextColor: "#0f172a"
+    primaryTextColor: "#1e293b"
     primaryBorderColor: "#14b8a6"
     secondaryColor: "#a855f7"
     tertiaryColor: "#f59e0b"
@@ -1153,20 +1153,20 @@ config:
     fontFamily: "arial"
     fontSize: "14px"
     labelBackground: "transparent"
-    textColor: "#0f172a"
+    textColor: "#64748b"
     nodeBorder: "#60a5fa"
     clusterBkg: "#f8fafc"
     clusterBorder: "#60a5fa"
     edgeLabelBackground: "transparent"
     actorBorder: "#60a5fa"
     actorBkg: "#e0f2fe"
-    actorTextColor: "#0f172a"
+    actorTextColor: "#1e293b"
     actorLineColor: "#60a5fa"
     signalColor: "#60a5fa"
-    signalTextColor: "#0f172a"
+    signalTextColor: "#1e293b"
     labelBoxBkgColor: "#e0f2fe"
     labelBoxBorderColor: "#60a5fa"
-    labelTextColor: "#0f172a"
+    labelTextColor: "#1e293b"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -1205,7 +1205,7 @@ config:
   theme: base
   themeVariables:
     primaryColor: "#2dd4bf"
-    primaryTextColor: "#0f172a"
+    primaryTextColor: "#1e293b"
     primaryBorderColor: "#14b8a6"
     secondaryColor: "#a855f7"
     tertiaryColor: "#f59e0b"
@@ -1219,20 +1219,20 @@ config:
     fontFamily: "arial"
     fontSize: "14px"
     labelBackground: "transparent"
-    textColor: "#0f172a"
+    textColor: "#64748b"
     nodeBorder: "#60a5fa"
     clusterBkg: "#f8fafc"
     clusterBorder: "#60a5fa"
     edgeLabelBackground: "transparent"
     actorBorder: "#60a5fa"
     actorBkg: "#e0f2fe"
-    actorTextColor: "#0f172a"
+    actorTextColor: "#1e293b"
     actorLineColor: "#60a5fa"
     signalColor: "#60a5fa"
-    signalTextColor: "#0f172a"
+    signalTextColor: "#1e293b"
     labelBoxBkgColor: "#e0f2fe"
     labelBoxBorderColor: "#60a5fa"
-    labelTextColor: "#0f172a"
+    labelTextColor: "#1e293b"
   flowchart:
     useMaxWidth: true
     htmlLabels: true

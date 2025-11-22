@@ -12,7 +12,7 @@ config:
   themeVariables:
     # Primary colors (teal/cyan for main nodes)
     primaryColor: "#2dd4bf"
-    primaryTextColor: "#0f172a"
+    primaryTextColor: "#1e293b"
     primaryBorderColor: "#14b8a6"
     
     # Secondary/tertiary colors
@@ -34,9 +34,9 @@ config:
     fontFamily: "arial"
     fontSize: "14px"
     
-    # Labels and text (dark slate - readable on light/dark)
+    # Labels and text (medium gray - readable on light/dark)
     labelBackground: "transparent"
-    textColor: "#0f172a"
+    textColor: "#64748b"
     
     # Node styling
     nodeBorder: "#60a5fa"
@@ -49,13 +49,13 @@ config:
     # Sequence diagram specific
     actorBorder: "#60a5fa"
     actorBkg: "#e0f2fe"
-    actorTextColor: "#0f172a"
+    actorTextColor: "#1e293b"
     actorLineColor: "#60a5fa"
     signalColor: "#60a5fa"
-    signalTextColor: "#0f172a"
+    signalTextColor: "#1e293b"
     labelBoxBkgColor: "#e0f2fe"
     labelBoxBorderColor: "#60a5fa"
-    labelTextColor: "#0f172a"
+    labelTextColor: "#1e293b"
     
   # Flowchart options
   flowchart:
@@ -83,13 +83,14 @@ classDef layer3 fill:#2dd4bf,stroke:#14b8a6,stroke-width:2px,color:#fff  # Teal
 # Success: #10b981 (Emerald) - Success states
 # Error: #ef4444 (Red) - Error states
 # Lines: #60a5fa (Blue) - Arrows and borders
-# Text: #0f172a (Dark slate) - All text
+# Text: #64748b (Slate gray) - Main text, #1e293b (darker) for labels
 # Secondary: #a855f7 (Purple) - Alternative nodes
 # Tertiary: #f59e0b (Amber) - Warnings/highlights
 
 # Why These Colors?
 # - Blue arrows (#60a5fa): Visible on both light and dark backgrounds
-# - Dark text (#0f172a): Readable on both light and dark backgrounds
+# - Medium gray text (#64748b): Readable on both light and dark backgrounds
+# - Darker labels (#1e293b): Better contrast on light colored boxes
 # - Transparent backgrounds: Adapts to GitHub's theme automatically
 # - Neo look: Modern, professional appearance with smooth curves
 # - Base theme: Allows full customization via themeVariables
