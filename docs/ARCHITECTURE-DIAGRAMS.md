@@ -588,6 +588,13 @@ config:
     labelBoxBkgColor: "#0891b2"
     labelBoxBorderColor: "#3b82f6"
     labelTextColor: "#ffffff"
+    noteBkgColor: "#d97706"
+    noteTextColor: "#ffffff"
+    noteBorderColor: "#f59e0b"
+    loopTextColor: "#ffffff"
+    activationBkgColor: "#2563eb"
+    activationBorderColor: "#3b82f6"
+    sequenceNumberColor: "#ffffff"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
