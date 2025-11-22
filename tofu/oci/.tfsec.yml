@@ -1,0 +1,28 @@
+# tfsec configuration for OCI Free Tier security scanning
+# https://aquasecurity.github.io/tfsec/latest/
+
+# Severity levels to check: CRITICAL, HIGH, MEDIUM, LOW
+severity_overrides:
+  # Set specific checks to different severity levels
+  # oracle-compute-no-public-ip: LOW  # We intentionally use public IPs
+
+exclude:
+  # Exclude specific checks that don't apply to free tier use case
+  
+  # We need public IPs for SSH access and services
+  - oracle-compute-no-public-ip
+  
+  # Free tier doesn't support advanced encryption features
+  - oracle-storage-encryption-customer-key
+  
+  # Budget alerts are for monitoring, not critical infrastructure
+  - oracle-budget-encryption
+
+# Minimum severity level that will fail the build
+minimum_severity: MEDIUM
+
+# Custom checks for OCI Free Tier compliance
+# (Note: tfsec doesn't support custom checks directly, use Checkov for that)
+
+# Output format options: default, json, csv, checkstyle, junit, sarif, gif, lovely
+# Using "lovely" for human-readable colored output in CI
