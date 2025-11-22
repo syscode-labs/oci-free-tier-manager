@@ -46,7 +46,45 @@ This diagram shows the complete deployment pipeline from initial setup to runnin
 **Related files:** [`Taskfile.yml`](../Taskfile.yml), [`QUICKSTART.md`](./QUICKSTART.md)
 
 ```mermaid
-%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+---
+config:
+  look: neo
+  theme: base
+  themeVariables:
+    primaryColor: "#2dd4bf"
+    primaryTextColor: "#0f172a"
+    primaryBorderColor: "#14b8a6"
+    secondaryColor: "#a855f7"
+    tertiaryColor: "#f59e0b"
+    background: "transparent"
+    mainBkg: "transparent"
+    secondBkg: "#f1f5f9"
+    lineColor: "#60a5fa"
+    border1: "#60a5fa"
+    border2: "#60a5fa"
+    arrowheadColor: "#60a5fa"
+    fontFamily: "arial"
+    fontSize: "14px"
+    labelBackground: "transparent"
+    textColor: "#0f172a"
+    nodeBorder: "#60a5fa"
+    clusterBkg: "#f8fafc"
+    clusterBorder: "#60a5fa"
+    edgeLabelBackground: "transparent"
+    actorBorder: "#60a5fa"
+    actorBkg: "#e0f2fe"
+    actorTextColor: "#0f172a"
+    actorLineColor: "#60a5fa"
+    signalColor: "#60a5fa"
+    signalTextColor: "#0f172a"
+    labelBoxBkgColor: "#e0f2fe"
+    labelBoxBorderColor: "#60a5fa"
+    labelTextColor: "#0f172a"
+  flowchart:
+    useMaxWidth: true
+    htmlLabels: true
+    curve: basis
+---
 flowchart TB
     Setup["⚙️ Setup<br/><small>OCI CLI + Flux</small>"] --> Build["🔨 Build<br/><small>Images</small>"]
     Build --> OCI["☁️ OCI<br/><small>Infrastructure</small>"]
@@ -65,7 +103,45 @@ Initializes the development environment by configuring OCI CLI, generating SSH k
 **Related files:** [`scripts/setup.sh`](../scripts/setup.sh), [`scripts/setup-flux.sh`](../scripts/setup-flux.sh)
 
 ```mermaid
-%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+---
+config:
+  look: neo
+  theme: base
+  themeVariables:
+    primaryColor: "#2dd4bf"
+    primaryTextColor: "#0f172a"
+    primaryBorderColor: "#14b8a6"
+    secondaryColor: "#a855f7"
+    tertiaryColor: "#f59e0b"
+    background: "transparent"
+    mainBkg: "transparent"
+    secondBkg: "#f1f5f9"
+    lineColor: "#60a5fa"
+    border1: "#60a5fa"
+    border2: "#60a5fa"
+    arrowheadColor: "#60a5fa"
+    fontFamily: "arial"
+    fontSize: "14px"
+    labelBackground: "transparent"
+    textColor: "#0f172a"
+    nodeBorder: "#60a5fa"
+    clusterBkg: "#f8fafc"
+    clusterBorder: "#60a5fa"
+    edgeLabelBackground: "transparent"
+    actorBorder: "#60a5fa"
+    actorBkg: "#e0f2fe"
+    actorTextColor: "#0f172a"
+    actorLineColor: "#60a5fa"
+    signalColor: "#60a5fa"
+    signalTextColor: "#0f172a"
+    labelBoxBkgColor: "#e0f2fe"
+    labelBoxBorderColor: "#60a5fa"
+    labelTextColor: "#0f172a"
+  flowchart:
+    useMaxWidth: true
+    htmlLabels: true
+    curve: basis
+---
 flowchart TB
     Start(["task setup"]) --> CheckOCI{"OCI<br/>CLI?"}
     CheckOCI -->|Missing| InstallOCI["oci setup<br/>config"]
@@ -80,7 +156,7 @@ flowchart TB
     SSH --> Done[("✓")]
     Encrypt --> Done
     
-    classDef success fill:#2d5016,stroke:#5a9216,stroke-width:3px,color:#fff
+    classDef success fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff
     class Done success
 ```
 
@@ -91,7 +167,45 @@ Builds two custom images using Dagger: a base hardened Debian image with SSH and
 **Related files:** [`packer/base-hardened.pkr.hcl`](../packer/base-hardened.pkr.hcl), [`packer/proxmox-ampere.pkr.hcl`](../packer/proxmox-ampere.pkr.hcl), [`dagger/src/main/__init__.py`](../dagger/src/main/__init__.py)
 
 ```mermaid
-%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+---
+config:
+  look: neo
+  theme: base
+  themeVariables:
+    primaryColor: "#2dd4bf"
+    primaryTextColor: "#0f172a"
+    primaryBorderColor: "#14b8a6"
+    secondaryColor: "#a855f7"
+    tertiaryColor: "#f59e0b"
+    background: "transparent"
+    mainBkg: "transparent"
+    secondBkg: "#f1f5f9"
+    lineColor: "#60a5fa"
+    border1: "#60a5fa"
+    border2: "#60a5fa"
+    arrowheadColor: "#60a5fa"
+    fontFamily: "arial"
+    fontSize: "14px"
+    labelBackground: "transparent"
+    textColor: "#0f172a"
+    nodeBorder: "#60a5fa"
+    clusterBkg: "#f8fafc"
+    clusterBorder: "#60a5fa"
+    edgeLabelBackground: "transparent"
+    actorBorder: "#60a5fa"
+    actorBkg: "#e0f2fe"
+    actorTextColor: "#0f172a"
+    actorLineColor: "#60a5fa"
+    signalColor: "#60a5fa"
+    signalTextColor: "#0f172a"
+    labelBoxBkgColor: "#e0f2fe"
+    labelBoxBorderColor: "#60a5fa"
+    labelTextColor: "#0f172a"
+  flowchart:
+    useMaxWidth: true
+    htmlLabels: true
+    curve: basis
+---
 flowchart TB
     Start(["task<br/>build:images"]) --> Base["Base Image<br/><small>Debian 12</small>"]
     Start --> Proxmox["Proxmox Image<br/><small>+PVE +Ceph</small>"]
@@ -105,8 +219,8 @@ flowchart TB
     Upload --> Images["Custom<br/>Images"]
     Images --> Done[("✓")]
     
-    classDef success fill:#2d5016,stroke:#5a9216,stroke-width:3px,color:#fff
-    classDef error fill:#8b0000,stroke:#ff0000,stroke-width:3px,color:#fff
+    classDef success fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff
+    classDef error fill:#ef4444,stroke:#dc2626,stroke-width:2px,color:#fff
     class Done success
     class Fail error
 ```
@@ -118,7 +232,45 @@ Provisions Oracle Cloud Infrastructure resources: VCN with networking components
 **Related files:** [`tofu/oci/main.tf`](../tofu/oci/main.tf), [`tofu/oci/variables.tf`](../tofu/oci/variables.tf)
 
 ```mermaid
-%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+---
+config:
+  look: neo
+  theme: base
+  themeVariables:
+    primaryColor: "#2dd4bf"
+    primaryTextColor: "#0f172a"
+    primaryBorderColor: "#14b8a6"
+    secondaryColor: "#a855f7"
+    tertiaryColor: "#f59e0b"
+    background: "transparent"
+    mainBkg: "transparent"
+    secondBkg: "#f1f5f9"
+    lineColor: "#60a5fa"
+    border1: "#60a5fa"
+    border2: "#60a5fa"
+    arrowheadColor: "#60a5fa"
+    fontFamily: "arial"
+    fontSize: "14px"
+    labelBackground: "transparent"
+    textColor: "#0f172a"
+    nodeBorder: "#60a5fa"
+    clusterBkg: "#f8fafc"
+    clusterBorder: "#60a5fa"
+    edgeLabelBackground: "transparent"
+    actorBorder: "#60a5fa"
+    actorBkg: "#e0f2fe"
+    actorTextColor: "#0f172a"
+    actorLineColor: "#60a5fa"
+    signalColor: "#60a5fa"
+    signalTextColor: "#0f172a"
+    labelBoxBkgColor: "#e0f2fe"
+    labelBoxBorderColor: "#60a5fa"
+    labelTextColor: "#0f172a"
+  flowchart:
+    useMaxWidth: true
+    htmlLabels: true
+    curve: basis
+---
 flowchart LR
     Start(["task deploy:oci"]) --> Plan["tofu<br/>plan/apply"]
     Plan --> VCN["VCN +<br/>Networking"]
@@ -126,7 +278,7 @@ flowchart LR
     Compute --> Mesh["Tailscale<br/>Mesh"]
     Mesh --> Done[("✓")]
     
-    classDef success fill:#2d5016,stroke:#5a9216,stroke-width:3px,color:#fff
+    classDef success fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff
     class Done success
 ```
 
@@ -137,7 +289,45 @@ Forms a 3-node Proxmox VE cluster using pvecm, then initializes Ceph distributed
 **Related files:** [`tofu/proxmox-cluster/main.tf`](../tofu/proxmox-cluster/main.tf), [`WARP.md`](../WARP.md#proxmox-cluster)
 
 ```mermaid
-%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+---
+config:
+  look: neo
+  theme: base
+  themeVariables:
+    primaryColor: "#2dd4bf"
+    primaryTextColor: "#0f172a"
+    primaryBorderColor: "#14b8a6"
+    secondaryColor: "#a855f7"
+    tertiaryColor: "#f59e0b"
+    background: "transparent"
+    mainBkg: "transparent"
+    secondBkg: "#f1f5f9"
+    lineColor: "#60a5fa"
+    border1: "#60a5fa"
+    border2: "#60a5fa"
+    arrowheadColor: "#60a5fa"
+    fontFamily: "arial"
+    fontSize: "14px"
+    labelBackground: "transparent"
+    textColor: "#0f172a"
+    nodeBorder: "#60a5fa"
+    clusterBkg: "#f8fafc"
+    clusterBorder: "#60a5fa"
+    edgeLabelBackground: "transparent"
+    actorBorder: "#60a5fa"
+    actorBkg: "#e0f2fe"
+    actorTextColor: "#0f172a"
+    actorLineColor: "#60a5fa"
+    signalColor: "#60a5fa"
+    signalTextColor: "#0f172a"
+    labelBoxBkgColor: "#e0f2fe"
+    labelBoxBorderColor: "#60a5fa"
+    labelTextColor: "#0f172a"
+  flowchart:
+    useMaxWidth: true
+    htmlLabels: true
+    curve: basis
+---
 flowchart LR
     Start(["task deploy:proxmox"]) --> Cluster["Form<br/>Cluster"]
     Cluster --> Check1{"Quorum?"}
@@ -147,8 +337,8 @@ flowchart LR
     Check2 -->|No| Fail2[("❌")]
     Check2 -->|Yes| Done[("✓")]
     
-    classDef success fill:#2d5016,stroke:#5a9216,stroke-width:3px,color:#fff
-    classDef error fill:#8b0000,stroke:#ff0000,stroke-width:3px,color:#fff
+    classDef success fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff
+    classDef error fill:#ef4444,stroke:#dc2626,stroke-width:2px,color:#fff
     class Done success
     class Fail1,Fail2 error
 ```
@@ -160,7 +350,45 @@ Downloads Talos Linux images, creates 3 VMs on Proxmox, and automatically bootst
 **Related files:** [`tofu/talos/talos-vms.tf`](../tofu/talos/talos-vms.tf), [`tofu/talos/talos-config.yaml.tpl`](../tofu/talos/talos-config.yaml.tpl)
 
 ```mermaid
-%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+---
+config:
+  look: neo
+  theme: base
+  themeVariables:
+    primaryColor: "#2dd4bf"
+    primaryTextColor: "#0f172a"
+    primaryBorderColor: "#14b8a6"
+    secondaryColor: "#a855f7"
+    tertiaryColor: "#f59e0b"
+    background: "transparent"
+    mainBkg: "transparent"
+    secondBkg: "#f1f5f9"
+    lineColor: "#60a5fa"
+    border1: "#60a5fa"
+    border2: "#60a5fa"
+    arrowheadColor: "#60a5fa"
+    fontFamily: "arial"
+    fontSize: "14px"
+    labelBackground: "transparent"
+    textColor: "#0f172a"
+    nodeBorder: "#60a5fa"
+    clusterBkg: "#f8fafc"
+    clusterBorder: "#60a5fa"
+    edgeLabelBackground: "transparent"
+    actorBorder: "#60a5fa"
+    actorBkg: "#e0f2fe"
+    actorTextColor: "#0f172a"
+    actorLineColor: "#60a5fa"
+    signalColor: "#60a5fa"
+    signalTextColor: "#0f172a"
+    labelBoxBkgColor: "#e0f2fe"
+    labelBoxBorderColor: "#60a5fa"
+    labelTextColor: "#0f172a"
+  flowchart:
+    useMaxWidth: true
+    htmlLabels: true
+    curve: basis
+---
 flowchart LR
     Start(["task deploy:talos"]) --> VMs["Create<br/>VMs"]
     VMs --> Cilium["Deploy<br/>Cilium"]
@@ -169,7 +397,7 @@ flowchart LR
     SOPS --> Apps["Apps<br/>Deploy"]
     Apps --> Done[("✓")]
     
-    classDef success fill:#2d5016,stroke:#5a9216,stroke-width:3px,color:#fff
+    classDef success fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff
     class Done success
 ```
 
@@ -180,7 +408,45 @@ Runs comprehensive checks across all deployment phases to ensure: images are wit
 **Related files:** [`scripts/validate-*.sh`](../scripts/), [`Taskfile.yml`](../Taskfile.yml) (validate tasks)
 
 ```mermaid
-%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+---
+config:
+  look: neo
+  theme: base
+  themeVariables:
+    primaryColor: "#2dd4bf"
+    primaryTextColor: "#0f172a"
+    primaryBorderColor: "#14b8a6"
+    secondaryColor: "#a855f7"
+    tertiaryColor: "#f59e0b"
+    background: "transparent"
+    mainBkg: "transparent"
+    secondBkg: "#f1f5f9"
+    lineColor: "#60a5fa"
+    border1: "#60a5fa"
+    border2: "#60a5fa"
+    arrowheadColor: "#60a5fa"
+    fontFamily: "arial"
+    fontSize: "14px"
+    labelBackground: "transparent"
+    textColor: "#0f172a"
+    nodeBorder: "#60a5fa"
+    clusterBkg: "#f8fafc"
+    clusterBorder: "#60a5fa"
+    edgeLabelBackground: "transparent"
+    actorBorder: "#60a5fa"
+    actorBkg: "#e0f2fe"
+    actorTextColor: "#0f172a"
+    actorLineColor: "#60a5fa"
+    signalColor: "#60a5fa"
+    signalTextColor: "#0f172a"
+    labelBoxBkgColor: "#e0f2fe"
+    labelBoxBorderColor: "#60a5fa"
+    labelTextColor: "#0f172a"
+  flowchart:
+    useMaxWidth: true
+    htmlLabels: true
+    curve: basis
+---
 flowchart TB
     Start(["task validate"]) --> Images["Images"]
     Start --> OCI["OCI"]
@@ -197,8 +463,8 @@ flowchart TB
     Check -->|Yes| Success[("✅ Complete")]
     Check -->|No| Fail[("❌ Fix Issues")]
     
-    classDef success fill:#2d5016,stroke:#5a9216,stroke-width:3px,color:#fff
-    classDef error fill:#8b0000,stroke:#ff0000,stroke-width:3px,color:#fff
+    classDef success fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff
+    classDef error fill:#ef4444,stroke:#dc2626,stroke-width:2px,color:#fff
     class Success success
     class Fail error
 ```
@@ -214,7 +480,45 @@ Shows the complete technology stack from OCI bare metal instances through Proxmo
 **Related files:** [`WARP.md`](../WARP.md#architecture), [`PLAN.md`](../PLAN.md#infrastructure-configuration)
 
 ```mermaid
-%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }}}%%
+---
+config:
+  look: neo
+  theme: base
+  themeVariables:
+    primaryColor: "#2dd4bf"
+    primaryTextColor: "#0f172a"
+    primaryBorderColor: "#14b8a6"
+    secondaryColor: "#a855f7"
+    tertiaryColor: "#f59e0b"
+    background: "transparent"
+    mainBkg: "transparent"
+    secondBkg: "#f1f5f9"
+    lineColor: "#60a5fa"
+    border1: "#60a5fa"
+    border2: "#60a5fa"
+    arrowheadColor: "#60a5fa"
+    fontFamily: "arial"
+    fontSize: "14px"
+    labelBackground: "transparent"
+    textColor: "#0f172a"
+    nodeBorder: "#60a5fa"
+    clusterBkg: "#f8fafc"
+    clusterBorder: "#60a5fa"
+    edgeLabelBackground: "transparent"
+    actorBorder: "#60a5fa"
+    actorBkg: "#e0f2fe"
+    actorTextColor: "#0f172a"
+    actorLineColor: "#60a5fa"
+    signalColor: "#60a5fa"
+    signalTextColor: "#0f172a"
+    labelBoxBkgColor: "#e0f2fe"
+    labelBoxBorderColor: "#60a5fa"
+    labelTextColor: "#0f172a"
+  flowchart:
+    useMaxWidth: true
+    htmlLabels: true
+    curve: basis
+---
 graph LR
     subgraph OCI["OCI Infrastructure"]
         Ampere["3x Ampere A1<br/>ARM64"]
@@ -248,7 +552,45 @@ Detailed timeline of Talos K8s bootstrapping process. Terraform creates VMs on P
 **Related files:** [`tofu/talos/`](../tofu/talos/), [oci-free-tier-flux repo](https://github.com/syscode-labs/oci-free-tier-flux)
 
 ```mermaid
-%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+---
+config:
+  look: neo
+  theme: base
+  themeVariables:
+    primaryColor: "#2dd4bf"
+    primaryTextColor: "#0f172a"
+    primaryBorderColor: "#14b8a6"
+    secondaryColor: "#a855f7"
+    tertiaryColor: "#f59e0b"
+    background: "transparent"
+    mainBkg: "transparent"
+    secondBkg: "#f1f5f9"
+    lineColor: "#60a5fa"
+    border1: "#60a5fa"
+    border2: "#60a5fa"
+    arrowheadColor: "#60a5fa"
+    fontFamily: "arial"
+    fontSize: "14px"
+    labelBackground: "transparent"
+    textColor: "#0f172a"
+    nodeBorder: "#60a5fa"
+    clusterBkg: "#f8fafc"
+    clusterBorder: "#60a5fa"
+    edgeLabelBackground: "transparent"
+    actorBorder: "#60a5fa"
+    actorBkg: "#e0f2fe"
+    actorTextColor: "#0f172a"
+    actorLineColor: "#60a5fa"
+    signalColor: "#60a5fa"
+    signalTextColor: "#0f172a"
+    labelBoxBkgColor: "#e0f2fe"
+    labelBoxBorderColor: "#60a5fa"
+    labelTextColor: "#0f172a"
+  flowchart:
+    useMaxWidth: true
+    htmlLabels: true
+    curve: basis
+---
 sequenceDiagram
     participant TF as Terraform
     participant PVE as Proxmox
@@ -292,7 +634,45 @@ Shows the three independent Terraform layers with intervention points between ea
 **Related files:** [`tofu/oci/`](../tofu/oci/), [`tofu/proxmox-cluster/`](../tofu/proxmox-cluster/), [`tofu/talos/`](../tofu/talos/)
 
 ```mermaid
-%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+---
+config:
+  look: neo
+  theme: base
+  themeVariables:
+    primaryColor: "#2dd4bf"
+    primaryTextColor: "#0f172a"
+    primaryBorderColor: "#14b8a6"
+    secondaryColor: "#a855f7"
+    tertiaryColor: "#f59e0b"
+    background: "transparent"
+    mainBkg: "transparent"
+    secondBkg: "#f1f5f9"
+    lineColor: "#60a5fa"
+    border1: "#60a5fa"
+    border2: "#60a5fa"
+    arrowheadColor: "#60a5fa"
+    fontFamily: "arial"
+    fontSize: "14px"
+    labelBackground: "transparent"
+    textColor: "#0f172a"
+    nodeBorder: "#60a5fa"
+    clusterBkg: "#f8fafc"
+    clusterBorder: "#60a5fa"
+    edgeLabelBackground: "transparent"
+    actorBorder: "#60a5fa"
+    actorBkg: "#e0f2fe"
+    actorTextColor: "#0f172a"
+    actorLineColor: "#60a5fa"
+    signalColor: "#60a5fa"
+    signalTextColor: "#0f172a"
+    labelBoxBkgColor: "#e0f2fe"
+    labelBoxBorderColor: "#60a5fa"
+    labelTextColor: "#0f172a"
+  flowchart:
+    useMaxWidth: true
+    htmlLabels: true
+    curve: basis
+---
 flowchart TB
     subgraph L1["Layer 1: OCI"]
         OCI_Main["main.tf<br/><small>VCN + Compute</small>"]
@@ -313,9 +693,9 @@ flowchart TB
     OCI_Out -->|remote state| PVE_Main
     PVE_Out -->|remote state| K8s_Main
     
-    classDef layer1 fill:#2d5016,stroke:#5a9216,stroke-width:2px,color:#fff
-    classDef layer2 fill:#3a2d16,stroke:#9b7216,stroke-width:2px,color:#fff
-    classDef layer3 fill:#162d29,stroke:#16929b,stroke-width:2px,color:#fff
+    classDef layer1 fill:#3b82f6,stroke:#2563eb,stroke-width:2px,color:#fff
+    classDef layer2 fill:#a855f7,stroke:#9333ea,stroke-width:2px,color:#fff
+    classDef layer3 fill:#2dd4bf,stroke:#14b8a6,stroke-width:2px,color:#fff
     class OCI_Main,OCI_Out layer1
     class PVE_Main,PVE_Out layer2
     class K8s_Main,K8s_Secret,K8s_Out layer3
@@ -328,7 +708,45 @@ Detailed view of OCI networking and compute resources. The VCN provides network 
 **Related files:** [`tofu/oci/main.tf`](../tofu/oci/main.tf), [`tofu/oci/data.tf`](../tofu/oci/data.tf)
 
 ```mermaid
-%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+---
+config:
+  look: neo
+  theme: base
+  themeVariables:
+    primaryColor: "#2dd4bf"
+    primaryTextColor: "#0f172a"
+    primaryBorderColor: "#14b8a6"
+    secondaryColor: "#a855f7"
+    tertiaryColor: "#f59e0b"
+    background: "transparent"
+    mainBkg: "transparent"
+    secondBkg: "#f1f5f9"
+    lineColor: "#60a5fa"
+    border1: "#60a5fa"
+    border2: "#60a5fa"
+    arrowheadColor: "#60a5fa"
+    fontFamily: "arial"
+    fontSize: "14px"
+    labelBackground: "transparent"
+    textColor: "#0f172a"
+    nodeBorder: "#60a5fa"
+    clusterBkg: "#f8fafc"
+    clusterBorder: "#60a5fa"
+    edgeLabelBackground: "transparent"
+    actorBorder: "#60a5fa"
+    actorBkg: "#e0f2fe"
+    actorTextColor: "#0f172a"
+    actorLineColor: "#60a5fa"
+    signalColor: "#60a5fa"
+    signalTextColor: "#0f172a"
+    labelBoxBkgColor: "#e0f2fe"
+    labelBoxBorderColor: "#60a5fa"
+    labelTextColor: "#0f172a"
+  flowchart:
+    useMaxWidth: true
+    htmlLabels: true
+    curve: basis
+---
 graph TB
     VCN["VCN<br/>10.0.0.0/16"] --> IGW["Internet<br/>Gateway"]
     IGW --> RT["Route<br/>Table"]
@@ -351,7 +769,45 @@ Proxmox cluster provisioning workflow using SSH provisioners and Ansible. Reads 
 **Related files:** [`tofu/proxmox-cluster/main.tf`](../tofu/proxmox-cluster/main.tf), [`packer/scripts/tteck-post-install.sh`](../packer/scripts/tteck-post-install.sh)
 
 ```mermaid
-%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+---
+config:
+  look: neo
+  theme: base
+  themeVariables:
+    primaryColor: "#2dd4bf"
+    primaryTextColor: "#0f172a"
+    primaryBorderColor: "#14b8a6"
+    secondaryColor: "#a855f7"
+    tertiaryColor: "#f59e0b"
+    background: "transparent"
+    mainBkg: "transparent"
+    secondBkg: "#f1f5f9"
+    lineColor: "#60a5fa"
+    border1: "#60a5fa"
+    border2: "#60a5fa"
+    arrowheadColor: "#60a5fa"
+    fontFamily: "arial"
+    fontSize: "14px"
+    labelBackground: "transparent"
+    textColor: "#0f172a"
+    nodeBorder: "#60a5fa"
+    clusterBkg: "#f8fafc"
+    clusterBorder: "#60a5fa"
+    edgeLabelBackground: "transparent"
+    actorBorder: "#60a5fa"
+    actorBkg: "#e0f2fe"
+    actorTextColor: "#0f172a"
+    actorLineColor: "#60a5fa"
+    signalColor: "#60a5fa"
+    signalTextColor: "#0f172a"
+    labelBoxBkgColor: "#e0f2fe"
+    labelBoxBorderColor: "#60a5fa"
+    labelTextColor: "#0f172a"
+  flowchart:
+    useMaxWidth: true
+    htmlLabels: true
+    curve: basis
+---
 flowchart LR
     Inputs["OCI IPs"] --> SSH["SSH"] --> Cluster["Cluster"] --> Ceph["Ceph"] --> LXC["Tailscale"] --> Test["Test"] --> Outputs["Outputs"]
 ```
@@ -363,7 +819,45 @@ Talos Kubernetes deployment pipeline using the Proxmox Terraform provider. Downl
 **Related files:** [`tofu/talos/talos-vms.tf`](../tofu/talos/talos-vms.tf), [`tofu/talos/flux-secrets.tf`](../tofu/talos/flux-secrets.tf), [`tofu/talos/talos-config.yaml.tpl`](../tofu/talos/talos-config.yaml.tpl)
 
 ```mermaid
-%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+---
+config:
+  look: neo
+  theme: base
+  themeVariables:
+    primaryColor: "#2dd4bf"
+    primaryTextColor: "#0f172a"
+    primaryBorderColor: "#14b8a6"
+    secondaryColor: "#a855f7"
+    tertiaryColor: "#f59e0b"
+    background: "transparent"
+    mainBkg: "transparent"
+    secondBkg: "#f1f5f9"
+    lineColor: "#60a5fa"
+    border1: "#60a5fa"
+    border2: "#60a5fa"
+    arrowheadColor: "#60a5fa"
+    fontFamily: "arial"
+    fontSize: "14px"
+    labelBackground: "transparent"
+    textColor: "#0f172a"
+    nodeBorder: "#60a5fa"
+    clusterBkg: "#f8fafc"
+    clusterBorder: "#60a5fa"
+    edgeLabelBackground: "transparent"
+    actorBorder: "#60a5fa"
+    actorBkg: "#e0f2fe"
+    actorTextColor: "#0f172a"
+    actorLineColor: "#60a5fa"
+    signalColor: "#60a5fa"
+    signalTextColor: "#0f172a"
+    labelBoxBkgColor: "#e0f2fe"
+    labelBoxBorderColor: "#60a5fa"
+    labelTextColor: "#0f172a"
+  flowchart:
+    useMaxWidth: true
+    htmlLabels: true
+    curve: basis
+---
 flowchart LR
     Inputs["Proxmox API"] --> Image["Download"] --> Config["Config"] --> VMs["VMs"] --> Bootstrap["Bootstrap"] --> SOPS["SOPS"] --> Outputs["kubeconfig"]
 ```
@@ -379,7 +873,45 @@ Complete network architecture showing OCI VCN (10.0.0.0/16), compute instances w
 **Related files:** [`tofu/oci/main.tf`](../tofu/oci/main.tf#L39-L126) (networking), [`WARP.md`](../WARP.md#networking-architecture)
 
 ```mermaid
-%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+---
+config:
+  look: neo
+  theme: base
+  themeVariables:
+    primaryColor: "#2dd4bf"
+    primaryTextColor: "#0f172a"
+    primaryBorderColor: "#14b8a6"
+    secondaryColor: "#a855f7"
+    tertiaryColor: "#f59e0b"
+    background: "transparent"
+    mainBkg: "transparent"
+    secondBkg: "#f1f5f9"
+    lineColor: "#60a5fa"
+    border1: "#60a5fa"
+    border2: "#60a5fa"
+    arrowheadColor: "#60a5fa"
+    fontFamily: "arial"
+    fontSize: "14px"
+    labelBackground: "transparent"
+    textColor: "#0f172a"
+    nodeBorder: "#60a5fa"
+    clusterBkg: "#f8fafc"
+    clusterBorder: "#60a5fa"
+    edgeLabelBackground: "transparent"
+    actorBorder: "#60a5fa"
+    actorBkg: "#e0f2fe"
+    actorTextColor: "#0f172a"
+    actorLineColor: "#60a5fa"
+    signalColor: "#60a5fa"
+    signalTextColor: "#0f172a"
+    labelBoxBkgColor: "#e0f2fe"
+    labelBoxBorderColor: "#60a5fa"
+    labelTextColor: "#0f172a"
+  flowchart:
+    useMaxWidth: true
+    htmlLabels: true
+    curve: basis
+---
 graph TB
     Internet["🌐 Internet"]
     
@@ -432,7 +964,45 @@ Explains how the 2 free reserved IPs are allocated: #1 for bastion SSH access, #
 **Related files:** [`WARP.md`](../WARP.md#ip-allocation-strategy), [`PLAN.md`](../PLAN.md#networking)
 
 ```mermaid
-%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+---
+config:
+  look: neo
+  theme: base
+  themeVariables:
+    primaryColor: "#2dd4bf"
+    primaryTextColor: "#0f172a"
+    primaryBorderColor: "#14b8a6"
+    secondaryColor: "#a855f7"
+    tertiaryColor: "#f59e0b"
+    background: "transparent"
+    mainBkg: "transparent"
+    secondBkg: "#f1f5f9"
+    lineColor: "#60a5fa"
+    border1: "#60a5fa"
+    border2: "#60a5fa"
+    arrowheadColor: "#60a5fa"
+    fontFamily: "arial"
+    fontSize: "14px"
+    labelBackground: "transparent"
+    textColor: "#0f172a"
+    nodeBorder: "#60a5fa"
+    clusterBkg: "#f8fafc"
+    clusterBorder: "#60a5fa"
+    edgeLabelBackground: "transparent"
+    actorBorder: "#60a5fa"
+    actorBkg: "#e0f2fe"
+    actorTextColor: "#0f172a"
+    actorLineColor: "#60a5fa"
+    signalColor: "#60a5fa"
+    signalTextColor: "#0f172a"
+    labelBoxBkgColor: "#e0f2fe"
+    labelBoxBorderColor: "#60a5fa"
+    labelTextColor: "#0f172a"
+  flowchart:
+    useMaxWidth: true
+    htmlLabels: true
+    curve: basis
+---
 graph TB
     subgraph Free["Free Tier: 2 Reserved IPs"]
         R1["Reserved IP #1<br/>→ Bastion<br/><small>Static SSH access</small>"]
@@ -466,7 +1036,45 @@ Shows how free tier limits are enforced at multiple stages: Terraform variable v
 **Related files:** [`tofu/oci/variables.tf`](../tofu/oci/variables.tf) (validations), [`scripts/validate-cost.sh`](../scripts/validate-cost.sh)
 
 ```mermaid
-%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+---
+config:
+  look: neo
+  theme: base
+  themeVariables:
+    primaryColor: "#2dd4bf"
+    primaryTextColor: "#0f172a"
+    primaryBorderColor: "#14b8a6"
+    secondaryColor: "#a855f7"
+    tertiaryColor: "#f59e0b"
+    background: "transparent"
+    mainBkg: "transparent"
+    secondBkg: "#f1f5f9"
+    lineColor: "#60a5fa"
+    border1: "#60a5fa"
+    border2: "#60a5fa"
+    arrowheadColor: "#60a5fa"
+    fontFamily: "arial"
+    fontSize: "14px"
+    labelBackground: "transparent"
+    textColor: "#0f172a"
+    nodeBorder: "#60a5fa"
+    clusterBkg: "#f8fafc"
+    clusterBorder: "#60a5fa"
+    edgeLabelBackground: "transparent"
+    actorBorder: "#60a5fa"
+    actorBkg: "#e0f2fe"
+    actorTextColor: "#0f172a"
+    actorLineColor: "#60a5fa"
+    signalColor: "#60a5fa"
+    signalTextColor: "#0f172a"
+    labelBoxBkgColor: "#e0f2fe"
+    labelBoxBorderColor: "#60a5fa"
+    labelTextColor: "#0f172a"
+  flowchart:
+    useMaxWidth: true
+    htmlLabels: true
+    curve: basis
+---
 graph TB
     subgraph Limits["Free Tier Limits"]
         C["Compute<br/>4 OCPU, 24GB"]
@@ -510,8 +1118,8 @@ graph TB
     Result -->|Yes| Safe[("✅ Safe")]
     Result -->|No| Stop[("❌ STOP")]
     
-    classDef success fill:#2d5016,stroke:#5a9216,stroke-width:3px,color:#fff
-    classDef error fill:#8b0000,stroke:#ff0000,stroke-width:3px,color:#fff
+    classDef success fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff
+    classDef error fill:#ef4444,stroke:#dc2626,stroke-width:2px,color:#fff
     class Safe success
     class Stop error
 ```
@@ -523,7 +1131,45 @@ Simplified validation workflow showing all five checks (images, OCI, Proxmox, Ta
 **Related files:** [`Taskfile.yml`](../Taskfile.yml#L175-L216) (validate tasks), [`scripts/validate-*.sh`](../scripts/)
 
 ```mermaid
-%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+---
+config:
+  look: neo
+  theme: base
+  themeVariables:
+    primaryColor: "#2dd4bf"
+    primaryTextColor: "#0f172a"
+    primaryBorderColor: "#14b8a6"
+    secondaryColor: "#a855f7"
+    tertiaryColor: "#f59e0b"
+    background: "transparent"
+    mainBkg: "transparent"
+    secondBkg: "#f1f5f9"
+    lineColor: "#60a5fa"
+    border1: "#60a5fa"
+    border2: "#60a5fa"
+    arrowheadColor: "#60a5fa"
+    fontFamily: "arial"
+    fontSize: "14px"
+    labelBackground: "transparent"
+    textColor: "#0f172a"
+    nodeBorder: "#60a5fa"
+    clusterBkg: "#f8fafc"
+    clusterBorder: "#60a5fa"
+    edgeLabelBackground: "transparent"
+    actorBorder: "#60a5fa"
+    actorBkg: "#e0f2fe"
+    actorTextColor: "#0f172a"
+    actorLineColor: "#60a5fa"
+    signalColor: "#60a5fa"
+    signalTextColor: "#0f172a"
+    labelBoxBkgColor: "#e0f2fe"
+    labelBoxBorderColor: "#60a5fa"
+    labelTextColor: "#0f172a"
+  flowchart:
+    useMaxWidth: true
+    htmlLabels: true
+    curve: basis
+---
 flowchart TB
     V["task validate"] --> I["Images<br/><20GB"]
     V --> O["OCI<br/>free tier"]
@@ -540,8 +1186,8 @@ flowchart TB
     R -->|Yes| Success[("✅")]
     R -->|No| Fail[("❌")]
     
-    classDef success fill:#2d5016,stroke:#5a9216,stroke-width:3px,color:#fff
-    classDef error fill:#8b0000,stroke:#ff0000,stroke-width:3px,color:#fff
+    classDef success fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff
+    classDef error fill:#ef4444,stroke:#dc2626,stroke-width:2px,color:#fff
     class Success success
     class Fail error
 ```
@@ -551,7 +1197,45 @@ flowchart TB
 ## Deployment Timeline
 
 ```mermaid
-%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
+---
+config:
+  look: neo
+  theme: base
+  themeVariables:
+    primaryColor: "#2dd4bf"
+    primaryTextColor: "#0f172a"
+    primaryBorderColor: "#14b8a6"
+    secondaryColor: "#a855f7"
+    tertiaryColor: "#f59e0b"
+    background: "transparent"
+    mainBkg: "transparent"
+    secondBkg: "#f1f5f9"
+    lineColor: "#60a5fa"
+    border1: "#60a5fa"
+    border2: "#60a5fa"
+    arrowheadColor: "#60a5fa"
+    fontFamily: "arial"
+    fontSize: "14px"
+    labelBackground: "transparent"
+    textColor: "#0f172a"
+    nodeBorder: "#60a5fa"
+    clusterBkg: "#f8fafc"
+    clusterBorder: "#60a5fa"
+    edgeLabelBackground: "transparent"
+    actorBorder: "#60a5fa"
+    actorBkg: "#e0f2fe"
+    actorTextColor: "#0f172a"
+    actorLineColor: "#60a5fa"
+    signalColor: "#60a5fa"
+    signalTextColor: "#0f172a"
+    labelBoxBkgColor: "#e0f2fe"
+    labelBoxBorderColor: "#60a5fa"
+    labelTextColor: "#0f172a"
+  flowchart:
+    useMaxWidth: true
+    htmlLabels: true
+    curve: basis
+---
 gantt
     title Deployment Timeline (End-to-End)
     dateFormat HH:mm
