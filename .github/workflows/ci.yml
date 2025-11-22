@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  lint:
+    name: Lint & Validate
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Python dependencies
+      run: |
+        pip install flake8 black pylint
+
+    - name: Lint Python
+      run: |
+        flake8 check_availability.py --max-line-length=120
+        black --check check_availability.py
+      continue-on-error: true
+
+    - name: Setup OpenTofu
+      uses: opentofu/setup-opentofu@v1
+      with:
+        tofu_version: '1.8.0'
+
+    - name: Validate OpenTofu
+      run: |
+        cd tofu/oci
+        tofu init -backend=false
+        tofu validate
+        tofu fmt -check

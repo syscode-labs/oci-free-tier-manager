@@ -1,6 +1,11 @@
 # OCI Free Tier Manager
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CodeQL](https://github.com/syscode-labs/oci-free-tier-manager/workflows/CodeQL/badge.svg)](https://github.com/syscode-labs/oci-free-tier-manager/actions/workflows/codeql.yml)
+[![OpenTofu](https://img.shields.io/badge/OpenTofu-1.8-844FBA?logo=terraform)](https://opentofu.org/)
+[![Nix](https://img.shields.io/badge/Nix-Devbox-5277C3?logo=nixos)](https://www.jetpack.io/devbox)
+[![Task](https://img.shields.io/badge/Task-Automation-29BEB0?logo=task)](https://taskfile.dev/)
+[![OCI Free Tier](https://img.shields.io/badge/OCI-Always%20Free-F80000?logo=oracle)](https://www.oracle.com/cloud/free/)
 
 Reproducible infrastructure for Oracle Cloud Infrastructure (OCI) Always Free tier with Kubernetes on Proxmox.
 
