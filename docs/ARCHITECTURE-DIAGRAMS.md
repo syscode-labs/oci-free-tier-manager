@@ -13,9 +13,13 @@ Visual representations of the OCI Free Tier infrastructure. All diagrams use exp
 ### 2. [Talos Kubernetes](#talos-kubernetes)
    - [Architecture Overview](#architecture-overview)
    - [Bootstrap Sequence](#bootstrap-sequence)
+   - [Bootstrap Sequence (Detailed)](#bootstrap-sequence-detailed)
 
 ### 3. [Terraform Layers](#terraform-layers)
    - [Three-Layer Architecture](#three-layer-architecture)
+   - [Layer 1: OCI Resources (Detailed)](#layer-1-oci-resources-detailed)
+   - [Layer 2: Proxmox Setup (Detailed)](#layer-2-proxmox-setup-detailed)
+   - [Layer 3: Talos Deployment (Detailed)](#layer-3-talos-deployment-detailed)
 
 ### 4. [Network Architecture](#network-architecture)
    - [Physical + Logical Topology](#physical--logical-topology)
@@ -357,4 +361,210 @@ flowchart TB
     style PostDeploy fill:#0891b2,stroke:#06b6d4,stroke-width:2px,color:#fff
     style Pass fill:#059669,stroke:#10b981,stroke-width:3px,color:#fff
     style Fail fill:#dc2626,stroke:#ef4444,stroke-width:3px,color:#fff
+```
+
+### Bootstrap Sequence (Detailed)
+
+Detailed sequence diagram showing exact interactions between components during Talos K8s bootstrap.
+
+**Related files:** [`tofu/talos/`](../tofu/talos/), [oci-free-tier-flux repo](https://github.com/syscode-labs/oci-free-tier-flux)
+
+```mermaid
+%%{init: {'theme':'base', 'themeVariables': {
+  'actorBkg':'#0891b2',
+  'actorBorder':'#06b6d4',
+  'actorTextColor':'#fff',
+  'actorLineColor':'#3b82f6',
+  'signalColor':'#3b82f6',
+  'signalTextColor':'#fff',
+  'labelBoxBkgColor':'#d97706',
+  'labelBoxBorderColor':'#f59e0b',
+  'labelTextColor':'#fff',
+  'loopTextColor':'#fff',
+  'noteBkgColor':'#d97706',
+  'noteTextColor':'#fff',
+  'noteBorderColor':'#f59e0b',
+  'activationBkgColor':'#2563eb',
+  'activationBorderColor':'#3b82f6'
+}}}%%
+sequenceDiagram
+    participant TF as Terraform
+    participant PVE as Proxmox
+    participant T as Talos
+    participant GH as GitHub
+    participant K8s as Kubernetes
+    
+    Note over TF,K8s: Phase 1: Provision
+    TF->>PVE: Create 3 VMs
+    PVE-->>T: Boot Talos
+    
+    Note over T,GH: Phase 2: Bootstrap
+    T->>GH: Fetch Cilium
+    GH-->>T: cilium.yaml
+    T->>K8s: Deploy CNI
+    
+    T->>GH: Fetch Flux
+    GH-->>T: install.yaml
+    T->>K8s: Deploy GitOps
+    
+    Note over TF,K8s: Phase 3: Configure
+    TF->>K8s: Inject SOPS Key
+    
+    Note over K8s,GH: Phase 4: Reconcile
+    loop Every 1 minute
+        K8s->>GH: Poll for changes
+        GH-->>K8s: Encrypted manifests
+        K8s->>K8s: Decrypt with SOPS
+        K8s->>K8s: Apply manifests
+    end
+```
+
+## Terraform Layers
+
+### Layer 1: OCI Resources (Detailed)
+
+Detailed workflow of OCI infrastructure provisioning.
+
+**Related files:** [`tofu/oci/main.tf`](../tofu/oci/main.tf)
+
+```mermaid
+%%{init: {'theme':'base', 'themeVariables': {
+  'actorBkg':'#2563eb',
+  'actorBorder':'#3b82f6',
+  'actorTextColor':'#fff',
+  'signalColor':'#3b82f6',
+  'signalTextColor':'#fff',
+  'labelBoxBkgColor':'#2563eb',
+  'labelBoxBorderColor':'#3b82f6',
+  'labelTextColor':'#fff',
+  'noteBkgColor':'#2563eb',
+  'noteTextColor':'#fff',
+  'noteBorderColor':'#3b82f6'
+}}}%%
+sequenceDiagram
+    participant Dev as Developer
+    participant TF as Terraform
+    participant OCI as Oracle Cloud
+    
+    Note over Dev,OCI: Planning Phase
+    Dev->>TF: tofu plan
+    TF->>TF: Validate variables
+    TF->>OCI: Query existing resources
+    OCI-->>TF: Current state
+    TF-->>Dev: Show planned changes
+    
+    Note over Dev,OCI: Apply Phase
+    Dev->>TF: tofu apply
+    TF->>OCI: Create VCN
+    TF->>OCI: Create subnet
+    TF->>OCI: Create 3x Ampere instances
+    TF->>OCI: Create 1x Micro bastion
+    TF->>OCI: Attach reserved IPs
+    OCI-->>TF: Instance IPs
+    TF-->>Dev: Outputs (IPs, IDs)
+```
+
+### Layer 2: Proxmox Setup (Detailed)
+
+Detailed sequence of Proxmox cluster formation and Ceph configuration.
+
+**Related files:** [`tofu/proxmox-cluster/main.tf`](../tofu/proxmox-cluster/main.tf)
+
+```mermaid
+%%{init: {'theme':'base', 'themeVariables': {
+  'actorBkg':'#7c3aed',
+  'actorBorder':'#a855f7',
+  'actorTextColor':'#fff',
+  'signalColor':'#3b82f6',
+  'signalTextColor':'#fff',
+  'labelBoxBkgColor':'#7c3aed',
+  'labelBoxBorderColor':'#a855f7',
+  'labelTextColor':'#fff',
+  'noteBkgColor':'#7c3aed',
+  'noteTextColor':'#fff',
+  'noteBorderColor':'#a855f7'
+}}}%%
+sequenceDiagram
+    participant TF as Terraform
+    participant N1 as Node 1
+    participant N2 as Node 2
+    participant N3 as Node 3
+    
+    Note over TF,N3: Read OCI State
+    TF->>TF: Fetch instance IPs
+    
+    Note over TF,N3: Install Proxmox
+    TF->>N1: SSH + Ansible
+    TF->>N2: SSH + Ansible
+    TF->>N3: SSH + Ansible
+    N1-->>TF: Proxmox installed
+    N2-->>TF: Proxmox installed
+    N3-->>TF: Proxmox installed
+    
+    Note over TF,N3: Form Cluster
+    TF->>N1: pvecm create cluster
+    TF->>N2: pvecm add node1
+    TF->>N3: pvecm add node1
+    N1-->>TF: Quorum established
+    
+    Note over TF,N3: Configure Ceph
+    TF->>N1: ceph-mon init
+    TF->>N2: ceph-mon init
+    TF->>N3: ceph-mon init
+    TF->>N1: Create OSD
+    TF->>N2: Create OSD
+    TF->>N3: Create OSD
+    N1-->>TF: Ceph healthy
+```
+
+### Layer 3: Talos Deployment (Detailed)
+
+Detailed Talos VM creation and K8s bootstrap workflow.
+
+**Related files:** [`tofu/talos/talos-vms.tf`](../tofu/talos/talos-vms.tf)
+
+```mermaid
+%%{init: {'theme':'base', 'themeVariables': {
+  'actorBkg':'#0891b2',
+  'actorBorder':'#06b6d4',
+  'actorTextColor':'#fff',
+  'signalColor':'#3b82f6',
+  'signalTextColor':'#fff',
+  'labelBoxBkgColor':'#0891b2',
+  'labelBoxBorderColor':'#06b6d4',
+  'labelTextColor':'#fff',
+  'noteBkgColor':'#0891b2',
+  'noteTextColor':'#fff',
+  'noteBorderColor':'#06b6d4'
+}}}%%
+sequenceDiagram
+    participant TF as Terraform
+    participant PVE as Proxmox API
+    participant Factory as factory.talos.dev
+    participant VM as Talos VMs
+    participant K8s as Kubernetes
+    
+    Note over TF,K8s: Download Image
+    TF->>Factory: Download nocloud image
+    Factory-->>TF: talos-amd64.raw.xz
+    
+    Note over TF,K8s: Create VMs
+    TF->>TF: Render machine config
+    TF->>PVE: Create VM 1 (control plane)
+    TF->>PVE: Create VM 2 (control plane)
+    TF->>PVE: Create VM 3 (control plane)
+    TF->>PVE: Inject cloud-init configs
+    PVE-->>VM: Boot VMs
+    
+    Note over TF,K8s: Bootstrap K8s
+    VM->>VM: Fetch Cilium manifest
+    VM->>VM: Deploy CNI
+    VM->>VM: Fetch Flux manifest
+    VM->>VM: Deploy GitOps
+    VM-->>K8s: Cluster ready
+    
+    Note over TF,K8s: Inject Secrets
+    TF->>K8s: Create SOPS Age secret
+    K8s-->>TF: Secret stored
+    TF-->>TF: Output kubeconfig
 ```
