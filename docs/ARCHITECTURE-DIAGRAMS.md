@@ -119,16 +119,11 @@ Provisions Oracle Cloud Infrastructure resources: VCN with networking components
 
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
-flowchart TB
-    Start(["task<br/>deploy:oci"]) --> Plan["tofu plan"]
-    Plan --> Apply["tofu apply"]
-    
-    Apply --> VCN["VCN<br/><small>10.0.0.0/16</small>"]
-    VCN --> Ampere["3× Ampere<br/><small>ARM64</small>"]
-    VCN --> Bastion["1× Micro<br/><small>x86</small>"]
-    
-    Ampere --> Mesh["Tailscale<br/>Mesh"]
-    Bastion --> Mesh
+flowchart LR
+    Start(["task deploy:oci"]) --> Plan["tofu<br/>plan/apply"]
+    Plan --> VCN["VCN +<br/>Networking"]
+    VCN --> Compute["3x Ampere<br/>1x Micro"]
+    Compute --> Mesh["Tailscale<br/>Mesh"]
     Mesh --> Done[("✓")]
     
     classDef success fill:#2d5016,stroke:#5a9216,stroke-width:3px,color:#fff
@@ -143,23 +138,19 @@ Forms a 3-node Proxmox VE cluster using pvecm, then initializes Ceph distributed
 
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
-flowchart TB
-    Start(["task<br/>deploy:proxmox"]) --> Node1["pvecm create"]
-    Node1 --> Nodes["pvecm add<br/><small>nodes 2-3</small>"]
-    
-    Nodes --> Quorum{"Quorum?"}
-    Quorum -->|No| FailQ[("❌")]
-    Quorum -->|Yes| Ceph["pveceph init"]
-    
-    Ceph --> OSD["Create OSDs"]
-    OSD --> Health{"HEALTH_OK?"}
-    Health -->|No| FailC[("❌")]
-    Health -->|Yes| Done[("✓")]
+flowchart LR
+    Start(["task deploy:proxmox"]) --> Cluster["Form<br/>Cluster"]
+    Cluster --> Check1{"Quorum?"}
+    Check1 -->|No| Fail1[("❌")]
+    Check1 -->|Yes| Ceph["Configure<br/>Ceph"]
+    Ceph --> Check2{"Healthy?"}
+    Check2 -->|No| Fail2[("❌")]
+    Check2 -->|Yes| Done[("✓")]
     
     classDef success fill:#2d5016,stroke:#5a9216,stroke-width:3px,color:#fff
     classDef error fill:#8b0000,stroke:#ff0000,stroke-width:3px,color:#fff
     class Done success
-    class FailQ,FailC error
+    class Fail1,Fail2 error
 ```
 
 ### Phase 4: Talos Kubernetes
@@ -170,17 +161,12 @@ Downloads Talos Linux images, creates 3 VMs on Proxmox, and automatically bootst
 
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
-flowchart TB
-    Start(["task<br/>deploy:talos"]) --> Image["Download<br/>Talos"]
-    Image --> VMs["Create 3×<br/>VMs"]
-    VMs --> Boot["Boot"]
-    
-    Boot --> Cilium["Deploy<br/>Cilium CNI"]
+flowchart LR
+    Start(["task deploy:talos"]) --> VMs["Create<br/>VMs"]
+    VMs --> Cilium["Deploy<br/>Cilium"]
     Cilium --> Flux["Deploy<br/>Flux"]
-    Flux --> SOPS["Inject<br/>SOPS Keys"]
-    
-    SOPS --> Reconcile["Flux<br/>Reconciles"]
-    Reconcile --> Apps["Deploy<br/>Apps"]
+    Flux --> SOPS["Inject<br/>SOPS"]
+    SOPS --> Apps["Apps<br/>Deploy"]
     Apps --> Done[("✓")]
     
     classDef success fill:#2d5016,stroke:#5a9216,stroke-width:3px,color:#fff
@@ -228,62 +214,31 @@ Shows the complete technology stack from OCI bare metal instances through Proxmo
 **Related files:** [`WARP.md`](../WARP.md#architecture), [`PLAN.md`](../PLAN.md#infrastructure-configuration)
 
 ```mermaid
-%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
-flowchart TB
+%%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }}}%%
+graph LR
     subgraph OCI["OCI Infrastructure"]
-        A["3x Ampere A1<br/>ARM64, 1.33 OCPU, 8GB"]
-        B["1x Micro Bastion<br/>x86, 1GB RAM"]
+        Ampere["3x Ampere A1<br/>ARM64"]
+        Bastion["Micro<br/>Bastion"]
     end
     
-    subgraph PVE["Proxmox Cluster"]
-        N1["Proxmox Node 1"]
-        N2["Proxmox Node 2"]
-        N3["Proxmox Node 3"]
+    subgraph Proxmox["Proxmox + Ceph"]
+        PVE["3-node Cluster<br/>Distributed Storage"]
     end
     
-    subgraph Storage["Ceph Storage"]
-        C["Distributed Storage<br/>150GB"]
-    end
-    
-    subgraph K8s["Talos Kubernetes"]
-        CP1["Control Plane 1"]
-        CP2["Control Plane 2"]
-        CP3["Control Plane 3"]
+    subgraph Talos["Talos K8s"]
+        CP["3x Control Plane<br/>HA etcd"]
     end
     
     subgraph Apps["Applications"]
-        T["Tailscale Operator"]
-        CM["cert-manager"]
-        GA["Grafana Alloy"]
+        TS["Tailscale"]
+        CM["cert-mgr"]
+        Alloy["Alloy"]
     end
     
-    A --> N1
-    A --> N2
-    A --> N3
-    
-    N1 --> C
-    N2 --> C
-    N3 --> C
-    
-    N1 --> CP1
-    N2 --> CP2
-    N3 --> CP3
-    
-    CP1 --> T
-    CP1 --> CM
-    CP1 --> GA
-    
-    CP2 --> T
-    CP2 --> CM
-    CP2 --> GA
-    
-    CP3 --> T
-    CP3 --> CM
-    CP3 --> GA
-    
-    B -.SSH.-> N1
-    B -.SSH.-> N2
-    B -.SSH.-> N3
+    Ampere --> PVE
+    PVE --> CP
+    CP --> TS & CM & Alloy
+    Bastion -.SSH.-> PVE
 ```
 
 ### Bootstrap Sequence
@@ -397,13 +352,8 @@ Proxmox cluster provisioning workflow using SSH provisioners and Ansible. Reads 
 
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
-flowchart TB
-    Inputs["OCI IPs<br/><small>remote state</small>"] --> SSH["SSH<br/>Provisioner"]
-    SSH --> Cluster["Form Cluster<br/><small>pvecm</small>"]
-    Cluster --> Ceph["Configure Ceph<br/><small>pveceph</small>"]
-    Ceph --> LXC["Deploy<br/>Tailscale LXC"]
-    LXC --> Test["Test<br/>Migration"]
-    Test --> Outputs["API URL<br/>Ceph Health"]
+flowchart LR
+    Inputs["OCI IPs"] --> SSH["SSH"] --> Cluster["Cluster"] --> Ceph["Ceph"] --> LXC["Tailscale"] --> Test["Test"] --> Outputs["Outputs"]
 ```
 
 ### Layer 3: Talos Deployment
@@ -414,13 +364,8 @@ Talos Kubernetes deployment pipeline using the Proxmox Terraform provider. Downl
 
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'lineColor': '#60a5fa', 'arrowheadColor': '#60a5fa' }, 'flowchart': { 'useMaxWidth': true, 'diagramPadding': 8, 'nodeSpacing': 16, 'rankSpacing': 24 } }}%%
-flowchart TB
-    Inputs["Proxmox API<br/><small>remote state</small>"] --> Image["Download<br/>Talos Image"]
-    Image --> CloudInit["Render<br/>cloud-init"]
-    CloudInit --> VMs["Create<br/>3 VMs"]
-    VMs --> Bootstrap["Auto<br/>Bootstrap"]
-    Bootstrap --> Secret["Inject<br/>SOPS Key"]
-    Secret --> Outputs["kubeconfig<br/>endpoints"]
+flowchart LR
+    Inputs["Proxmox API"] --> Image["Download"] --> Config["Config"] --> VMs["VMs"] --> Bootstrap["Bootstrap"] --> SOPS["SOPS"] --> Outputs["kubeconfig"]
 ```
 
 ---
