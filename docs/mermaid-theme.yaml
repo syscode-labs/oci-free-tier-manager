@@ -7,64 +7,11 @@
 
 ---
 config:
-  look: neo
-  theme: base
+  theme: dark
   themeVariables:
-    # Primary colors (medium saturation for contrast)
-    primaryColor: "#0891b2"
-    primaryTextColor: "#ffffff"
-    primaryBorderColor: "#06b6d4"
-    
-    # Secondary/tertiary colors
-    secondaryColor: "#7c3aed"
-    tertiaryColor: "#d97706"
-    
-    # Backgrounds (transparent to adapt to light/dark mode)
-    background: "transparent"
-    mainBkg: "transparent"
-    secondBkg: "transparent"
-    
-    # Lines and borders (medium blue for visibility)
-    lineColor: "#3b82f6"
-    border1: "#3b82f6"
-    border2: "#3b82f6"
-    arrowheadColor: "#3b82f6"
-    
-    # Typography
+    darkMode: true
     fontFamily: "arial"
     fontSize: "14px"
-    
-    # Labels and text (light gray for page background)
-    labelBackground: "transparent"
-    textColor: "#94a3b8"
-    
-    # Node styling
-    nodeBorder: "#3b82f6"
-    
-    # Cluster/subgraph styling
-    clusterBkg: "transparent"
-    clusterBorder: "#3b82f6"
-    edgeLabelBackground: "transparent"
-    
-    # Sequence diagram specific
-    actorBorder: "#3b82f6"
-    actorBkg: "#0891b2"
-    actorTextColor: "#ffffff"
-    actorLineColor: "#3b82f6"
-    signalColor: "#3b82f6"
-    signalTextColor: "#ffffff"
-    labelBoxBkgColor: "#0891b2"
-    labelBoxBorderColor: "#3b82f6"
-    labelTextColor: "#ffffff"
-    noteBkgColor: "#d97706"
-    noteTextColor: "#ffffff"
-    noteBorderColor: "#f59e0b"
-    loopTextColor: "#ffffff"
-    activationBkgColor: "#2563eb"
-    activationBorderColor: "#3b82f6"
-    sequenceNumberColor: "#ffffff"
-    
-  # Flowchart options
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -73,6 +20,7 @@ config:
 
 # Custom Class Definitions
 # Add these after your diagram definition for consistent styling
+# All use white text on dark backgrounds for visibility
 
 # Success/completion nodes (emerald green with white text)
 classDef success fill:#059669,stroke:#10b981,stroke-width:2px,color:#fff
@@ -88,25 +36,10 @@ classDef layer3 fill:#0891b2,stroke:#06b6d4,stroke-width:2px,color:#fff  # Cyan
 # Phase nodes (dark green with white text)
 classDef phaseNode fill:#15803d,stroke:#22c55e,stroke-width:3px,color:#fff
 
-# Color Palette Reference
-# Box fills (darker, saturated colors for contrast with white text):
-#   - Primary: #0891b2 (Cyan 600) - Main nodes
-#   - Success: #059669 (Emerald 600) - Success states
-#   - Error: #dc2626 (Red 600) - Error states
-#   - Phase: #15803d (Green 700) - Phase nodes
-#   - Layer1: #2563eb (Blue 600)
-#   - Layer2: #7c3aed (Purple 600)
-#   - Layer3: #0891b2 (Cyan 600)
-# 
-# Text colors:
-#   - On colored boxes: #ffffff (white) - high contrast
-#   - On page background: #94a3b8 (slate 400) - visible on light/dark
-# 
-# Lines/borders: #3b82f6 (Blue 500) - visible on all backgrounds
+# Theme Strategy
+# Using Mermaid's built-in "dark" theme for automatic light/dark mode support.
+# This theme automatically adjusts colors based on the browser/GitHub theme,
+# ensuring text is always readable regardless of background color.
 #
-# Why These Colors?
-# - White text on dark boxes: Always high contrast
-# - Light gray text on page: Visible on both GitHub light/dark themes  
-# - Darker box fills: Ensure contrast with white text
-# - Transparent backgrounds: Adapts to any theme
-# - Medium blue lines: Visible without being harsh
+# Custom classDefs override specific node colors while maintaining white text
+# for consistent readability on all backgrounds.

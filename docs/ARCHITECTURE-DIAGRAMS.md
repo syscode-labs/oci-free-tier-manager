@@ -50,38 +50,11 @@ This diagram shows the complete deployment pipeline from initial setup to runnin
 ```mermaid
 ---
 config:
-  look: neo
-  theme: base
+  theme: dark
   themeVariables:
-    primaryColor: "#0891b2"
-    primaryTextColor: "#ffffff"
-    primaryBorderColor: "#06b6d4"
-    secondaryColor: "#7c3aed"
-    tertiaryColor: "#d97706"
-    background: "transparent"
-    mainBkg: "transparent"
-    secondBkg: "transparent"
-    lineColor: "#3b82f6"
-    border1: "#3b82f6"
-    border2: "#3b82f6"
-    arrowheadColor: "#3b82f6"
+    darkMode: true
     fontFamily: "arial"
     fontSize: "14px"
-    labelBackground: "transparent"
-    textColor: "#94a3b8"
-    nodeBorder: "#3b82f6"
-    clusterBkg: "transparent"
-    clusterBorder: "#3b82f6"
-    edgeLabelBackground: "transparent"
-    actorBorder: "#3b82f6"
-    actorBkg: "#0891b2"
-    actorTextColor: "#ffffff"
-    actorLineColor: "#3b82f6"
-    signalColor: "#3b82f6"
-    signalTextColor: "#ffffff"
-    labelBoxBkgColor: "#0891b2"
-    labelBoxBorderColor: "#3b82f6"
-    labelTextColor: "#ffffff"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -107,38 +80,11 @@ Initializes the development environment by configuring OCI CLI, generating SSH k
 ```mermaid
 ---
 config:
-  look: neo
-  theme: base
+  theme: dark
   themeVariables:
-    primaryColor: "#0891b2"
-    primaryTextColor: "#ffffff"
-    primaryBorderColor: "#06b6d4"
-    secondaryColor: "#7c3aed"
-    tertiaryColor: "#d97706"
-    background: "transparent"
-    mainBkg: "transparent"
-    secondBkg: "transparent"
-    lineColor: "#3b82f6"
-    border1: "#3b82f6"
-    border2: "#3b82f6"
-    arrowheadColor: "#3b82f6"
+    darkMode: true
     fontFamily: "arial"
     fontSize: "14px"
-    labelBackground: "transparent"
-    textColor: "#94a3b8"
-    nodeBorder: "#3b82f6"
-    clusterBkg: "transparent"
-    clusterBorder: "#3b82f6"
-    edgeLabelBackground: "transparent"
-    actorBorder: "#3b82f6"
-    actorBkg: "#0891b2"
-    actorTextColor: "#ffffff"
-    actorLineColor: "#3b82f6"
-    signalColor: "#3b82f6"
-    signalTextColor: "#ffffff"
-    labelBoxBkgColor: "#0891b2"
-    labelBoxBorderColor: "#3b82f6"
-    labelTextColor: "#ffffff"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -171,38 +117,11 @@ Builds two custom images using Dagger: a base hardened Debian image with SSH and
 ```mermaid
 ---
 config:
-  look: neo
-  theme: base
+  theme: dark
   themeVariables:
-    primaryColor: "#0891b2"
-    primaryTextColor: "#ffffff"
-    primaryBorderColor: "#06b6d4"
-    secondaryColor: "#7c3aed"
-    tertiaryColor: "#d97706"
-    background: "transparent"
-    mainBkg: "transparent"
-    secondBkg: "transparent"
-    lineColor: "#3b82f6"
-    border1: "#3b82f6"
-    border2: "#3b82f6"
-    arrowheadColor: "#3b82f6"
+    darkMode: true
     fontFamily: "arial"
     fontSize: "14px"
-    labelBackground: "transparent"
-    textColor: "#94a3b8"
-    nodeBorder: "#3b82f6"
-    clusterBkg: "transparent"
-    clusterBorder: "#3b82f6"
-    edgeLabelBackground: "transparent"
-    actorBorder: "#3b82f6"
-    actorBkg: "#0891b2"
-    actorTextColor: "#ffffff"
-    actorLineColor: "#3b82f6"
-    signalColor: "#3b82f6"
-    signalTextColor: "#ffffff"
-    labelBoxBkgColor: "#0891b2"
-    labelBoxBorderColor: "#3b82f6"
-    labelTextColor: "#ffffff"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -236,38 +155,11 @@ Provisions Oracle Cloud Infrastructure resources: VCN with networking components
 ```mermaid
 ---
 config:
-  look: neo
-  theme: base
+  theme: dark
   themeVariables:
-    primaryColor: "#0891b2"
-    primaryTextColor: "#ffffff"
-    primaryBorderColor: "#06b6d4"
-    secondaryColor: "#7c3aed"
-    tertiaryColor: "#d97706"
-    background: "transparent"
-    mainBkg: "transparent"
-    secondBkg: "transparent"
-    lineColor: "#3b82f6"
-    border1: "#3b82f6"
-    border2: "#3b82f6"
-    arrowheadColor: "#3b82f6"
+    darkMode: true
     fontFamily: "arial"
     fontSize: "14px"
-    labelBackground: "transparent"
-    textColor: "#94a3b8"
-    nodeBorder: "#3b82f6"
-    clusterBkg: "transparent"
-    clusterBorder: "#3b82f6"
-    edgeLabelBackground: "transparent"
-    actorBorder: "#3b82f6"
-    actorBkg: "#0891b2"
-    actorTextColor: "#ffffff"
-    actorLineColor: "#3b82f6"
-    signalColor: "#3b82f6"
-    signalTextColor: "#ffffff"
-    labelBoxBkgColor: "#0891b2"
-    labelBoxBorderColor: "#3b82f6"
-    labelTextColor: "#ffffff"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -293,38 +185,11 @@ Forms a 3-node Proxmox VE cluster using pvecm, then initializes Ceph distributed
 ```mermaid
 ---
 config:
-  look: neo
-  theme: base
+  theme: dark
   themeVariables:
-    primaryColor: "#0891b2"
-    primaryTextColor: "#ffffff"
-    primaryBorderColor: "#06b6d4"
-    secondaryColor: "#7c3aed"
-    tertiaryColor: "#d97706"
-    background: "transparent"
-    mainBkg: "transparent"
-    secondBkg: "transparent"
-    lineColor: "#3b82f6"
-    border1: "#3b82f6"
-    border2: "#3b82f6"
-    arrowheadColor: "#3b82f6"
+    darkMode: true
     fontFamily: "arial"
     fontSize: "14px"
-    labelBackground: "transparent"
-    textColor: "#94a3b8"
-    nodeBorder: "#3b82f6"
-    clusterBkg: "transparent"
-    clusterBorder: "#3b82f6"
-    edgeLabelBackground: "transparent"
-    actorBorder: "#3b82f6"
-    actorBkg: "#0891b2"
-    actorTextColor: "#ffffff"
-    actorLineColor: "#3b82f6"
-    signalColor: "#3b82f6"
-    signalTextColor: "#ffffff"
-    labelBoxBkgColor: "#0891b2"
-    labelBoxBorderColor: "#3b82f6"
-    labelTextColor: "#ffffff"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -354,38 +219,11 @@ Downloads Talos Linux images, creates 3 VMs on Proxmox, and automatically bootst
 ```mermaid
 ---
 config:
-  look: neo
-  theme: base
+  theme: dark
   themeVariables:
-    primaryColor: "#0891b2"
-    primaryTextColor: "#ffffff"
-    primaryBorderColor: "#06b6d4"
-    secondaryColor: "#7c3aed"
-    tertiaryColor: "#d97706"
-    background: "transparent"
-    mainBkg: "transparent"
-    secondBkg: "transparent"
-    lineColor: "#3b82f6"
-    border1: "#3b82f6"
-    border2: "#3b82f6"
-    arrowheadColor: "#3b82f6"
+    darkMode: true
     fontFamily: "arial"
     fontSize: "14px"
-    labelBackground: "transparent"
-    textColor: "#94a3b8"
-    nodeBorder: "#3b82f6"
-    clusterBkg: "transparent"
-    clusterBorder: "#3b82f6"
-    edgeLabelBackground: "transparent"
-    actorBorder: "#3b82f6"
-    actorBkg: "#0891b2"
-    actorTextColor: "#ffffff"
-    actorLineColor: "#3b82f6"
-    signalColor: "#3b82f6"
-    signalTextColor: "#ffffff"
-    labelBoxBkgColor: "#0891b2"
-    labelBoxBorderColor: "#3b82f6"
-    labelTextColor: "#ffffff"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -412,38 +250,11 @@ Runs comprehensive checks across all deployment phases to ensure: images are wit
 ```mermaid
 ---
 config:
-  look: neo
-  theme: base
+  theme: dark
   themeVariables:
-    primaryColor: "#0891b2"
-    primaryTextColor: "#ffffff"
-    primaryBorderColor: "#06b6d4"
-    secondaryColor: "#7c3aed"
-    tertiaryColor: "#d97706"
-    background: "transparent"
-    mainBkg: "transparent"
-    secondBkg: "transparent"
-    lineColor: "#3b82f6"
-    border1: "#3b82f6"
-    border2: "#3b82f6"
-    arrowheadColor: "#3b82f6"
+    darkMode: true
     fontFamily: "arial"
     fontSize: "14px"
-    labelBackground: "transparent"
-    textColor: "#94a3b8"
-    nodeBorder: "#3b82f6"
-    clusterBkg: "transparent"
-    clusterBorder: "#3b82f6"
-    edgeLabelBackground: "transparent"
-    actorBorder: "#3b82f6"
-    actorBkg: "#0891b2"
-    actorTextColor: "#ffffff"
-    actorLineColor: "#3b82f6"
-    signalColor: "#3b82f6"
-    signalTextColor: "#ffffff"
-    labelBoxBkgColor: "#0891b2"
-    labelBoxBorderColor: "#3b82f6"
-    labelTextColor: "#ffffff"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -484,38 +295,11 @@ Shows the complete technology stack from OCI bare metal instances through Proxmo
 ```mermaid
 ---
 config:
-  look: neo
-  theme: base
+  theme: dark
   themeVariables:
-    primaryColor: "#0891b2"
-    primaryTextColor: "#ffffff"
-    primaryBorderColor: "#06b6d4"
-    secondaryColor: "#7c3aed"
-    tertiaryColor: "#d97706"
-    background: "transparent"
-    mainBkg: "transparent"
-    secondBkg: "transparent"
-    lineColor: "#3b82f6"
-    border1: "#3b82f6"
-    border2: "#3b82f6"
-    arrowheadColor: "#3b82f6"
+    darkMode: true
     fontFamily: "arial"
     fontSize: "14px"
-    labelBackground: "transparent"
-    textColor: "#94a3b8"
-    nodeBorder: "#3b82f6"
-    clusterBkg: "transparent"
-    clusterBorder: "#3b82f6"
-    edgeLabelBackground: "transparent"
-    actorBorder: "#3b82f6"
-    actorBkg: "#0891b2"
-    actorTextColor: "#ffffff"
-    actorLineColor: "#3b82f6"
-    signalColor: "#3b82f6"
-    signalTextColor: "#ffffff"
-    labelBoxBkgColor: "#0891b2"
-    labelBoxBorderColor: "#3b82f6"
-    labelTextColor: "#ffffff"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -556,45 +340,11 @@ Detailed timeline of Talos K8s bootstrapping process. Terraform creates VMs on P
 ```mermaid
 ---
 config:
-  look: neo
-  theme: base
+  theme: dark
   themeVariables:
-    primaryColor: "#0891b2"
-    primaryTextColor: "#ffffff"
-    primaryBorderColor: "#06b6d4"
-    secondaryColor: "#7c3aed"
-    tertiaryColor: "#d97706"
-    background: "transparent"
-    mainBkg: "transparent"
-    secondBkg: "transparent"
-    lineColor: "#3b82f6"
-    border1: "#3b82f6"
-    border2: "#3b82f6"
-    arrowheadColor: "#3b82f6"
+    darkMode: true
     fontFamily: "arial"
     fontSize: "14px"
-    labelBackground: "transparent"
-    textColor: "#94a3b8"
-    nodeBorder: "#3b82f6"
-    clusterBkg: "transparent"
-    clusterBorder: "#3b82f6"
-    edgeLabelBackground: "transparent"
-    actorBorder: "#3b82f6"
-    actorBkg: "#0891b2"
-    actorTextColor: "#ffffff"
-    actorLineColor: "#3b82f6"
-    signalColor: "#3b82f6"
-    signalTextColor: "#ffffff"
-    labelBoxBkgColor: "#0891b2"
-    labelBoxBorderColor: "#3b82f6"
-    labelTextColor: "#ffffff"
-    noteBkgColor: "#d97706"
-    noteTextColor: "#ffffff"
-    noteBorderColor: "#f59e0b"
-    loopTextColor: "#ffffff"
-    activationBkgColor: "#2563eb"
-    activationBorderColor: "#3b82f6"
-    sequenceNumberColor: "#ffffff"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -645,38 +395,11 @@ Shows the three independent Terraform layers with intervention points between ea
 ```mermaid
 ---
 config:
-  look: neo
-  theme: base
+  theme: dark
   themeVariables:
-    primaryColor: "#0891b2"
-    primaryTextColor: "#ffffff"
-    primaryBorderColor: "#06b6d4"
-    secondaryColor: "#7c3aed"
-    tertiaryColor: "#d97706"
-    background: "transparent"
-    mainBkg: "transparent"
-    secondBkg: "transparent"
-    lineColor: "#3b82f6"
-    border1: "#3b82f6"
-    border2: "#3b82f6"
-    arrowheadColor: "#3b82f6"
+    darkMode: true
     fontFamily: "arial"
     fontSize: "14px"
-    labelBackground: "transparent"
-    textColor: "#94a3b8"
-    nodeBorder: "#3b82f6"
-    clusterBkg: "transparent"
-    clusterBorder: "#3b82f6"
-    edgeLabelBackground: "transparent"
-    actorBorder: "#3b82f6"
-    actorBkg: "#0891b2"
-    actorTextColor: "#ffffff"
-    actorLineColor: "#3b82f6"
-    signalColor: "#3b82f6"
-    signalTextColor: "#ffffff"
-    labelBoxBkgColor: "#0891b2"
-    labelBoxBorderColor: "#3b82f6"
-    labelTextColor: "#ffffff"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -719,38 +442,11 @@ Detailed view of OCI networking and compute resources. The VCN provides network 
 ```mermaid
 ---
 config:
-  look: neo
-  theme: base
+  theme: dark
   themeVariables:
-    primaryColor: "#0891b2"
-    primaryTextColor: "#ffffff"
-    primaryBorderColor: "#06b6d4"
-    secondaryColor: "#7c3aed"
-    tertiaryColor: "#d97706"
-    background: "transparent"
-    mainBkg: "transparent"
-    secondBkg: "transparent"
-    lineColor: "#3b82f6"
-    border1: "#3b82f6"
-    border2: "#3b82f6"
-    arrowheadColor: "#3b82f6"
+    darkMode: true
     fontFamily: "arial"
     fontSize: "14px"
-    labelBackground: "transparent"
-    textColor: "#94a3b8"
-    nodeBorder: "#3b82f6"
-    clusterBkg: "transparent"
-    clusterBorder: "#3b82f6"
-    edgeLabelBackground: "transparent"
-    actorBorder: "#3b82f6"
-    actorBkg: "#0891b2"
-    actorTextColor: "#ffffff"
-    actorLineColor: "#3b82f6"
-    signalColor: "#3b82f6"
-    signalTextColor: "#ffffff"
-    labelBoxBkgColor: "#0891b2"
-    labelBoxBorderColor: "#3b82f6"
-    labelTextColor: "#ffffff"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -780,38 +476,11 @@ Proxmox cluster provisioning workflow using SSH provisioners and Ansible. Reads 
 ```mermaid
 ---
 config:
-  look: neo
-  theme: base
+  theme: dark
   themeVariables:
-    primaryColor: "#0891b2"
-    primaryTextColor: "#ffffff"
-    primaryBorderColor: "#06b6d4"
-    secondaryColor: "#7c3aed"
-    tertiaryColor: "#d97706"
-    background: "transparent"
-    mainBkg: "transparent"
-    secondBkg: "transparent"
-    lineColor: "#3b82f6"
-    border1: "#3b82f6"
-    border2: "#3b82f6"
-    arrowheadColor: "#3b82f6"
+    darkMode: true
     fontFamily: "arial"
     fontSize: "14px"
-    labelBackground: "transparent"
-    textColor: "#94a3b8"
-    nodeBorder: "#3b82f6"
-    clusterBkg: "transparent"
-    clusterBorder: "#3b82f6"
-    edgeLabelBackground: "transparent"
-    actorBorder: "#3b82f6"
-    actorBkg: "#0891b2"
-    actorTextColor: "#ffffff"
-    actorLineColor: "#3b82f6"
-    signalColor: "#3b82f6"
-    signalTextColor: "#ffffff"
-    labelBoxBkgColor: "#0891b2"
-    labelBoxBorderColor: "#3b82f6"
-    labelTextColor: "#ffffff"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -830,38 +499,11 @@ Talos Kubernetes deployment pipeline using the Proxmox Terraform provider. Downl
 ```mermaid
 ---
 config:
-  look: neo
-  theme: base
+  theme: dark
   themeVariables:
-    primaryColor: "#0891b2"
-    primaryTextColor: "#ffffff"
-    primaryBorderColor: "#06b6d4"
-    secondaryColor: "#7c3aed"
-    tertiaryColor: "#d97706"
-    background: "transparent"
-    mainBkg: "transparent"
-    secondBkg: "transparent"
-    lineColor: "#3b82f6"
-    border1: "#3b82f6"
-    border2: "#3b82f6"
-    arrowheadColor: "#3b82f6"
+    darkMode: true
     fontFamily: "arial"
     fontSize: "14px"
-    labelBackground: "transparent"
-    textColor: "#94a3b8"
-    nodeBorder: "#3b82f6"
-    clusterBkg: "transparent"
-    clusterBorder: "#3b82f6"
-    edgeLabelBackground: "transparent"
-    actorBorder: "#3b82f6"
-    actorBkg: "#0891b2"
-    actorTextColor: "#ffffff"
-    actorLineColor: "#3b82f6"
-    signalColor: "#3b82f6"
-    signalTextColor: "#ffffff"
-    labelBoxBkgColor: "#0891b2"
-    labelBoxBorderColor: "#3b82f6"
-    labelTextColor: "#ffffff"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -884,38 +526,11 @@ Complete network architecture showing OCI VCN (10.0.0.0/16), compute instances w
 ```mermaid
 ---
 config:
-  look: neo
-  theme: base
+  theme: dark
   themeVariables:
-    primaryColor: "#0891b2"
-    primaryTextColor: "#ffffff"
-    primaryBorderColor: "#06b6d4"
-    secondaryColor: "#7c3aed"
-    tertiaryColor: "#d97706"
-    background: "transparent"
-    mainBkg: "transparent"
-    secondBkg: "transparent"
-    lineColor: "#3b82f6"
-    border1: "#3b82f6"
-    border2: "#3b82f6"
-    arrowheadColor: "#3b82f6"
+    darkMode: true
     fontFamily: "arial"
     fontSize: "14px"
-    labelBackground: "transparent"
-    textColor: "#94a3b8"
-    nodeBorder: "#3b82f6"
-    clusterBkg: "transparent"
-    clusterBorder: "#3b82f6"
-    edgeLabelBackground: "transparent"
-    actorBorder: "#3b82f6"
-    actorBkg: "#0891b2"
-    actorTextColor: "#ffffff"
-    actorLineColor: "#3b82f6"
-    signalColor: "#3b82f6"
-    signalTextColor: "#ffffff"
-    labelBoxBkgColor: "#0891b2"
-    labelBoxBorderColor: "#3b82f6"
-    labelTextColor: "#ffffff"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -975,38 +590,11 @@ Explains how the 2 free reserved IPs are allocated: #1 for bastion SSH access, #
 ```mermaid
 ---
 config:
-  look: neo
-  theme: base
+  theme: dark
   themeVariables:
-    primaryColor: "#0891b2"
-    primaryTextColor: "#ffffff"
-    primaryBorderColor: "#06b6d4"
-    secondaryColor: "#7c3aed"
-    tertiaryColor: "#d97706"
-    background: "transparent"
-    mainBkg: "transparent"
-    secondBkg: "transparent"
-    lineColor: "#3b82f6"
-    border1: "#3b82f6"
-    border2: "#3b82f6"
-    arrowheadColor: "#3b82f6"
+    darkMode: true
     fontFamily: "arial"
     fontSize: "14px"
-    labelBackground: "transparent"
-    textColor: "#94a3b8"
-    nodeBorder: "#3b82f6"
-    clusterBkg: "transparent"
-    clusterBorder: "#3b82f6"
-    edgeLabelBackground: "transparent"
-    actorBorder: "#3b82f6"
-    actorBkg: "#0891b2"
-    actorTextColor: "#ffffff"
-    actorLineColor: "#3b82f6"
-    signalColor: "#3b82f6"
-    signalTextColor: "#ffffff"
-    labelBoxBkgColor: "#0891b2"
-    labelBoxBorderColor: "#3b82f6"
-    labelTextColor: "#ffffff"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -1047,38 +635,11 @@ Shows how free tier limits are enforced at multiple stages: Terraform variable v
 ```mermaid
 ---
 config:
-  look: neo
-  theme: base
+  theme: dark
   themeVariables:
-    primaryColor: "#0891b2"
-    primaryTextColor: "#ffffff"
-    primaryBorderColor: "#06b6d4"
-    secondaryColor: "#7c3aed"
-    tertiaryColor: "#d97706"
-    background: "transparent"
-    mainBkg: "transparent"
-    secondBkg: "transparent"
-    lineColor: "#3b82f6"
-    border1: "#3b82f6"
-    border2: "#3b82f6"
-    arrowheadColor: "#3b82f6"
+    darkMode: true
     fontFamily: "arial"
     fontSize: "14px"
-    labelBackground: "transparent"
-    textColor: "#94a3b8"
-    nodeBorder: "#3b82f6"
-    clusterBkg: "transparent"
-    clusterBorder: "#3b82f6"
-    edgeLabelBackground: "transparent"
-    actorBorder: "#3b82f6"
-    actorBkg: "#0891b2"
-    actorTextColor: "#ffffff"
-    actorLineColor: "#3b82f6"
-    signalColor: "#3b82f6"
-    signalTextColor: "#ffffff"
-    labelBoxBkgColor: "#0891b2"
-    labelBoxBorderColor: "#3b82f6"
-    labelTextColor: "#ffffff"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -1142,38 +703,11 @@ Simplified validation workflow showing all five checks (images, OCI, Proxmox, Ta
 ```mermaid
 ---
 config:
-  look: neo
-  theme: base
+  theme: dark
   themeVariables:
-    primaryColor: "#0891b2"
-    primaryTextColor: "#ffffff"
-    primaryBorderColor: "#06b6d4"
-    secondaryColor: "#7c3aed"
-    tertiaryColor: "#d97706"
-    background: "transparent"
-    mainBkg: "transparent"
-    secondBkg: "transparent"
-    lineColor: "#3b82f6"
-    border1: "#3b82f6"
-    border2: "#3b82f6"
-    arrowheadColor: "#3b82f6"
+    darkMode: true
     fontFamily: "arial"
     fontSize: "14px"
-    labelBackground: "transparent"
-    textColor: "#94a3b8"
-    nodeBorder: "#3b82f6"
-    clusterBkg: "transparent"
-    clusterBorder: "#3b82f6"
-    edgeLabelBackground: "transparent"
-    actorBorder: "#3b82f6"
-    actorBkg: "#0891b2"
-    actorTextColor: "#ffffff"
-    actorLineColor: "#3b82f6"
-    signalColor: "#3b82f6"
-    signalTextColor: "#ffffff"
-    labelBoxBkgColor: "#0891b2"
-    labelBoxBorderColor: "#3b82f6"
-    labelTextColor: "#ffffff"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
@@ -1208,38 +742,11 @@ flowchart TB
 ```mermaid
 ---
 config:
-  look: neo
-  theme: base
+  theme: dark
   themeVariables:
-    primaryColor: "#0891b2"
-    primaryTextColor: "#ffffff"
-    primaryBorderColor: "#06b6d4"
-    secondaryColor: "#7c3aed"
-    tertiaryColor: "#d97706"
-    background: "transparent"
-    mainBkg: "transparent"
-    secondBkg: "transparent"
-    lineColor: "#3b82f6"
-    border1: "#3b82f6"
-    border2: "#3b82f6"
-    arrowheadColor: "#3b82f6"
+    darkMode: true
     fontFamily: "arial"
     fontSize: "14px"
-    labelBackground: "transparent"
-    textColor: "#94a3b8"
-    nodeBorder: "#3b82f6"
-    clusterBkg: "transparent"
-    clusterBorder: "#3b82f6"
-    edgeLabelBackground: "transparent"
-    actorBorder: "#3b82f6"
-    actorBkg: "#0891b2"
-    actorTextColor: "#ffffff"
-    actorLineColor: "#3b82f6"
-    signalColor: "#3b82f6"
-    signalTextColor: "#ffffff"
-    labelBoxBkgColor: "#0891b2"
-    labelBoxBorderColor: "#3b82f6"
-    labelTextColor: "#ffffff"
   flowchart:
     useMaxWidth: true
     htmlLabels: true
