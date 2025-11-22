@@ -10,52 +10,52 @@ config:
   look: neo
   theme: base
   themeVariables:
-    # Primary colors (teal/cyan for main nodes)
-    primaryColor: "#2dd4bf"
-    primaryTextColor: "#1e293b"
-    primaryBorderColor: "#14b8a6"
+    # Primary colors (medium saturation for contrast)
+    primaryColor: "#0891b2"
+    primaryTextColor: "#ffffff"
+    primaryBorderColor: "#06b6d4"
     
     # Secondary/tertiary colors
-    secondaryColor: "#a855f7"
-    tertiaryColor: "#f59e0b"
+    secondaryColor: "#7c3aed"
+    tertiaryColor: "#d97706"
     
     # Backgrounds (transparent to adapt to light/dark mode)
     background: "transparent"
     mainBkg: "transparent"
-    secondBkg: "#f1f5f9"
+    secondBkg: "transparent"
     
-    # Lines and borders (blue for visibility on all backgrounds)
-    lineColor: "#60a5fa"
-    border1: "#60a5fa"
-    border2: "#60a5fa"
-    arrowheadColor: "#60a5fa"
+    # Lines and borders (medium blue for visibility)
+    lineColor: "#3b82f6"
+    border1: "#3b82f6"
+    border2: "#3b82f6"
+    arrowheadColor: "#3b82f6"
     
     # Typography
     fontFamily: "arial"
     fontSize: "14px"
     
-    # Labels and text (medium gray - readable on light/dark)
+    # Labels and text (light gray for page background)
     labelBackground: "transparent"
-    textColor: "#64748b"
+    textColor: "#94a3b8"
     
     # Node styling
-    nodeBorder: "#60a5fa"
+    nodeBorder: "#3b82f6"
     
     # Cluster/subgraph styling
-    clusterBkg: "#f8fafc"
-    clusterBorder: "#60a5fa"
+    clusterBkg: "transparent"
+    clusterBorder: "#3b82f6"
     edgeLabelBackground: "transparent"
     
     # Sequence diagram specific
-    actorBorder: "#60a5fa"
-    actorBkg: "#e0f2fe"
-    actorTextColor: "#1e293b"
-    actorLineColor: "#60a5fa"
-    signalColor: "#60a5fa"
-    signalTextColor: "#1e293b"
-    labelBoxBkgColor: "#e0f2fe"
-    labelBoxBorderColor: "#60a5fa"
-    labelTextColor: "#1e293b"
+    actorBorder: "#3b82f6"
+    actorBkg: "#0891b2"
+    actorTextColor: "#ffffff"
+    actorLineColor: "#3b82f6"
+    signalColor: "#3b82f6"
+    signalTextColor: "#ffffff"
+    labelBoxBkgColor: "#0891b2"
+    labelBoxBorderColor: "#3b82f6"
+    labelTextColor: "#ffffff"
     
   # Flowchart options
   flowchart:
@@ -67,30 +67,39 @@ config:
 # Custom Class Definitions
 # Add these after your diagram definition for consistent styling
 
-# Success/completion nodes (emerald green)
-classDef success fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff
+# Success/completion nodes (emerald green with white text)
+classDef success fill:#059669,stroke:#10b981,stroke-width:2px,color:#fff
 
-# Error/failure nodes (red)
-classDef error fill:#ef4444,stroke:#dc2626,stroke-width:2px,color:#fff
+# Error/failure nodes (red with white text)
+classDef error fill:#dc2626,stroke:#ef4444,stroke-width:2px,color:#fff
 
-# Layer-specific colors for multi-layer architectures
-classDef layer1 fill:#3b82f6,stroke:#2563eb,stroke-width:2px,color:#fff  # Blue
-classDef layer2 fill:#a855f7,stroke:#9333ea,stroke-width:2px,color:#fff  # Purple
-classDef layer3 fill:#2dd4bf,stroke:#14b8a6,stroke-width:2px,color:#fff  # Teal
+# Layer-specific colors for multi-layer architectures (all white text)
+classDef layer1 fill:#2563eb,stroke:#3b82f6,stroke-width:2px,color:#fff  # Blue
+classDef layer2 fill:#7c3aed,stroke:#a855f7,stroke-width:2px,color:#fff  # Purple
+classDef layer3 fill:#0891b2,stroke:#06b6d4,stroke-width:2px,color:#fff  # Cyan
+
+# Phase nodes (dark green with white text)
+classDef phaseNode fill:#15803d,stroke:#22c55e,stroke-width:3px,color:#fff
 
 # Color Palette Reference
-# Primary: #2dd4bf (Teal) - Main nodes
-# Success: #10b981 (Emerald) - Success states
-# Error: #ef4444 (Red) - Error states
-# Lines: #60a5fa (Blue) - Arrows and borders
-# Text: #64748b (Slate gray) - Main text, #1e293b (darker) for labels
-# Secondary: #a855f7 (Purple) - Alternative nodes
-# Tertiary: #f59e0b (Amber) - Warnings/highlights
-
+# Box fills (darker, saturated colors for contrast with white text):
+#   - Primary: #0891b2 (Cyan 600) - Main nodes
+#   - Success: #059669 (Emerald 600) - Success states
+#   - Error: #dc2626 (Red 600) - Error states
+#   - Phase: #15803d (Green 700) - Phase nodes
+#   - Layer1: #2563eb (Blue 600)
+#   - Layer2: #7c3aed (Purple 600)
+#   - Layer3: #0891b2 (Cyan 600)
+# 
+# Text colors:
+#   - On colored boxes: #ffffff (white) - high contrast
+#   - On page background: #94a3b8 (slate 400) - visible on light/dark
+# 
+# Lines/borders: #3b82f6 (Blue 500) - visible on all backgrounds
+#
 # Why These Colors?
-# - Blue arrows (#60a5fa): Visible on both light and dark backgrounds
-# - Medium gray text (#64748b): Readable on both light and dark backgrounds
-# - Darker labels (#1e293b): Better contrast on light colored boxes
-# - Transparent backgrounds: Adapts to GitHub's theme automatically
-# - Neo look: Modern, professional appearance with smooth curves
-# - Base theme: Allows full customization via themeVariables
+# - White text on dark boxes: Always high contrast
+# - Light gray text on page: Visible on both GitHub light/dark themes  
+# - Darker box fills: Ensure contrast with white text
+# - Transparent backgrounds: Adapts to any theme
+# - Medium blue lines: Visible without being harsh
