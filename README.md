@@ -47,9 +47,9 @@ cd ../talos && tofu init && tofu apply            # Layer 3: Talos K8s + Flux
 - Sets up budget alerts
 
 **Layer 2: Proxmox Cluster** (`tofu/proxmox-cluster/`)
-- Installs Proxmox VE via Ansible
-- Forms 3-node cluster
+- Forms 3-node Proxmox cluster (pre-installed via Packer)
 - Configures Ceph for distributed storage
+- Deploys Tailscale as LXC containers
 
 **Layer 3: Talos Kubernetes** (`tofu/talos/`)
 - Deploys Talos VMs on Proxmox
@@ -130,7 +130,7 @@ tofu apply  # Deploy infrastructure
 ```bash
 cd ../proxmox-cluster
 tofu init
-tofu apply  # Installs Proxmox, forms cluster, configures Ceph
+tofu apply  # Forms cluster (pvecm), configures Ceph (pveceph)
 ```
 
 **Outputs**: Proxmox API endpoint, credentials

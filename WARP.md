@@ -98,12 +98,13 @@ brew install opentofu
 **Intervention point:** Verify OCI instances before installing Proxmox
 
 #### Layer 2: Proxmox Cluster (`tofu/proxmox-cluster/`)
-**Configures Proxmox VE cluster and Ceph:**
-- `providers.tf` - SSH/Ansible provider for Proxmox setup
-- `main.tf` - Proxmox cluster formation, Ceph configuration
-- `ansible-playbook.yaml` - Proxmox installation and hardening
-- `variables.tf` - cluster name, Ceph pool settings
+**Forms Proxmox VE cluster and configures Ceph:**
+- `providers.tf` - SSH provider for Proxmox configuration
+- `main.tf` - Cluster formation (pvecm), Ceph configuration (pveceph)
+- `variables.tf` - cluster name, Ceph pool settings  
 - `outputs.tf` - Proxmox API endpoints, credentials
+
+**Important:** Proxmox VE is pre-installed via Packer images (`proxmox-ampere.qcow2`). Layer 2 only configures the cluster and Ceph, it does NOT install Proxmox.
 
 **Inputs:** Instance IPs from Layer 1 (via remote state or manual)
 
@@ -129,16 +130,21 @@ brew install opentofu
 
 #### Deployment Flow (Independent Layers)
 ```bash
-# Layer 1: Deploy OCI infrastructure
+# Prerequisites: Build Packer images first
+packer build base-hardened.pkr.hcl
+packer build proxmox-ampere.pkr.hcl
+# Upload to OCI Object Storage and create custom images
+
+# Layer 1: Deploy OCI infrastructure with custom images
 cd tofu/oci
 tofu init
-tofu apply
-# Intervention: Verify instances are running, SSH access works
+tofu apply  # Deploys 3 Ampere (proxmox-ampere.qcow2) + 1 Micro (base-hardened.qcow2)
+# Intervention: Verify instances are running, Proxmox accessible
 
-# Layer 2: Install Proxmox cluster
+# Layer 2: Form Proxmox cluster and configure Ceph
 cd ../proxmox-cluster
 tofu init
-tofu apply  # Installs Proxmox, forms cluster, configures Ceph
+tofu apply  # Forms cluster (pvecm), configures Ceph (pveceph)
 # Intervention: Access Proxmox UI, verify cluster quorum, check Ceph
 
 # Layer 3: Deploy Talos VMs and bootstrap K8s
