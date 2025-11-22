@@ -1,0 +1,72 @@
+# Hardened SSH Configuration
+# Based on Mozilla's OpenSSH security guidelines
+
+# Network
+Port 22
+AddressFamily inet
+ListenAddress 0.0.0.0
+
+# Protocol
+Protocol 2
+
+# Host keys
+HostKey /etc/ssh/ssh_host_ed25519_key
+HostKey /etc/ssh/ssh_host_rsa_key
+
+# Ciphers and algorithms
+KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group-exchange-sha256
+Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
+MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256
+
+# Logging
+SyslogFacility AUTH
+LogLevel VERBOSE
+
+# Authentication
+LoginGraceTime 30
+PermitRootLogin prohibit-password
+StrictModes yes
+MaxAuthTries 3
+MaxSessions 10
+
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+
+# Password authentication (disabled for security)
+PasswordAuthentication no
+PermitEmptyPasswords no
+ChallengeResponseAuthentication no
+
+# Kerberos and GSSAPI (disabled)
+KerberosAuthentication no
+GSSAPIAuthentication no
+
+# Features
+AllowAgentForwarding yes
+AllowTcpForwarding yes
+GatewayPorts no
+X11Forwarding no
+PermitTTY yes
+PrintMotd no
+PrintLastLog yes
+TCPKeepAlive yes
+PermitUserEnvironment no
+Compression delayed
+ClientAliveInterval 300
+ClientAliveCountMax 2
+UseDNS no
+PermitTunnel no
+
+# Subsystems
+Subsystem sftp /usr/lib/openssh/sftp-server -f AUTHPRIV -l INFO
+
+# Security
+AllowUsers root
+DenyUsers nobody
+DenyGroups nogroup
+
+# Banner
+Banner /etc/ssh/banner
+
+# Misc
+AcceptEnv LANG LC_*
