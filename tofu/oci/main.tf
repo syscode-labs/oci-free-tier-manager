@@ -208,7 +208,7 @@ resource "oci_core_volume" "additional_storage" {
 # Budget Alert (monitors for any paid usage)
 resource "oci_budget_budget" "free_tier_budget" {
   compartment_id = var.tenancy_ocid
-  amount         = 0.01 # Alert immediately if any charges occur
+  amount         = 1 # Minimum allowed budget amount (threshold set to $0.01 below)
   reset_period   = "MONTHLY"
   display_name   = "free-tier-budget-alert"
   description    = "Alert when any costs are incurred beyond free tier"
@@ -223,8 +223,8 @@ resource "oci_budget_alert_rule" "free_tier_alert" {
   budget_id      = oci_budget_budget.free_tier_budget.id
   display_name   = "free-tier-cost-alert"
   type           = "ACTUAL"
-  threshold      = 0.01
-  threshold_type = "ABSOLUTE"
+  threshold      = 1 # Alert at 1% of budget ($0.01)
+  threshold_type = "PERCENTAGE"
   message        = "WARNING: Charges detected! You may have exceeded OCI free tier limits."
   recipients     = var.budget_alert_email
 }

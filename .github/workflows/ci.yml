@@ -35,12 +35,31 @@ jobs:
       with:
         tofu_version: '1.8.0'
 
-    - name: Validate OpenTofu
+    - name: Install tflint
+      run: |
+        curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+        tflint --version
+
+    - name: Format Check
+      run: |
+        cd tofu/oci
+        tofu fmt -check -recursive
+
+    - name: Initialize OpenTofu
       run: |
         cd tofu/oci
         tofu init -backend=false
+
+    - name: Validate OpenTofu
+      run: |
+        cd tofu/oci
         tofu validate
-        tofu fmt -check
+
+    - name: Run tflint
+      run: |
+        cd tofu/oci
+        tflint --init
+        tflint --format compact
 
     - name: Install Pluto
       run: |
