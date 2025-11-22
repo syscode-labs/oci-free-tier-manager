@@ -1,0 +1,294 @@
+version: '3'
+
+vars:
+  ARTIFACTS_DIR: ./artifacts
+  FLUX_REPO: ../oci-free-tier-flux
+
+tasks:
+  # ============================================================================
+  # Setup Tasks
+  # ============================================================================
+  
+  setup:
+    desc: Run initial setup (OCI CLI, SSH keys, tfvars)
+    cmds:
+      - ./scripts/setup.sh
+  
+  setup:flux:
+    desc: Setup Flux repository (Cilium, SOPS, secrets)
+    cmds:
+      - ./scripts/setup-flux.sh {{.FLUX_REPO}}
+  
+  # ============================================================================
+  # Phase 1: Image Building
+  # ============================================================================
+  
+  build:images:
+    desc: Build custom images with Dagger (base + Proxmox)
+    cmds:
+      - echo "Building custom images with Dagger..."
+      - dagger call build-all-images
+      - echo "✓ Images built successfully"
+  
+  build:validate:
+    desc: Validate built images meet size requirements
+    deps: [build:images]
+    cmds:
+      - echo "Validating image sizes..."
+      - dagger call validate-images
+  
+  build:upload:
+    desc: Upload images to OCI Object Storage
+    deps: [build:validate]
+    cmds:
+      - echo "Uploading images to OCI..."
+      - |
+        dagger call upload-to-oci \
+          --bucket {{.BUCKET | default "oci-images"}} \
+          --compartment-id {{.COMPARTMENT_ID}} \
+          --region {{.REGION | default "uk-london-1"}}
+    preconditions:
+      - sh: '[ -n "{{.COMPARTMENT_ID}}" ]'
+        msg: "COMPARTMENT_ID is required. Set it with: task build:upload COMPARTMENT_ID=ocid1..."
+  
+  # ============================================================================
+  # Phase 2: OCI Infrastructure
+  # ============================================================================
+  
+  deploy:oci:
+    desc: Deploy OCI infrastructure (Layer 1)
+    dir: tofu/oci
+    cmds:
+      - echo "Deploying OCI infrastructure..."
+      - tofu init -upgrade
+      - tofu plan -out=tfplan
+      - tofu apply tfplan
+      - rm -f tfplan
+      - echo "✓ OCI infrastructure deployed"
+  
+  deploy:oci:plan:
+    desc: Plan OCI infrastructure changes
+    dir: tofu/oci
+    cmds:
+      - tofu init -upgrade
+      - tofu plan
+  
+  destroy:oci:
+    desc: Destroy OCI infrastructure
+    dir: tofu/oci
+    prompt: "This will destroy OCI infrastructure. Continue?"
+    cmds:
+      - tofu destroy
+  
+  # ============================================================================
+  # Phase 3: Proxmox Cluster
+  # ============================================================================
+  
+  deploy:proxmox:
+    desc: Setup Proxmox cluster (Layer 2)
+    deps: [deploy:oci]
+    dir: tofu/proxmox-cluster
+    cmds:
+      - echo "Setting up Proxmox cluster..."
+      - tofu init -upgrade
+      - tofu plan -out=tfplan
+      - tofu apply tfplan
+      - rm -f tfplan
+      - echo "✓ Proxmox cluster configured"
+  
+  deploy:proxmox:plan:
+    desc: Plan Proxmox cluster changes
+    dir: tofu/proxmox-cluster
+    cmds:
+      - tofu init -upgrade
+      - tofu plan
+  
+  destroy:proxmox:
+    desc: Destroy Proxmox cluster
+    dir: tofu/proxmox-cluster
+    prompt: "This will destroy Proxmox cluster. Continue?"
+    cmds:
+      - tofu destroy
+  
+  # ============================================================================
+  # Phase 4: Talos Kubernetes
+  # ============================================================================
+  
+  deploy:talos:
+    desc: Deploy Talos Kubernetes (Layer 3)
+    deps: [deploy:proxmox]
+    dir: tofu/talos
+    cmds:
+      - echo "Deploying Talos Kubernetes..."
+      - tofu init -upgrade
+      - tofu plan -out=tfplan
+      - tofu apply tfplan
+      - rm -f tfplan
+      - echo "✓ Talos Kubernetes deployed"
+  
+  deploy:talos:plan:
+    desc: Plan Talos Kubernetes changes
+    dir: tofu/talos
+    cmds:
+      - tofu init -upgrade
+      - tofu plan
+  
+  destroy:talos:
+    desc: Destroy Talos Kubernetes
+    dir: tofu/talos
+    prompt: "This will destroy Talos cluster. Continue?"
+    cmds:
+      - tofu destroy
+  
+  # ============================================================================
+  # All-in-One Deployment
+  # ============================================================================
+  
+  deploy:all:
+    desc: Full deployment (all phases)
+    cmds:
+      - task: header
+        vars: {MSG: "OCI Free Tier Full Stack Deployment"}
+      - task: build:images
+      - task: deploy:oci
+      - task: deploy:proxmox
+      - task: deploy:talos
+      - echo ""
+      - echo "✓ Full deployment complete!"
+      - echo ""
+      - echo "Run 'task validate' to verify the deployment."
+  
+  destroy:all:
+    desc: Destroy all infrastructure (reverse order)
+    prompt: "This will destroy ALL infrastructure. Type 'yes' to confirm"
+    cmds:
+      - echo "Destroying infrastructure in reverse order..."
+      - task: destroy:talos
+      - task: destroy:proxmox
+      - task: destroy:oci
+      - echo "✓ All infrastructure destroyed"
+  
+  # ============================================================================
+  # Validation
+  # ============================================================================
+  
+  validate:
+    desc: Run all validation checks
+    cmds:
+      - task: header
+        vars: {MSG: "Running Validation Checks"}
+      - task: validate:images
+      - task: validate:oci
+      - task: validate:proxmox
+      - task: validate:talos
+      - task: validate:cost
+      - echo ""
+      - echo "✓ All validation checks passed!"
+  
+  validate:images:
+    desc: Validate image sizes
+    cmds:
+      - bash scripts/validate-phase1.sh
+    ignore_error: true
+  
+  validate:oci:
+    desc: Validate OCI infrastructure
+    cmds:
+      - bash scripts/validate-phase2.sh
+    ignore_error: true
+  
+  validate:proxmox:
+    desc: Validate Proxmox cluster
+    cmds:
+      - bash scripts/validate-phase3.sh
+    ignore_error: true
+  
+  validate:talos:
+    desc: Validate Talos Kubernetes
+    cmds:
+      - bash scripts/validate-phase4.sh
+    ignore_error: true
+  
+  validate:cost:
+    desc: Verify $0.00 billing
+    cmds:
+      - bash scripts/validate-cost.sh
+    ignore_error: true
+  
+  # ============================================================================
+  # Utilities
+  # ============================================================================
+  
+  check:availability:
+    desc: Check OCI capacity availability
+    cmds:
+      - ./check_availability.py
+  
+  lint:
+    desc: Run linters on all code
+    cmds:
+      - echo "Running linters..."
+      - task: lint:tofu
+      - task: lint:python
+      - task: lint:yaml
+      - task: lint:shell
+      - echo "✓ All linters passed"
+  
+  lint:tofu:
+    desc: Lint OpenTofu code
+    cmds:
+      - cd tofu/oci && tofu fmt -check
+      - tflint tofu/oci
+    ignore_error: true
+  
+  lint:python:
+    desc: Lint Python code
+    cmds:
+      - black --check .
+      - flake8 .
+    ignore_error: true
+  
+  lint:yaml:
+    desc: Lint YAML files
+    cmds:
+      - yamllint .
+    ignore_error: true
+  
+  lint:shell:
+    desc: Lint shell scripts
+    cmds:
+      - shellcheck scripts/*.sh
+    ignore_error: true
+  
+  fmt:
+    desc: Format all code
+    cmds:
+      - echo "Formatting code..."
+      - cd tofu/oci && tofu fmt
+      - black .
+      - echo "✓ Code formatted"
+  
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - echo "Cleaning artifacts..."
+      - rm -rf {{.ARTIFACTS_DIR}}
+      - rm -rf .dagger
+      - rm -rf tofu/*/tfplan
+      - rm -rf tofu/*/.terraform
+      - rm -rf packer_cache
+      - rm -rf output-qemu
+      - echo "✓ Artifacts cleaned"
+  
+  # ============================================================================
+  # Helper Tasks (internal)
+  # ============================================================================
+  
+  header:
+    internal: true
+    cmds:
+      - echo ""
+      - echo "╔═══════════════════════════════════════════╗"
+      - echo "║  {{.MSG | printf "%-41s"}}║"
+      - echo "╚═══════════════════════════════════════════╝"
+      - echo ""

@@ -74,7 +74,25 @@ age-key.txt
 devbox.lock
 
 # Pre-commit
-.pre-commit-config.yaml.bak
+.pre-commit-config.yaml.backup
+
+# Nix
+result
+result-*
+.direnv/
+flake.lock
+
+# Dagger
+.dagger/
+dagger/__pycache__/
+
+# Artifacts
+artifacts/
+*.qcow2
+
+# Packer
+output-qemu/
+packer_cache/
 
 # Kubernetes
 .kube/config
