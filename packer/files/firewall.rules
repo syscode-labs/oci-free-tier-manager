@@ -1,0 +1,43 @@
+# iptables firewall rules for base-hardened image
+# IPv4 rules
+
+*filter
+
+# Default policies
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT ACCEPT [0:0]
+
+# Allow loopback
+-A INPUT -i lo -j ACCEPT
+
+# Allow established connections
+-A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+
+# Allow SSH
+-A INPUT -p tcp --dport 22 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+
+# Allow HTTP/HTTPS (for web services)
+-A INPUT -p tcp --dport 80 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+-A INPUT -p tcp --dport 443 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+
+# Allow ICMP (ping)
+-A INPUT -p icmp --icmp-type echo-request -j ACCEPT
+-A INPUT -p icmp --icmp-type echo-reply -j ACCEPT
+-A INPUT -p icmp --icmp-type destination-unreachable -j ACCEPT
+-A INPUT -p icmp --icmp-type time-exceeded -j ACCEPT
+
+# Allow Tailscale
+-A INPUT -i tailscale0 -j ACCEPT
+-A INPUT -p udp --dport 41641 -j ACCEPT
+
+# Log dropped packets (optional, for debugging)
+# -A INPUT -m limit --limit 5/min -j LOG --log-prefix "iptables denied: " --log-level 7
+
+# Drop invalid packets
+-A INPUT -m conntrack --ctstate INVALID -j DROP
+
+# Drop all other input
+-A INPUT -j DROP
+
+COMMIT
