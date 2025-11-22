@@ -40,16 +40,25 @@ tasks:
   build:upload:
     desc: Upload images to OCI Object Storage
     deps: [build:validate]
+    vars:
+      COMPARTMENT_ID:
+        sh: |
+          if [ -n "{{.COMPARTMENT_ID}}" ]; then
+            echo "{{.COMPARTMENT_ID}}"
+          else
+            awk -F'=' '/^tenancy/ {print $2}' ~/.oci/config | tr -d ' '
+          fi
     cmds:
       - echo "Uploading images to OCI..."
+      - echo "Using compartment: {{.COMPARTMENT_ID}}"
       - |
         dagger call upload-to-oci \
           --bucket {{.BUCKET | default "oci-images"}} \
           --compartment-id {{.COMPARTMENT_ID}} \
           --region {{.REGION | default "uk-london-1"}}
     preconditions:
-      - sh: '[ -n "{{.COMPARTMENT_ID}}" ]'
-        msg: "COMPARTMENT_ID is required. Set it with: task build:upload COMPARTMENT_ID=ocid1..."
+      - sh: 'test -f ~/.oci/config'
+        msg: "OCI CLI not configured. Run: task setup"
   
   # ============================================================================
   # Phase 2: OCI Infrastructure
