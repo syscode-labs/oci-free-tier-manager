@@ -3,10 +3,6 @@ plugin "terraform" {
   preset  = "recommended"
 }
 
-plugin "oci" {
-  enabled = false # OCI ruleset currently unavailable upstream; disable to keep CI green
-}
-
 # Naming conventions
 rule "terraform_naming_convention" {
   enabled = true
