@@ -1,0 +1,30 @@
+package:
+  iptables-persistent:
+    installed: true
+  fail2ban:
+    installed: true
+  tailscale:
+    installed: true
+  qemu-guest-agent:
+    installed: true
+
+service:
+  ssh:
+    enabled: true
+    running: true
+  qemu-guest-agent:
+    enabled: true
+    running: true
+  fail2ban:
+    enabled: true
+  tailscaled:
+    enabled: true
+
+file:
+  /etc/ssh/sshd_config:
+    exists: true
+    mode: "0600"
+    owner: root
+    group: root
+  /etc/iptables/rules.v4:
+    exists: true
