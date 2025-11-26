@@ -1,0 +1,92 @@
+name: Packer AWS ARM (Graviton)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ami_name_prefix:
+        description: "AMI name prefix"
+        required: false
+        default: "aws-base-hardened-arm64"
+      instance_type:
+        description: "Builder instance type (t4g.micro uses free tier credits)"
+        required: false
+        default: "t4g.micro"
+      associate_public_ip:
+        description: "Assign public IP to builder (true/false)"
+        required: false
+        default: "true"
+
+jobs:
+  build-aws-arm:
+    name: Build AWS ARM AMI (ephemeral)
+    runs-on: ubuntu-latest
+    env:
+      PACKER_LOG: "1"
+      SSH_PRIVATE_KEY_PATH: /tmp/aws_builder_ssh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Setup Packer
+        uses: hashicorp/setup-packer@v2
+        with:
+          version: latest
+
+      - name: Write SSH key for builder
+        run: |
+          cat <<'EOF' > "$SSH_PRIVATE_KEY_PATH"
+          ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+          EOF
+          chmod 600 "$SSH_PRIVATE_KEY_PATH"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Init Packer plugins
+        working-directory: packer
+        run: packer init aws-arm-base.pkr.hcl
+
+      - name: Build AWS ARM AMI
+        id: packer_build
+        working-directory: packer
+        env:
+          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+        run: |
+          set -euo pipefail
+          PACKER_VARS=(
+            "-var" "region=${{ secrets.AWS_REGION }}"
+            "-var" "source_ami=${{ secrets.AWS_SOURCE_AMI }}"
+            "-var" "ssh_username=${{ secrets.AWS_SSH_USERNAME }}"
+            "-var" "ssh_keypair_name=${{ secrets.AWS_SSH_KEYPAIR_NAME }}"
+            "-var" "ssh_private_key_path=${SSH_PRIVATE_KEY_PATH}"
+            "-var" "ami_name_prefix=${{ github.event.inputs.ami_name_prefix }}"
+            "-var" "instance_type=${{ github.event.inputs.instance_type }}"
+            "-var" "associate_public_ip=${{ github.event.inputs.associate_public_ip || 'true' }}"
+          )
+
+          if [ -n "${{ secrets.AWS_SUBNET_ID }}" ]; then
+            PACKER_VARS+=("-var" "subnet_id=${{ secrets.AWS_SUBNET_ID }}")
+          fi
+
+          if [ -n "$TAILSCALE_AUTH_KEY" ]; then
+            PACKER_VARS+=("-var" "tailscale_auth_key=${TAILSCALE_AUTH_KEY}")
+          fi
+
+          echo "Running Packer build against AWS..."
+          packer build -color=false "${PACKER_VARS[@]}" aws-arm-base.pkr.hcl | tee /tmp/packer-aws-build.log
+
+          AMI_ID=$(grep -Eo "ami-[a-zA-Z0-9]{17}" /tmp/packer-aws-build.log | tail -n1)
+          echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Packer log
+        uses: actions/upload-artifact@v4
+        with:
+          name: packer-aws-arm-log
+          path: /tmp/packer-aws-build.log

@@ -1,0 +1,139 @@
+name: Packer Images
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "packer/**"
+      - "dagger/**"
+      - ".github/workflows/packer.yml"
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - "packer/**"
+      - "dagger/**"
+      - ".github/workflows/packer.yml"
+
+jobs:
+  packer:
+    name: Build Packer Images
+    runs-on: ubuntu-latest
+    env:
+      PACKER_LOG: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 qemu-system-arm qemu-utils jq
+
+      - name: Setup Packer
+        uses: hashicorp/setup-packer@v2
+        with:
+          version: latest
+
+      - name: Init Packer plugins
+        working-directory: packer
+        run: packer init .
+
+      - name: Build base-hardened image
+        id: build_base
+        working-directory: packer
+        env:
+          SSH_AUTH_KEY: ${{ secrets.PACKER_SSH_PUBLIC_KEY }}
+          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+        run: |
+          mkdir -p output-base
+          packer build \
+            -color=false \
+            -var "headless=true" \
+            -var "output_directory=output-base" \
+            -var "ssh_authorized_key=${SSH_AUTH_KEY}" \
+            -var "tailscale_auth_key=${TAILSCALE_AUTH_KEY}" \
+            base-hardened.pkr.hcl
+
+          BASE_IMAGE=$(find output-base -type f -name '*.qcow2' | head -n 1)
+          if [ -z "$BASE_IMAGE" ]; then
+            echo "Base image not found"
+            exit 1
+          fi
+
+          BASE_IMAGE=$(realpath "$BASE_IMAGE")
+          echo "base_image=${BASE_IMAGE}" >> "$GITHUB_OUTPUT"
+
+      - name: Build proxmox-ampere image
+        id: build_proxmox
+        working-directory: packer
+        env:
+          SSH_AUTH_KEY: ${{ secrets.PACKER_SSH_PUBLIC_KEY }}
+          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          BASE_IMAGE: ${{ steps.build_base.outputs.base_image }}
+        run: |
+          if [ -z "$BASE_IMAGE" ]; then
+            echo "Base image not found"
+            exit 1
+          fi
+
+          mkdir -p output-proxmox
+          packer build \
+            -color=false \
+            -var "headless=true" \
+            -var "output_directory=output-proxmox" \
+            -var "source_image=${BASE_IMAGE}" \
+            -var "ssh_authorized_key=${SSH_AUTH_KEY}" \
+            -var "tailscale_auth_key=${TAILSCALE_AUTH_KEY}" \
+            proxmox-ampere.pkr.hcl
+
+          PROXMOX_IMAGE=$(find output-proxmox -type f -name '*.qcow2' | head -n 1)
+          if [ -z "$PROXMOX_IMAGE" ]; then
+            echo "Proxmox image not found"
+            exit 1
+          fi
+
+          PROXMOX_IMAGE=$(realpath "$PROXMOX_IMAGE")
+          echo "proxmox_image=${PROXMOX_IMAGE}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate build report
+        id: report
+        run: |
+          BASE_IMAGE="${{ steps.build_base.outputs.base_image }}"
+          PROX_IMAGE="${{ steps.build_proxmox.outputs.proxmox_image }}"
+
+          if [ -z "$BASE_IMAGE" ] || [ -z "$PROX_IMAGE" ]; then
+            echo "Missing image paths from previous steps"
+            exit 1
+          fi
+
+          BASE_SIZE=$(qemu-img info --output=json "$BASE_IMAGE" | jq '.["virtual-size"]')
+          PROX_SIZE=$(qemu-img info --output=json "$PROX_IMAGE" | jq '.["virtual-size"]')
+          BASE_SHA=$(sha256sum "$BASE_IMAGE" | cut -d ' ' -f1)
+          PROX_SHA=$(sha256sum "$PROX_IMAGE" | cut -d ' ' -f1)
+
+          mkdir -p artifacts
+          cat > artifacts/IMAGE_BUILD_REPORT.md <<EOF
+# Packer Image Build Report
+
+Date: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+- Base image: $(basename "$BASE_IMAGE")
+  - Virtual size: $((BASE_SIZE / 1024 / 1024 / 1024)) GiB
+  - SHA256: $BASE_SHA
+- Proxmox image: $(basename "$PROX_IMAGE")
+  - Virtual size: $((PROX_SIZE / 1024 / 1024 / 1024)) GiB
+  - SHA256: $PROX_SHA
+
+Total virtual size: $(((BASE_SIZE + PROX_SIZE) / 1024 / 1024 / 1024)) GiB (limit: 20 GiB)
+EOF
+
+          echo "report_path=artifacts/IMAGE_BUILD_REPORT.md" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: packer-images
+          path: |
+            packer/output-base/*.qcow2
+            packer/output-proxmox/*.qcow2
+            artifacts/IMAGE_BUILD_REPORT.md

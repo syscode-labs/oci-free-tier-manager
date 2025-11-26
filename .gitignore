@@ -63,6 +63,7 @@ availability.log
 *.swo
 *~
 .DS_Store
+.codex/
 
 # Secrets
 secrets/
