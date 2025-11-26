@@ -2,6 +2,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CodeQL](https://github.com/syscode-labs/oci-free-tier-manager/workflows/CodeQL/badge.svg)](https://github.com/syscode-labs/oci-free-tier-manager/actions/workflows/codeql.yml)
+[![CI](https://github.com/syscode-labs/oci-free-tier-manager/workflows/CI/badge.svg)](https://github.com/syscode-labs/oci-free-tier-manager/actions/workflows/ci.yml)
+[![tfsec](https://img.shields.io/badge/tfsec-enabled-blue?logo=terraform)](https://aquasecurity.github.io/tfsec/)
+[![Checkov](https://img.shields.io/badge/checkov-enabled-blue?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEyczQuNDggMTAgMTAgMTAgMTAtNC40OCAxMC0xMFMxNy41MiAyIDEyIDJ6bTAgMThjLTQuNDEgMC04LTMuNTktOC04czMuNTktOCA4LTggOCAzLjU5IDggOC0zLjU5IDgtOCA4em0tMS0xM2gtMnY2aDJ6bTAgOGgtMnYyaDJ6Ii8+PC9zdmc+)](https://www.checkov.io/)
 [![OpenTofu](https://img.shields.io/badge/OpenTofu-1.8-844FBA?logo=terraform)](https://opentofu.org/)
 [![Nix](https://img.shields.io/badge/Nix-Devbox-5277C3?logo=nixos)](https://www.jetpack.io/devbox)
 [![Task](https://img.shields.io/badge/Task-Automation-29BEB0?logo=task)](https://taskfile.dev/)
@@ -135,6 +138,14 @@ task build:upload  # Auto-fetches compartment ID from OCI config
 - Creates custom compute images
 
 **Note**: Image OCIDs are automatically referenced in `tofu/oci/data.tf`.
+
+### CI image builds
+
+Packer images are also built in CI via `.github/workflows/packer.yml` on changes under `packer/**`. Configure these repository secrets:
+- `PACKER_SSH_PUBLIC_KEY`: SSH public key injected into built images (`root` authorized_keys)
+- `TAILSCALE_AUTH_KEY` (optional): Stored in `/etc/default/tailscaled` for first-boot join
+
+Each run publishes `packer/output-base/*.qcow2`, `packer/output-proxmox/*.qcow2`, and a generated `artifacts/IMAGE_BUILD_REPORT.md` as workflow artifacts.
 
 ### Step 1: Check Capacity
 

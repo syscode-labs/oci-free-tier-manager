@@ -71,3 +71,41 @@ jobs:
       run: |
         cd tofu/oci
         pluto detect-files -d . --target-versions k8s=v1.30.0
+
+    - name: Install tfsec
+      run: |
+        curl -L https://github.com/aquasecurity/tfsec/releases/download/v1.28.11/tfsec-linux-amd64 -o tfsec
+        chmod +x tfsec
+        sudo mv tfsec /usr/local/bin/
+        tfsec --version
+
+    - name: Run tfsec security scan
+      run: |
+        cd tofu/oci
+        tfsec . \
+          --format lovely \
+          --minimum-severity MEDIUM \
+          --exclude-downloaded-modules
+      continue-on-error: false
+
+    - name: Setup Python for Checkov
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Checkov
+      run: |
+        pip install checkov
+        checkov --version
+
+    - name: Run Checkov security scan
+      run: |
+        cd tofu/oci
+        checkov -d . \
+          --framework terraform \
+          --output cli \
+          --compact \
+          --quiet \
+          --skip-check CKV_OCI_* \
+          --soft-fail
+      continue-on-error: true
