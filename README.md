@@ -139,6 +139,14 @@ task build:upload  # Auto-fetches compartment ID from OCI config
 
 **Note**: Image OCIDs are automatically referenced in `tofu/oci/data.tf`.
 
+### CI image builds
+
+Packer images are also built in CI via `.github/workflows/packer.yml` on changes under `packer/**`. Configure these repository secrets:
+- `PACKER_SSH_PUBLIC_KEY`: SSH public key injected into built images (`root` authorized_keys)
+- `TAILSCALE_AUTH_KEY` (optional): Stored in `/etc/default/tailscaled` for first-boot join
+
+Each run publishes `packer/output-base/*.qcow2`, `packer/output-proxmox/*.qcow2`, and a generated `artifacts/IMAGE_BUILD_REPORT.md` as workflow artifacts.
+
 ### Step 1: Check Capacity
 
 Ampere instances are often out of capacity:
