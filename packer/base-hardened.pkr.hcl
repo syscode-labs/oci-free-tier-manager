@@ -30,6 +30,18 @@ variable "output_directory" {
   default = "output-qemu"
 }
 
+variable "ssh_authorized_key" {
+  description = "SSH public key to add to root authorized_keys (optional)"
+  type        = string
+  default     = ""
+}
+
+variable "tailscale_auth_key" {
+  description = "Tailscale auth key to persist in /etc/default/tailscaled for first-boot join (optional)"
+  type        = string
+  default     = ""
+}
+
 source "qemu" "debian12" {
   # Debian 12 netinstall ISO
   iso_url      = "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-12.8.0-amd64-netinst.iso"
@@ -126,12 +138,45 @@ build {
     source      = "files/firewall.rules"
     destination = "/etc/iptables/rules.v4"
   }
-  
+
+  # Copy goss tests and runner
+  provisioner "file" {
+    source      = "goss/base.goss.yaml"
+    destination = "/tmp/base.goss.yaml"
+  }
+
+  provisioner "file" {
+    source      = "scripts/run-goss.sh"
+    destination = "/tmp/run-goss.sh"
+  }
+
   # Enable automatic security updates
   provisioner "shell" {
     inline = [
       "apt-get install -y unattended-upgrades apt-listchanges",
       "dpkg-reconfigure -plow unattended-upgrades"
+    ]
+  }
+
+  # Inject SSH authorized key if provided
+  provisioner "shell" {
+    inline = [
+      "if [ -n \"${var.ssh_authorized_key}\" ]; then mkdir -p /root/.ssh; echo \"${var.ssh_authorized_key}\" > /root/.ssh/authorized_keys; chmod 700 /root/.ssh; chmod 600 /root/.ssh/authorized_keys; fi"
+    ]
+  }
+
+  # Persist Tailscale auth key (optional)
+  provisioner "shell" {
+    inline = [
+      "if [ -n \"${var.tailscale_auth_key}\" ]; then install -m 600 /dev/null /etc/default/tailscaled; echo \"TS_AUTHKEY=${var.tailscale_auth_key}\" > /etc/default/tailscaled; fi"
+    ]
+  }
+
+  # Validate with goss
+  provisioner "shell" {
+    inline = [
+      "chmod +x /tmp/run-goss.sh",
+      "/tmp/run-goss.sh /tmp/base.goss.yaml"
     ]
   }
   
