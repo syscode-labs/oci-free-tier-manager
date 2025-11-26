@@ -119,10 +119,23 @@ build {
       "update-grub"
     ]
   }
+
+  # Copy goss tests and runner
+  provisioner "file" {
+    source      = "goss/base.goss.yaml"
+    destination = "/tmp/base.goss.yaml"
+  }
+
+  provisioner "file" {
+    source      = "scripts/run-goss.sh"
+    destination = "/tmp/run-goss.sh"
+  }
   
   # Cleanup
   provisioner "shell" {
     inline = [
+      "chmod +x /tmp/run-goss.sh",
+      "/tmp/run-goss.sh /tmp/base.goss.yaml",
       "apt-get autoremove -y",
       "apt-get clean",
       "rm -rf /tmp/*",
