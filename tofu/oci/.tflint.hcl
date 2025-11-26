@@ -3,12 +3,6 @@ plugin "terraform" {
   preset  = "recommended"
 }
 
-plugin "oci" {
-  enabled = true
-  version = "0.7.0"
-  source  = "github.com/terraform-linters/tflint-ruleset-oci"
-}
-
 # Naming conventions
 rule "terraform_naming_convention" {
   enabled = true

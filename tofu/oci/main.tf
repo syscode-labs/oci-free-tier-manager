@@ -14,11 +14,11 @@
 
 terraform {
   required_version = ">= 1.0"
-  
+
   required_providers {
     oci = {
       source  = "oracle/oci"
-      version = "~> 5.0"
+      version = "~> 7.27"
     }
   }
 }
@@ -30,7 +30,7 @@ provider "oci" {
   fingerprint      = var.fingerprint != "" ? var.fingerprint : null
   private_key_path = var.private_key_path != "" ? var.private_key_path : null
   region           = var.region
-  
+
   # When above values are null, provider automatically reads from:
   # - Environment variables: TF_VAR_* or OCI_*
   # - Config file: ~/.oci/config (default profile)
@@ -213,8 +213,8 @@ resource "oci_budget_budget" "free_tier_budget" {
   display_name   = "free-tier-budget-alert"
   description    = "Alert when any costs are incurred beyond free tier"
 
-  target_type         = "COMPARTMENT"
-  targets             = [var.compartment_ocid]
+  target_type                           = "COMPARTMENT"
+  targets                               = [var.compartment_ocid]
   budget_processing_period_start_offset = 1
 }
 
