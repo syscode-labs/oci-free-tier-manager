@@ -38,7 +38,7 @@
 #     skip_credentials_validation = true
 #     skip_metadata_api_check     = true
 #     endpoint                    = "https://NAMESPACE.compat.objectstorage.REGION.oraclecloud.com"
-#     
+#
 #     # Uses AWS signature V4 with OCI Customer Secret Keys
 #     access_key = var.oci_s3_access_key
 #     secret_key = var.oci_s3_secret_key

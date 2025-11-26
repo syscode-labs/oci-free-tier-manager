@@ -1,0 +1,96 @@
+name: Packer OCI Ampere (Always Free)
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_name_prefix:
+        description: "Custom image name prefix (optional)"
+        required: false
+        default: "oci-base-hardened-arm64"
+      assign_public_ip:
+        description: "Assign public IP to builder (true/false)"
+        required: false
+        default: "true"
+
+jobs:
+  build-ampere:
+    name: Build OCI Ampere Image (ephemeral builder)
+    runs-on: ubuntu-latest
+    env:
+      PACKER_LOG: "1"
+      OCI_API_KEY_PATH: /tmp/oci_api_key.pem
+      SSH_PRIVATE_KEY_PATH: /tmp/oci_builder_ssh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-utils jq
+
+      - name: Setup Packer
+        uses: hashicorp/setup-packer@v2
+        with:
+          version: latest
+
+      - name: Write OCI API signing key
+        run: |
+          cat <<'EOF' > "$OCI_API_KEY_PATH"
+          ${{ secrets.OCI_API_PRIVATE_KEY }}
+          EOF
+          chmod 600 "$OCI_API_KEY_PATH"
+
+      - name: Write SSH key for builder
+        run: |
+          cat <<'EOF' > "$SSH_PRIVATE_KEY_PATH"
+          ${{ secrets.OCI_SSH_PRIVATE_KEY }}
+          EOF
+          chmod 600 "$SSH_PRIVATE_KEY_PATH"
+
+      - name: Init Packer plugins
+        working-directory: packer
+        run: packer init oci-ampere-base.pkr.hcl
+
+      - name: Build OCI Ampere image (ephemeral)
+        id: packer_build
+        working-directory: packer
+        env:
+          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+        run: |
+          set -euo pipefail
+          PACKER_VARS=(
+            "-var" "tenancy_ocid=${{ secrets.OCI_TENANCY_OCID }}"
+            "-var" "user_ocid=${{ secrets.OCI_USER_OCID }}"
+            "-var" "fingerprint=${{ secrets.OCI_FINGERPRINT }}"
+            "-var" "compartment_ocid=${{ secrets.OCI_COMPARTMENT_OCID }}"
+            "-var" "region=${{ secrets.OCI_REGION }}"
+            "-var" "availability_domain=${{ secrets.OCI_AVAILABILITY_DOMAIN }}"
+            "-var" "subnet_ocid=${{ secrets.OCI_SUBNET_OCID }}"
+            "-var" "base_image_ocid=${{ secrets.OCI_BASE_IMAGE_OCID }}"
+            "-var" "ssh_username=${{ secrets.OCI_SSH_USERNAME }}"
+            "-var" "ssh_public_key=${{ secrets.OCI_SSH_PUBLIC_KEY }}"
+            "-var" "ssh_private_key_path=${SSH_PRIVATE_KEY_PATH}"
+            "-var" "api_private_key_path=${OCI_API_KEY_PATH}"
+            "-var" "image_name_prefix=${{ github.event.inputs.image_name_prefix || github.event.inputs.image_name_prefix == '' && 'oci-base-hardened-arm64' || github.event.inputs.image_name_prefix }}"
+            "-var" "assign_public_ip=${{ github.event.inputs.assign_public_ip || 'true' }}"
+          )
+
+          if [ -n "$TAILSCALE_AUTH_KEY" ]; then
+            PACKER_VARS+=("-var" "tailscale_auth_key=${TAILSCALE_AUTH_KEY}")
+          fi
+
+          echo "Running Packer build against OCI..."
+          packer build \
+            -color=false \
+            "${PACKER_VARS[@]}" \
+            oci-ampere-base.pkr.hcl | tee /tmp/packer-build.log
+
+          IMAGE_NAME=$(grep -Eo "oci-base-hardened-arm64-[0-9]{14}" /tmp/packer-build.log | tail -n1)
+          echo "image_name=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Packer log
+        uses: actions/upload-artifact@v4
+        with:
+          name: packer-oci-ampere-log
+          path: /tmp/packer-build.log
