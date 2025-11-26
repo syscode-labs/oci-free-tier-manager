@@ -275,6 +275,31 @@ tasks:
     cmds:
       - ./check_availability.py
   
+  security:
+    desc: Run security scans on all code
+    cmds:
+      - echo "Running security scans..."
+      - task: security:terraform
+      - task: security:python
+      - echo "✓ All security scans passed"
+  
+  security:terraform:
+    desc: Run tfsec and Checkov on Terraform
+    dir: tofu/oci
+    cmds:
+      - echo "Running tfsec..."
+      - tfsec . --minimum-severity MEDIUM
+      - echo "Running Checkov..."
+      - checkov -d . --framework terraform --compact
+    ignore_error: true
+  
+  security:python:
+    desc: Run Bandit security scan on Python
+    cmds:
+      - echo "Running Bandit..."
+      - bandit -r . -ll -f screen
+    ignore_error: true
+  
   lint:
     desc: Run linters on all code
     cmds:

@@ -1,0 +1,170 @@
+name: OCI Image Copy (Build → Prod)
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_image_ocid:
+        description: "Custom image OCID in build tenancy"
+        required: true
+      dest_image_name:
+        description: "Display name for the image in prod tenancy"
+        required: true
+      object_name:
+        description: "Object name to use for export/import (e.g. base-hardened.qcow2)"
+        required: true
+      expires_in_hours:
+        description: "PAR expiry (hours)"
+        required: false
+        default: "24"
+
+jobs:
+  copy-image:
+    name: Export from build → import to prod
+    runs-on: ubuntu-latest
+    env:
+      BUILD_CONFIG: /tmp/oci-build-config
+      PROD_CONFIG: /tmp/oci-prod-config
+      BUILD_KEY: /tmp/oci-build-key.pem
+      PROD_KEY: /tmp/oci-prod-key.pem
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install OCI CLI dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip jq
+          pip3 install --upgrade oci-cli
+
+      - name: Write OCI keys
+        run: |
+          cat <<'EOF' > "$BUILD_KEY"
+          ${{ secrets.BUILD_OCI_API_PRIVATE_KEY }}
+          EOF
+          chmod 600 "$BUILD_KEY"
+
+          cat <<'EOF' > "$PROD_KEY"
+          ${{ secrets.PROD_OCI_API_PRIVATE_KEY }}
+          EOF
+          chmod 600 "$PROD_KEY"
+
+      - name: Write OCI configs (build/prod)
+        run: |
+          cat > "$BUILD_CONFIG" <<'EOF'
+          [DEFAULT]
+          user=${{ secrets.BUILD_OCI_USER_OCID }}
+          fingerprint=${{ secrets.BUILD_OCI_FINGERPRINT }}
+          key_file=$BUILD_KEY
+          tenancy=${{ secrets.BUILD_OCI_TENANCY_OCID }}
+          region=${{ secrets.BUILD_OCI_REGION }}
+          EOF
+
+          cat > "$PROD_CONFIG" <<'EOF'
+          [DEFAULT]
+          user=${{ secrets.PROD_OCI_USER_OCID }}
+          fingerprint=${{ secrets.PROD_OCI_FINGERPRINT }}
+          key_file=$PROD_KEY
+          tenancy=${{ secrets.PROD_OCI_TENANCY_OCID }}
+          region=${{ secrets.PROD_OCI_REGION }}
+          EOF
+
+      - name: Export image to Object Storage (build tenancy)
+        id: export
+        run: |
+          set -euo pipefail
+          IMAGE_ID="${{ github.event.inputs.source_image_ocid }}"
+          OBJ_NAME="${{ github.event.inputs.object_name }}"
+
+          oci --config-file "$BUILD_CONFIG" os object put \
+            --bucket-name "${{ secrets.BUILD_OCI_BUCKET }}" \
+            --name "$OBJ_NAME" \
+            --file /dev/null \
+            --force >/dev/null
+
+          EXPORT_JOB=$(oci --config-file "$BUILD_CONFIG" compute image export to-object-uri \
+            --image-id "$IMAGE_ID" \
+            --bucket-name "${{ secrets.BUILD_OCI_BUCKET }}" \
+            --namespace "${{ secrets.BUILD_OCI_NAMESPACE }}" \
+            --name "$OBJ_NAME")
+
+          echo "$EXPORT_JOB" | jq -r '.data'
+
+          # Wait for export to complete
+          STATUS=""
+          while true; do
+            STATUS=$(oci --config-file "$BUILD_CONFIG" compute image export to-object-uri \
+              --image-id "$IMAGE_ID" \
+              --bucket-name "${{ secrets.BUILD_OCI_BUCKET }}" \
+              --namespace "${{ secrets.BUILD_OCI_NAMESPACE }}" \
+              --name "$OBJ_NAME" \
+              --query "data.\"state\"" --raw-output 2>/dev/null || true)
+            if [ "$STATUS" = "SUCCEEDED" ]; then
+              break
+            fi
+            echo "Export state: ${STATUS:-PENDING} ... waiting 30s"
+            sleep 30
+          done
+
+      - name: Create PAR for exported object (build tenancy)
+        id: par
+        run: |
+          set -euo pipefail
+          OBJ_NAME="${{ github.event.inputs.object_name }}"
+          EXPIRES_AT=$(date -u -d "+${{ github.event.inputs.expires_in_hours }} hours" +"%Y-%m-%dT%H:%M:%SZ")
+
+          PAR=$(oci --config-file "$BUILD_CONFIG" os preauth-request create \
+            --bucket-name "${{ secrets.BUILD_OCI_BUCKET }}" \
+            --name "par-${OBJ_NAME}-$(date +%s)" \
+            --object-name "$OBJ_NAME" \
+            --access-type ObjectRead \
+            --time-expires "$EXPIRES_AT")
+
+          PAR_URL=$(echo "$PAR" | jq -r '.data."access-uri"')
+          FULL_URL="https://${{ secrets.BUILD_OCI_NAMESPACE }}.compat.objectstorage.${{ secrets.BUILD_OCI_REGION }}.oraclecloud.com${PAR_URL}"
+          echo "par_url=$FULL_URL" >> "$GITHUB_OUTPUT"
+          echo "PAR URL: $FULL_URL"
+
+      - name: Import image into prod tenancy
+        id: import
+        run: |
+          set -euo pipefail
+          PAR_URL="${{ steps.par.outputs.par_url }}"
+          DISPLAY_NAME="${{ github.event.inputs.dest_image_name }}"
+
+          IMPORT_JOB=$(oci --config-file "$PROD_CONFIG" compute image import from-object-uri \
+            --compartment-id "${{ secrets.PROD_OCI_COMPARTMENT_OCID }}" \
+            --display-name "$DISPLAY_NAME" \
+            --uri "$PAR_URL")
+
+          IMAGE_ID=$(echo "$IMPORT_JOB" | jq -r '.data.id')
+          echo "image_id=$IMAGE_ID" >> "$GITHUB_OUTPUT"
+
+          STATUS=""
+          while true; do
+            STATUS=$(oci --config-file "$PROD_CONFIG" compute image get \
+              --image-id "$IMAGE_ID" \
+              --query "data.\"lifecycle-state\"" --raw-output)
+            if [ "$STATUS" = "AVAILABLE" ]; then
+              break
+            fi
+            echo "Import state: ${STATUS:-PENDING} ... waiting 30s"
+            sleep 30
+          done
+
+      - name: Cleanup PAR and object (build tenancy)
+        if: always()
+        run: |
+          set -euo pipefail
+          OBJ_NAME="${{ github.event.inputs.object_name }}"
+          # Delete object and PARs (best-effort)
+          oci --config-file "$BUILD_CONFIG" os preauth-request list \
+            --bucket-name "${{ secrets.BUILD_OCI_BUCKET }}" \
+            --query "data[].id" --raw-output | xargs -r -n1 -I{} \
+            oci --config-file "$BUILD_CONFIG" os preauth-request delete \
+              --bucket-name "${{ secrets.BUILD_OCI_BUCKET }}" \
+              --par-id {} --force || true
+
+          oci --config-file "$BUILD_CONFIG" os object delete \
+            --bucket-name "${{ secrets.BUILD_OCI_BUCKET }}" \
+            --object-name "$OBJ_NAME" \
+            --force || true

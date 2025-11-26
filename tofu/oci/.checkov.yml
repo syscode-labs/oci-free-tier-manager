@@ -1,0 +1,55 @@
+# Checkov configuration for OCI Free Tier security scanning
+# https://www.checkov.io/
+
+# Framework to scan
+framework: terraform
+
+# Output format: cli, json, junitxml, github_failed_only, sarif
+output: cli
+
+# Compact output (less verbose)
+compact: true
+
+# Soft fail mode: report issues but don't fail the build
+soft-fail: false
+
+# Skip specific checks that don't apply to free tier
+skip-check:
+  # OCI-specific checks that may not be relevant
+  # - CKV_OCI_1  # Example: skip if not applicable
+  
+  # We intentionally use public IPs for SSH/HTTP access
+  - CKV_OCI_2  # Public IP on compute instances
+  
+  # Free tier limitations
+  - CKV_OCI_5  # Customer-managed encryption keys (not available in free tier)
+  - CKV_OCI_7  # Block volume backup policy (optional for testing)
+  
+  # Networking - we need public access for bastion
+  - CKV2_OCI_1  # Security list allows all inbound (we restrict to specific ports)
+
+# Checks to run (empty = run all except skipped)
+# check:
+#   - CKV_OCI_3
+#   - CKV_OCI_4
+
+# Suppress specific resources by ID
+# skip-resource:
+#   - oci_core_instance.bastion
+
+# Custom policies directory (for future custom checks)
+# external-checks-dir: ./custom-policies
+
+# Severity threshold: CRITICAL, HIGH, MEDIUM, LOW
+# soft-fail-on:
+#   - LOW
+#   - MEDIUM
+
+# Download external modules for scanning
+download-external-modules: false
+
+# Summary position: top, bottom
+summary-position: bottom
+
+# Quiet mode (suppress passing checks)
+quiet: false
