@@ -160,3 +160,4 @@ If goss fails, the build fails and no image is produced.
 - Conventional commits (e.g., `chore: automate oci image copy`) with a brief body if needed.
 - Run relevant checks before committing (Packer files: at least `packer fmt -check` and rerun the targeted workflow in CI).
 - Do not force-push to `main`; open a PR and let CI pass before merge.
+- Tooling: enter the devbox/Nix shell for Packer (already provided there); do not attempt to add another Packer derivation to the flake.
