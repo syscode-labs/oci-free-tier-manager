@@ -252,6 +252,10 @@ resource "oci_core_public_ip" "ingress" {
   compartment_id = var.compartment_ocid
   lifetime       = "RESERVED"
   display_name   = "k8s-ingress-ip"
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # NOTE: micro_instance_count may be 0; if so, this data source will error at plan time.
