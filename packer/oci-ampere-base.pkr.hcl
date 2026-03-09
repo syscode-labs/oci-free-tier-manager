@@ -16,26 +16,6 @@ packer {
   }
 }
 
-variable "tenancy_ocid" {
-  description = "OCI tenancy OCID"
-  type        = string
-
-  validation {
-    condition     = length(var.tenancy_ocid) > 0
-    error_message = "tenancy_ocid is required."
-  }
-}
-
-variable "user_ocid" {
-  description = "OCI user OCID used for API authentication"
-  type        = string
-
-  validation {
-    condition     = length(var.user_ocid) > 0
-    error_message = "user_ocid is required."
-  }
-}
-
 variable "compartment_ocid" {
   description = "Compartment OCID for the temporary builder and resulting image"
   type        = string
@@ -43,16 +23,6 @@ variable "compartment_ocid" {
   validation {
     condition     = length(var.compartment_ocid) > 0
     error_message = "compartment_ocid is required."
-  }
-}
-
-variable "fingerprint" {
-  description = "API signing key fingerprint"
-  type        = string
-
-  validation {
-    condition     = length(var.fingerprint) > 0
-    error_message = "fingerprint is required."
   }
 }
 
@@ -123,16 +93,6 @@ variable "ssh_public_key" {
   }
 }
 
-variable "api_private_key_path" {
-  description = "Path to the OCI API signing private key (PEM file)"
-  type        = string
-
-  validation {
-    condition     = length(var.api_private_key_path) > 0
-    error_message = "api_private_key_path is required."
-  }
-}
-
 variable "assign_public_ip" {
   description = "Whether to assign a public IP to the builder (enable if subnet has no egress NAT)"
   type        = bool
@@ -152,23 +112,19 @@ variable "tailscale_auth_key" {
 }
 
 source "oracle-oci" "ampere" {
-  availability_domain = var.availability_domain
-  base_image_ocid     = var.base_image_ocid
-  compartment_ocid    = var.compartment_ocid
-  fingerprint         = var.fingerprint
-  image_name          = "${var.image_name_prefix}-${formatdate("YYYYMMDDhhmmss", timestamp())}"
-  region              = var.region
-  shape               = "VM.Standard.A1.Flex"
-  subnet_ocid         = var.subnet_ocid
-  tenancy_ocid        = var.tenancy_ocid
-  user_ocid           = var.user_ocid
+  access_cfg_file_account = "syscode"
+  availability_domain     = var.availability_domain
+  base_image_ocid         = var.base_image_ocid
+  compartment_ocid        = var.compartment_ocid
+  image_name              = "${var.image_name_prefix}-${formatdate("YYYYMMDDhhmmss", timestamp())}"
+  region                  = var.region
+  shape                   = "VM.Standard.A1.Flex"
+  subnet_ocid             = var.subnet_ocid
 
-  assign_public_ip   = var.assign_public_ip
-  ssh_username       = var.ssh_username
-  ssh_timeout        = "30m"
+  assign_public_ip     = var.assign_public_ip
+  ssh_username         = var.ssh_username
+  ssh_timeout          = "30m"
   ssh_private_key_file = var.ssh_private_key_path
-
-  private_key_path = var.api_private_key_path
 
   shape_config {
     ocpus         = 1
