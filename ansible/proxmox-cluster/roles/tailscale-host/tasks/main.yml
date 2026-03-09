@@ -1,0 +1,79 @@
+---
+# Install Tailscale directly on the Proxmox host so the Proxmox API (port 8006)
+# is reachable from on-prem via Tailscale.
+# Required for omni-infra-provider-proxmox to create/manage Talos VMs.
+
+- name: Check if Tailscale already installed on host
+  command: which tailscale
+  register: ts_host_check
+  failed_when: false
+  changed_when: false
+
+- name: Install Tailscale on Proxmox host
+  shell: curl -fsSL https://tailscale.com/install.sh | sh
+  when: ts_host_check.rc != 0
+
+- name: Check if already connected to Tailscale
+  command: tailscale status --json
+  register: ts_status
+  failed_when: false
+  changed_when: false
+
+- name: Join Tailscale mesh
+  command: >
+    tailscale up
+    --authkey {{ tailscale_authkey }}
+    --hostname {{ tailscale_hostname_prefix }}-{{ proxmox_node_name }}-host
+    --accept-routes
+  when:
+    - tailscale_authkey != ""
+    - ts_status.rc != 0 or 'NeedsLogin' in ts_status.stdout
+  no_log: true
+
+- name: Get Tailscale IP of this host
+  command: tailscale ip --4
+  register: tailscale_ip
+  changed_when: false
+
+- name: Show Tailscale IP (use this for PROXMOX_URL in omni-oci-proxmox .env)
+  debug:
+    msg: "Proxmox API reachable at: https://{{ tailscale_ip.stdout | trim }}:8006"
+
+# Create a Proxmox API token for omni-infra-provider-proxmox.
+# Token: omni-provider@pve!omni-oci
+# Role: OmniProvider with VM + Datastore + SDN + Sys privs
+
+- name: Check if omni-provider user exists
+  command: pveum user list --output-format json
+  register: pve_users
+  changed_when: false
+
+- name: Create omni-provider Proxmox user
+  command: pveum user add omni-provider@pve --comment "Omni infra provider"
+  when: "'omni-provider@pve' not in pve_users.stdout"
+
+- name: Create Proxmox role for Omni provider
+  command: >
+    pveum role add OmniProvider
+    --privs "VM.Allocate,VM.Clone,VM.Config.CDROM,VM.Config.CPU,VM.Config.Disk,
+    VM.Config.HWType,VM.Config.Memory,VM.Config.Network,VM.Config.Options,
+    VM.Monitor,VM.PowerMgmt,VM.Audit,Datastore.AllocateSpace,Datastore.Audit,
+    SDN.Use,Sys.Audit"
+  failed_when: false
+
+- name: Assign OmniProvider role to omni-provider user
+  command: pveum acl modify / --user omni-provider@pve --role OmniProvider
+  changed_when: false
+
+- name: Create Proxmox API token
+  command: >
+    pveum user token add omni-provider@pve omni-oci
+    --privsep 0
+    --output-format json
+  register: pve_token
+  failed_when: false
+
+- name: Show API token (save to omni-oci-proxmox .env as PROXMOX_TOKEN_SECRET)
+  debug:
+    msg: "{{ pve_token.stdout | from_json }}"
+  when: pve_token.rc == 0
