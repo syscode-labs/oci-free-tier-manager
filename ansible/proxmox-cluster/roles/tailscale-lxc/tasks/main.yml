@@ -46,12 +46,21 @@
   pause:
     seconds: 5
 
+- name: Install curl in container
+  command: "pct exec {{ lxc_id }} -- apt-get install -y curl"
+  changed_when: false
+
+- name: Check if Tailscale already installed in container
+  command: "pct exec {{ lxc_id }} -- which tailscale"
+  register: ts_check
+  failed_when: false
+  changed_when: false
+
 - name: Install Tailscale in container
   command: >
     pct exec {{ lxc_id }} -- bash -c
     "curl -fsSL https://tailscale.com/install.sh | sh"
-  register: ts_install
-  changed_when: "'tailscale' in ts_install.stdout"
+  when: ts_check.rc != 0
 
 - name: Join Tailscale mesh
   command: >
@@ -59,5 +68,6 @@
     --authkey {{ tailscale_authkey }}
     --hostname proxmox-{{ proxmox_node_name }}
     --accept-routes
+    --tun=userspace-networking
   when: tailscale_authkey != ""
   no_log: true

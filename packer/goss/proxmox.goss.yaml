@@ -21,6 +21,10 @@ service:
     enabled: true
   fail2ban:
     enabled: true
+  pve-ha-lrm:
+    enabled: false
+  pve-ha-crm:
+    enabled: false
 
 file:
   /etc/apt/sources.list.d/pve-install-repo.list:
@@ -40,4 +44,12 @@ file:
     contains:
       - "zfs_arc_max"
   /etc/fail2ban/filter.d/proxmox.conf:
+    exists: true
+  /etc/sysctl.d/99-proxmox.conf:
+    exists: true
+    contains:
+      - "net.core.rmem_max"
+  /etc/proxmox-oci-notes.txt:
+    exists: true
+  /etc/fail2ban/jail.d/proxmox.conf:
     exists: true
