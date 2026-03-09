@@ -1,0 +1,8 @@
+# OCID of the hardened base image from the oci-ampere-base Packer build
+base_image_ocid      = "ocid1.image.oc1.uk-london-1.aaaaaaaxxxxx"
+
+compartment_ocid     = "ocid1.compartment.oc1..aaaaaaaxxxxx"
+availability_domain  = "UK-LONDON-1-AD-1"
+subnet_ocid          = "ocid1.subnet.oc1.uk-london-1.aaaaaaaxxxxx"
+ssh_private_key_path = "~/.ssh/id_ed25519"
+ssh_public_key       = "ssh-ed25519 AAAA... user@host"
