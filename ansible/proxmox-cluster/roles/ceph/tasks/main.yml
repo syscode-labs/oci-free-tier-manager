@@ -2,31 +2,32 @@
 # Ceph setup via pveceph on Proxmox ARM64
 # Run only after proxmox-cluster role completes (quorum must be established)
 
-- name: Check if Ceph is already initialised
-  stat:
-    path: /etc/ceph/ceph.conf
-  register: ceph_conf
+- name: Check if Ceph packages already installed
+  command: dpkg -l ceph-mon
+  register: ceph_pkg_check
+  failed_when: false
+  changed_when: false
 
 # pveceph install is interactive — pipe 'y' to accept the EULA
 - name: Install Ceph packages via pveceph (primary node only)
   shell: echo 'y' | pveceph install
   when:
     - proxmox_primary | bool
-    - not ceph_conf.stat.exists
+    - ceph_pkg_check.rc != 0
   changed_when: true
 
 - name: Wait for Ceph packages on non-primary nodes
   shell: echo 'y' | pveceph install
   when:
     - not proxmox_primary | bool
-    - not ceph_conf.stat.exists
+    - ceph_pkg_check.rc != 0
   changed_when: true
 
 - name: Initialise Ceph on primary node
   command: "pveceph init --network {{ ceph_network }}"
   when:
     - proxmox_primary | bool
-    - not ceph_conf.stat.exists
+    - ceph_pkg_check.rc != 0
 
 - name: Wait for Ceph init to propagate
   pause:
@@ -62,19 +63,26 @@
       register: boot_disk
       changed_when: false
 
+    - name: Check if vg0 already exists
+      command: vgs --noheadings -o vg_name
+      register: vg_list
+      failed_when: false
+      changed_when: false
+
     - name: Create or extend VG
       command: "vgcreate vg0 {{ boot_disk.stdout }}"
-      failed_when: false  # vg0 may already exist from OS install
+      when: "'vg0' not in vg_list.stdout"
+      failed_when: false
 
     - name: Create logical volume for OSD
       command: "lvcreate -L {{ ceph_osd_lv_size }} -n ceph-osd vg0"
       when: "'ceph-osd' not in lv_list.stdout"
-  when: ceph_osd_device == ""
+  when: ceph_osd_device | length == 0
 
 - name: Create Ceph OSD on each node
   command: >
     pveceph osd create
-    {{ '/dev/vg0/ceph-osd' if ceph_osd_device == '' else ceph_osd_device }}
+    {{ '/dev/vg0/ceph-osd' if ceph_osd_device | length == 0 else ceph_osd_device }}
   register: osd_result
   failed_when:
     - osd_result.rc != 0

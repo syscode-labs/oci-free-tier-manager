@@ -26,7 +26,7 @@
           # Proxmox cluster: allow large socket buffers for corosync
           net.core.rmem_max = 134217728
           net.core.wmem_max = 134217728
-          # Proxmox VMs: enable ARP proxy for routed setups
+          # Proxmox VMs: disable ARP proxy (OCI VNIC handles routing)
           net.ipv4.conf.all.proxy_arp = 0
           # TCP performance
           net.core.default_qdisc = fq

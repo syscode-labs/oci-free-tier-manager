@@ -14,7 +14,7 @@
     line: "{{ ansible_default_ipv4.address }} {{ proxmox_node_name }}.proxmox.local {{ proxmox_node_name }}"
     state: present
 
-- name: Enable HA services (disabled in golden image)
+- name: Enable and start HA services on primary node
   systemd:
     name: "{{ item }}"
     enabled: true
@@ -23,6 +23,16 @@
     - pve-ha-lrm
     - pve-ha-crm
     - corosync
+  when: proxmox_primary | bool
+
+- name: Enable HA services on joiners (start after cluster join)
+  systemd:
+    name: "{{ item }}"
+    enabled: true
+  loop:
+    - pve-ha-lrm
+    - pve-ha-crm
+  when: not proxmox_primary | bool
 
 - name: Check if already in a cluster
   command: pvecm status
@@ -31,7 +41,7 @@
   changed_when: false
 
 - name: Create cluster on primary node
-  command: "pvecm create {{ cluster_name }} --link0 {{ ansible_default_ipv4.address }}"
+  command: "pvecm create {{ cluster_name }} --link0 {{ ansible_facts[corosync_link_interface].ipv4.address }}"
   when:
     - proxmox_primary | bool
     - "'cluster name' not in pvecm_status.stdout"
@@ -46,6 +56,7 @@
     primary_host: >-
       {{ groups['proxmox']
          | map('extract', hostvars)
+         | selectattr('proxmox_primary', 'defined')
          | selectattr('proxmox_primary', 'equalto', true)
          | map(attribute='inventory_hostname')
          | first }}
@@ -54,8 +65,8 @@
   command: >
     pvecm add
     {{ hostvars[primary_host].ansible_default_ipv4.address }}
-    --use_ssh true
-    --link0 {{ ansible_default_ipv4.address }}
+    --use_ssh
+    --link0 {{ ansible_facts[corosync_link_interface].ipv4.address }}
   when:
     - not proxmox_primary | bool
     - "'cluster name' not in pvecm_status.stdout"
