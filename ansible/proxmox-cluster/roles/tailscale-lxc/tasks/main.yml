@@ -1,0 +1,63 @@
+---
+# Deploy Tailscale LXC container on each Proxmox node
+
+- name: Set per-node LXC container ID
+  set_fact:
+    lxc_id: "{{ lxc_id_start | int + groups['proxmox'].index(inventory_hostname) }}"
+
+- name: Check if container template exists
+  stat:
+    path: "/var/lib/vz/template/cache/{{ lxc_template }}"
+  register: template_stat
+
+- name: Download Debian 12 ARM64 LXC template
+  get_url:
+    url: "{{ lxc_template_url }}"
+    dest: "/var/lib/vz/template/cache/{{ lxc_template }}"
+    mode: "0644"
+  when: not template_stat.stat.exists
+
+- name: Check if container already exists
+  command: "pct status {{ lxc_id }}"
+  register: pct_status
+  failed_when: false
+  changed_when: false
+
+- name: Create Tailscale LXC container
+  command: >
+    pct create {{ lxc_id }}
+    local:vztmpl/{{ lxc_template }}
+    --hostname tailscale-{{ proxmox_node_name }}
+    --memory {{ lxc_memory }}
+    --rootfs local-lvm:{{ lxc_disk_size }}
+    --net0 name=eth0,bridge=vmbr0,ip=dhcp
+    --unprivileged 1
+    --features keyctl=1,nesting=1
+    --start 1
+    --onboot 1
+  when: "'does not exist' in pct_status.stderr or pct_status.rc != 0"
+
+- name: Ensure container is running
+  command: "pct start {{ lxc_id }}"
+  failed_when: false
+  changed_when: false
+
+- name: Wait for container network
+  pause:
+    seconds: 5
+
+- name: Install Tailscale in container
+  command: >
+    pct exec {{ lxc_id }} -- bash -c
+    "curl -fsSL https://tailscale.com/install.sh | sh"
+  register: ts_install
+  changed_when: "'tailscale' in ts_install.stdout"
+
+- name: Join Tailscale mesh
+  command: >
+    pct exec {{ lxc_id }} -- tailscale up
+    --authkey {{ tailscale_authkey }}
+    --hostname proxmox-{{ proxmox_node_name }}
+    --accept-routes
+  when: tailscale_authkey != ""
+  no_log: true
