@@ -1,0 +1,7 @@
+---
+tailscale_authkey: ""           # Set via --extra-vars or vault
+lxc_id_start: 100               # Container IDs: 100, 101, 102 per node
+lxc_memory: 256
+lxc_disk_size: "4"
+lxc_template: "debian-12-standard_12.0-1_arm64.tar.zst"
+lxc_template_url: "https://download.proxmox.com/images/system/debian-12-standard_12.0-1_arm64.tar.zst"

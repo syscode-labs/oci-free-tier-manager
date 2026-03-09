@@ -43,13 +43,13 @@ repos:
     rev: 24.1.1
     hooks:
       - id: black
-        language_version: python3.12
+        language_version: python3
 
   - repo: https://github.com/PyCQA/flake8
     rev: 7.0.0
     hooks:
       - id: flake8
-        args: ['--max-line-length=100', '--ignore=E203,W503']
+        args: ['--max-line-length=120', '--ignore=E203,W503']
 
   # YAML
   - repo: https://github.com/adrienverge/yamllint

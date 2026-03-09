@@ -1,0 +1,27 @@
+---
+# Layer 2 Ansible — Proxmox cluster + Ceph + Tailscale LXC
+# Run after `terraform apply` in tofu/oci/
+#
+# Usage:
+#   ansible-playbook site.yml -i inventory.yml --private-key ~/.ssh/id_ed25519
+
+- name: Form Proxmox cluster
+  hosts: proxmox
+  become: true
+  gather_facts: true
+  roles:
+    - role: proxmox-cluster
+
+- name: Configure Ceph distributed storage
+  hosts: proxmox
+  become: true
+  gather_facts: true
+  roles:
+    - role: ceph
+
+- name: Deploy Tailscale LXC on each node
+  hosts: proxmox
+  become: true
+  gather_facts: true
+  roles:
+    - role: tailscale-lxc
