@@ -39,16 +39,15 @@
 
 - name: Ensure container is running
   command: "pct start {{ lxc_id }}"
-  failed_when: false
-  changed_when: false
+  register: pct_start_result
+  failed_when:
+    - pct_start_result.rc != 0
+    - "'is already running' not in pct_start_result.stderr"
+  changed_when: pct_start_result.rc == 0
 
 - name: Wait for container network
   pause:
     seconds: 5
-
-- name: Install curl in container
-  command: "pct exec {{ lxc_id }} -- apt-get install -y curl"
-  changed_when: false
 
 - name: Check if Tailscale already installed in container
   command: "pct exec {{ lxc_id }} -- which tailscale"
@@ -56,10 +55,19 @@
   failed_when: false
   changed_when: false
 
+- name: Download Tailscale install script on Proxmox host
+  get_url:
+    url: "https://tailscale.com/install.sh"
+    dest: "/tmp/tailscale-install.sh"
+    mode: "0755"
+  when: ts_check.rc != 0
+
+- name: Push install script into container
+  command: "pct push {{ lxc_id }} /tmp/tailscale-install.sh /tmp/tailscale-install.sh"
+  when: ts_check.rc != 0
+
 - name: Install Tailscale in container
-  command: >
-    pct exec {{ lxc_id }} -- bash -c
-    "curl -fsSL https://tailscale.com/install.sh | sh"
+  command: "pct exec {{ lxc_id }} -- bash /tmp/tailscale-install.sh"
   when: ts_check.rc != 0
 
 - name: Join Tailscale mesh

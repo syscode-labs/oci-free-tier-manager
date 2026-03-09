@@ -22,7 +22,6 @@
   loop:
     - pve-ha-lrm
     - pve-ha-crm
-    - corosync
   when: proxmox_primary | bool
 
 - name: Enable HA services on joiners (start after cluster join)
