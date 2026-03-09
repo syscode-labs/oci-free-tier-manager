@@ -1,0 +1,85 @@
+---
+# packer-harden-proxmox.yml
+# Runs inside Packer build on the ephemeral OCI instance.
+# Hardens the Proxmox installation baked into the golden image.
+
+- name: Harden Proxmox for golden image
+  hosts: all
+  become: true
+  gather_facts: true
+
+  tasks:
+    # ---- ZFS memory tuning ----
+    - name: Limit ZFS ARC to 4GB (prevent memory starvation on 8GB nodes)
+      copy:
+        dest: /etc/modprobe.d/zfs.conf
+        content: |
+          options zfs zfs_arc_max=4294967296
+          options zfs zfs_arc_min=134217728
+        mode: "0644"
+
+    # ---- Proxmox-specific kernel params ----
+    - name: Apply Proxmox kernel tuning
+      copy:
+        dest: /etc/sysctl.d/99-proxmox.conf
+        content: |
+          # Proxmox cluster: allow large socket buffers for corosync
+          net.core.rmem_max = 134217728
+          net.core.wmem_max = 134217728
+          # Proxmox VMs: enable ARP proxy for routed setups
+          net.ipv4.conf.all.proxy_arp = 0
+          # TCP performance
+          net.core.default_qdisc = fq
+          net.ipv4.tcp_congestion_control = bbr
+        mode: "0644"
+
+    # ---- fail2ban: add Proxmox web UI jail ----
+    - name: Configure fail2ban for Proxmox web UI
+      copy:
+        dest: /etc/fail2ban/jail.d/proxmox.conf
+        content: |
+          [proxmox]
+          enabled  = true
+          port     = https,8006
+          filter   = proxmox
+          logpath  = /var/log/daemon.log
+          maxretry = 3
+          bantime  = 3600
+          findtime = 600
+        mode: "0644"
+
+    - name: Install fail2ban Proxmox filter
+      copy:
+        dest: /etc/fail2ban/filter.d/proxmox.conf
+        content: |
+          [Definition]
+          failregex = pvedaemon\[.*\]: authentication failure; rhost=<HOST> user=.* msg=.*
+          ignoreregex =
+        mode: "0644"
+
+    # ---- Disable unnecessary Proxmox services in image ----
+    # These are enabled at cluster-formation time by Ansible (Layer 2 post-deploy)
+    - name: Disable HA services in image (enabled post-cluster-formation)
+      systemd:
+        name: "{{ item }}"
+        enabled: false
+      loop:
+        - pve-ha-lrm
+        - pve-ha-crm
+      failed_when: false
+
+    # ---- Proxmox networking: prepare for OCI VNIC constraints ----
+    # OCI blocks secondary MACs on primary VNIC.
+    # LXC containers must use secondary private IPs (not a standard Linux bridge).
+    # Document this constraint as a config note.
+    - name: Write OCI networking constraint note
+      copy:
+        dest: /etc/proxmox-oci-notes.txt
+        content: |
+          OCI Networking Constraints for Proxmox:
+          - Do NOT use standard vmbr0 bridge for LXC containers on OCI.
+          - OCI primary VNIC rejects packets with secondary MAC addresses.
+          - Use: secondary private IPs on the primary VNIC per container.
+          - See: tofu/oci/main.tf for reserved IP configuration.
+          - Ansible Layer 2 playbook configures this automatically.
+        mode: "0644"
