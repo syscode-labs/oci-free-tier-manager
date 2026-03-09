@@ -1,0 +1,6 @@
+---
+ceph_network: "10.0.1.0/24"    # OCI VCN subnet CIDR — adjust to match tofu/oci output
+ceph_pool_name: "vm-storage"
+ceph_pool_replicas: 3           # 3 nodes → 3 replicas
+ceph_osd_device: ""             # Empty = use LVM on boot disk (see tasks)
+ceph_osd_lv_size: "20G"         # Reserve 20G of boot disk for Ceph OSD
