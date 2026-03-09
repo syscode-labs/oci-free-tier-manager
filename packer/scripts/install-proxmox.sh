@@ -11,10 +11,10 @@ echo "==> Installing Proxmox VE (ARM64 unofficial port) on Debian 12..."
 
 # Fix /etc/hosts: Proxmox installer needs hostname to resolve to a non-loopback IP.
 # On OCI the instance hostname resolves via DHCP; add an explicit entry.
-HOSTNAME=$(hostname -s)
+PVE_HOSTNAME=$(hostname -s)
 HOST_IP=$(hostname -I | awk '{print $1}')
 if ! grep -q "^${HOST_IP}" /etc/hosts; then
-  echo "${HOST_IP} ${HOSTNAME}.proxmox.local ${HOSTNAME}" >> /etc/hosts
+  echo "${HOST_IP} ${PVE_HOSTNAME}.proxmox.local ${PVE_HOSTNAME}" >> /etc/hosts
 fi
 
 # Enable IP forwarding (required for Proxmox bridge and container networking).
