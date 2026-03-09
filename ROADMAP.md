@@ -5,16 +5,15 @@ Complete implementation plan for OCI Free Tier Kubernetes cluster.
 ## Current State
 
 ✅ **Completed:**
-- Layer 1 (partial): OCI infrastructure provisioning (`tofu/oci/`)
+
+- Layer 1: OCI infrastructure provisioning (`tofu/oci/`) — VCN, 3× Ampere, 1× Micro, reserved IPs
+- Layer 2: Packer golden image — Proxmox ARM64 on OCI builder (`packer/proxmox-ampere.pkr.hcl`)
+- Layer 2: Ansible cluster automation (`ansible/proxmox-cluster/`) — pvecm + Ceph + Tailscale LXC
 - Availability checker script
 - Development environment (devbox + pre-commit)
-- Setup automation scripts
-- Flux GitOps repository structure
 
 ❌ **Missing:**
-- Packer image building (base + Proxmox)
-- Custom image upload/import to OCI
-- Layer 2: Proxmox cluster automation (`tofu/proxmox-cluster/`)
+
 - Layer 3: Talos Kubernetes automation (`tofu/talos/`)
 - Monitoring integration (Grafana Alloy)
 - End-to-end deployment orchestration
@@ -26,6 +25,7 @@ Complete implementation plan for OCI Free Tier Kubernetes cluster.
 **Goal**: Build hardened base and Proxmox images for deployment
 
 **Tasks**:
+
 1. Create `packer/base-hardened.pkr.hcl`
    - Source: Debian 12 netinstall
    - Packages: SSH, Tailscale, minimal utilities
@@ -46,6 +46,7 @@ Complete implementation plan for OCI Free Tier Kubernetes cluster.
    - Output OCIDs for use in OpenTofu
 
 **Deliverables**:
+
 - `packer/base-hardened.pkr.hcl`
 - `packer/proxmox-ampere.pkr.hcl`
 - `scripts/build-images.sh`
@@ -56,6 +57,7 @@ Complete implementation plan for OCI Free Tier Kubernetes cluster.
 **Goal**: Complete Layer 1 with custom images, reserved IPs, DNS
 
 **Tasks**:
+
 1. Add custom image data sources to `tofu/oci/data.tf`
    - Reference OCIDs from Phase 1
    - Fallback to platform images if custom not available
@@ -74,6 +76,7 @@ Complete implementation plan for OCI Free Tier Kubernetes cluster.
    - Auto-join mesh on first boot
 
 **Deliverables**:
+
 - Updated `tofu/oci/main.tf`
 - Updated `tofu/oci/data.tf`
 - Updated `tofu/oci/variables.tf` (Tailscale authkey)
@@ -84,6 +87,7 @@ Complete implementation plan for OCI Free Tier Kubernetes cluster.
 **Goal**: Automate Proxmox cluster formation and Ceph configuration
 
 **Tasks**:
+
 1. Create `tofu/proxmox-cluster/` module
    - Providers: SSH, Ansible, or null_resource with remote-exec
    - Inputs: Instance IPs from Layer 1 (remote state or manual)
@@ -111,6 +115,7 @@ Complete implementation plan for OCI Free Tier Kubernetes cluster.
    - VM live migration test
 
 **Deliverables**:
+
 - `tofu/proxmox-cluster/main.tf`
 - `tofu/proxmox-cluster/providers.tf`
 - `tofu/proxmox-cluster/variables.tf`
@@ -123,6 +128,7 @@ Complete implementation plan for OCI Free Tier Kubernetes cluster.
 **Goal**: Automate Talos VM creation and K8s bootstrap with Flux
 
 **Tasks**:
+
 1. Create `tofu/talos/` module
    - Provider: `bpg/proxmox` for Proxmox API
    - Provider: Kubernetes for Age key injection
@@ -149,6 +155,7 @@ Complete implementation plan for OCI Free Tier Kubernetes cluster.
    - Option B: OCI CCM LoadBalancer service
 
 **Deliverables**:
+
 - `tofu/talos/main.tf`
 - `tofu/talos/providers.tf`
 - `tofu/talos/variables.tf`
@@ -161,6 +168,7 @@ Complete implementation plan for OCI Free Tier Kubernetes cluster.
 **Goal**: Deploy Grafana Cloud agents and dashboards
 
 **Tasks**:
+
 1. Add Grafana Alloy to Flux repository
    - HelmRelease in `infrastructure/base/grafana-alloy/`
    - Values with Grafana Cloud credentials (SOPS-encrypted)
@@ -182,6 +190,7 @@ Complete implementation plan for OCI Free Tier Kubernetes cluster.
    - Deploy after infrastructure is ready
 
 **Deliverables**:
+
 - `infrastructure/base/grafana-alloy/` in Flux repo
 - Dashboard JSON files
 - SOPS-encrypted Grafana Cloud secrets
@@ -192,6 +201,7 @@ Complete implementation plan for OCI Free Tier Kubernetes cluster.
 **Goal**: Single-command deployment from scratch
 
 **Tasks**:
+
 1. Create `scripts/deploy.sh` master script
    - Run all phases in order
    - Wait for health checks between phases
@@ -213,6 +223,7 @@ Complete implementation plan for OCI Free Tier Kubernetes cluster.
    - TROUBLESHOOTING.md: Common issues
 
 **Deliverables**:
+
 - `scripts/deploy.sh`
 - `scripts/validate-*.sh`
 - Updated documentation
@@ -221,6 +232,7 @@ Complete implementation plan for OCI Free Tier Kubernetes cluster.
 ## Success Criteria
 
 ### Minimal Viable Product (MVP)
+
 - [ ] All 5 phases automated via scripts/OpenTofu
 - [ ] Zero manual `vim`/`sed`/`kubectl` commands
 - [ ] Single `./scripts/deploy.sh` deploys full stack
@@ -229,6 +241,7 @@ Complete implementation plan for OCI Free Tier Kubernetes cluster.
 - [ ] Documentation complete and accurate
 
 ### Stretch Goals
+
 - [ ] CI/CD pipeline for image building (GitHub Actions)
 - [ ] Automated testing in ephemeral OCI tenancy
 - [ ] Backup/restore procedures
@@ -238,12 +251,12 @@ Complete implementation plan for OCI Free Tier Kubernetes cluster.
 
 ## Timeline Estimate
 
-**Phase 1**: 4-6 hours (Packer configuration + testing)  
-**Phase 2**: 2-3 hours (OCI enhancements)  
-**Phase 3**: 6-8 hours (Proxmox automation, most complex)  
-**Phase 4**: 4-6 hours (Talos deployment)  
-**Phase 5**: 2-3 hours (Monitoring setup)  
-**Phase 6**: 3-4 hours (Orchestration + docs)  
+**Phase 1**: 4-6 hours (Packer configuration + testing)
+**Phase 2**: 2-3 hours (OCI enhancements)
+**Phase 3**: 6-8 hours (Proxmox automation, most complex)
+**Phase 4**: 4-6 hours (Talos deployment)
+**Phase 5**: 2-3 hours (Monitoring setup)
+**Phase 6**: 3-4 hours (Orchestration + docs)
 
 **Total**: ~20-30 hours for complete implementation
 
