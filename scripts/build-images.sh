@@ -10,6 +10,13 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 PACKER_DIR="${REPO_ROOT}/packer"
 VARS_FILE="${1:-${PACKER_DIR}/vars/proxmox-ampere.pkrvars.hcl}"
 
+if [ ! -f "${VARS_FILE}" ]; then
+  echo "ERROR: vars file not found: ${VARS_FILE}"
+  echo "Copy the example and fill in your values:"
+  echo "  cp ${VARS_FILE}.example ${VARS_FILE}"
+  exit 1
+fi
+
 echo "==> Checking OCI session (syscode profile)..."
 if ! oci session validate --profile syscode --local 2>/dev/null; then
   echo "ERROR: syscode session expired. Run:"
