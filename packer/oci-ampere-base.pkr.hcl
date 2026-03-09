@@ -16,16 +16,6 @@ packer {
   }
 }
 
-variable "tenancy_ocid" {
-  description = "OCI tenancy OCID"
-  type        = string
-
-  validation {
-    condition     = length(var.tenancy_ocid) > 0
-    error_message = "tenancy_ocid is required."
-  }
-}
-
 variable "compartment_ocid" {
   description = "Compartment OCID for the temporary builder and resulting image"
   type        = string
