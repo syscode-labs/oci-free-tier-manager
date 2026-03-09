@@ -54,3 +54,18 @@ output "ssh_connection_commands" {
     [for ip in oci_core_instance.micro_instance[*].public_ip : "ssh ubuntu@${ip}"]
   )
 }
+
+output "bastion_reserved_ip" {
+  description = "Reserved public IP for the bastion host"
+  value       = oci_core_public_ip.bastion.ip_address
+}
+
+output "ingress_reserved_ip" {
+  description = "Reserved public IP for the K8s ingress controller"
+  value       = oci_core_public_ip.ingress.ip_address
+}
+
+output "ampere_private_ips" {
+  description = "Private IPs of Ampere nodes (for Ansible inventory)"
+  value       = oci_core_instance.ampere_instance[*].private_ip
+}

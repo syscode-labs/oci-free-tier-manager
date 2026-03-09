@@ -142,7 +142,7 @@ resource "oci_core_instance" "ampere_instance" {
 
   source_details {
     source_type             = "image"
-    source_id               = data.oci_core_images.ampere_images.images[0].id
+    source_id               = local.ampere_image_id
     boot_volume_size_in_gbs = var.ampere_boot_volume_size
   }
 
@@ -154,6 +154,16 @@ resource "oci_core_instance" "ampere_instance" {
 
   metadata = {
     ssh_authorized_keys = var.ssh_public_key
+    # SECURITY: tailscale_auth_key is written into OCI instance metadata (user_data)
+    # and into Terraform state in plaintext. Use a one-time-use ephemeral auth key
+    # (Tailscale admin console → Auth Keys → Ephemeral) so the key expires after
+    # first use. Encrypt state storage (OCI Object Storage SSE or remote backend).
+    user_data = var.tailscale_auth_key != "" ? base64encode(<<-CLOUDINIT
+      #cloud-config
+      runcmd:
+        - tailscale up --authkey ${var.tailscale_auth_key} --hostname ampere-$(hostname -s) --accept-routes
+      CLOUDINIT
+    ) : null
   }
 
   # Prevent accidental deletion
@@ -227,4 +237,34 @@ resource "oci_budget_alert_rule" "free_tier_alert" {
   threshold_type = "PERCENTAGE"
   message        = "WARNING: Charges detected! You may have exceeded OCI free tier limits."
   recipients     = var.budget_alert_email
+}
+
+# Reserved IP for bastion (micro instance) — stable SSH entry point
+resource "oci_core_public_ip" "bastion" {
+  compartment_id = var.compartment_ocid
+  lifetime       = "RESERVED"
+  display_name   = "bastion-ip"
+  private_ip_id  = data.oci_core_private_ips.micro_private_ip.private_ips[0].id
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+# Reserved IP for K8s ingress controller — stable external endpoint
+resource "oci_core_public_ip" "ingress" {
+  compartment_id = var.compartment_ocid
+  lifetime       = "RESERVED"
+  display_name   = "k8s-ingress-ip"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+# NOTE: micro_instance_count may be 0; if so, this data source will error at plan time.
+# Ensure micro_instance_count >= 1 before applying resources that depend on the bastion IP.
+data "oci_core_private_ips" "micro_private_ip" {
+  subnet_id  = oci_core_subnet.free_tier_subnet.id
+  ip_address = oci_core_instance.micro_instance[0].private_ip
 }

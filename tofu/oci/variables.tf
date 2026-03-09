@@ -47,6 +47,19 @@ variable "ssh_public_key" {
   type        = string
 }
 
+variable "proxmox_image_ocid" {
+  description = "OCID of the custom Proxmox ARM64 image (from Packer build). Leave empty to use platform Ubuntu image."
+  type        = string
+  default     = ""
+}
+
+variable "tailscale_auth_key" {
+  description = "Tailscale auth key for node auto-join on first boot (optional)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 # Ampere A1 Configuration (ARM-based)
 # Free tier allows: 4 OCPUs and 24GB RAM total
 variable "ampere_instance_count" {

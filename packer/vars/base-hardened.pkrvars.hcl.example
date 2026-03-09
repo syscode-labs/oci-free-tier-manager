@@ -1,0 +1,9 @@
+# Run: oci session authenticate --profile syscode
+# before building — token expires in ~1 hour
+
+compartment_ocid      = "ocid1.compartment.oc1..aaaaaaaxxxxx"
+availability_domain   = "UK-LONDON-1-AD-1"
+subnet_ocid           = "ocid1.subnet.oc1.uk-london-1.aaaaaaaxxxxx"
+base_image_ocid       = "ocid1.image.oc1.uk-london-1.aaaaaaaxxxxx"  # Debian 12 ARM64
+ssh_private_key_path  = "~/.ssh/id_ed25519"
+ssh_public_key        = "ssh-ed25519 AAAA... user@host"
