@@ -1,0 +1,26 @@
+# Generated from: tofu output -json | jq ...
+# Replace IPs with actual values from `tofu -chdir=tofu/oci output`
+
+all:
+  children:
+    proxmox:
+      hosts:
+        ampere-1:
+          ansible_host: "10.0.1.10"       # Private IP (from tofu output)
+          ansible_user: debian
+          proxmox_node_name: pve1
+          proxmox_primary: true           # This node creates the cluster
+        ampere-2:
+          ansible_host: "10.0.1.11"
+          ansible_user: debian
+          proxmox_node_name: pve2
+          proxmox_primary: false
+        ampere-3:
+          ansible_host: "10.0.1.12"
+          ansible_user: debian
+          proxmox_node_name: pve3
+          proxmox_primary: false
+  vars:
+    ansible_ssh_private_key_file: "~/.ssh/id_ed25519"
+    cluster_name: "oci-proxmox"
+    corosync_link_interface: "ens3"       # OCI primary VNIC interface
