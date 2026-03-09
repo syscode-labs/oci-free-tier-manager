@@ -23,11 +23,16 @@
     - ceph_pkg_check.rc != 0
   changed_when: true
 
+- name: Check if Ceph already initialised
+  stat:
+    path: /etc/ceph/ceph.conf
+  register: ceph_conf_stat
+
 - name: Initialise Ceph on primary node
   command: "pveceph init --network {{ ceph_network }}"
   when:
     - proxmox_primary | bool
-    - ceph_pkg_check.rc != 0
+    - not ceph_conf_stat.stat.exists
 
 - name: Wait for Ceph init to propagate
   pause:
@@ -55,6 +60,17 @@
   register: lv_list
   failed_when: false
   changed_when: false
+
+- name: Fail if ceph_osd_device is empty and this looks like production
+  fail:
+    msg: >
+      ceph_osd_device is empty, which will use the boot disk for Ceph OSD.
+      This is FOR DEV/TEST ONLY and risks data loss.
+      Set ceph_osd_device to a dedicated block device (e.g. /dev/sdb) or
+      set allow_boot_disk_osd=true to suppress this check.
+  when:
+    - ceph_osd_device | length == 0
+    - not (allow_boot_disk_osd | default(false) | bool)
 
 - name: Create LVM volume for Ceph OSD on boot disk
   block:

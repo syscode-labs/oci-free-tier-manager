@@ -45,4 +45,6 @@ additional_volume_size   = 50     # GB
 proxmox_image_ocid = ""  # Set to OCID after running: packer build proxmox-ampere.pkr.hcl
 
 # Tailscale auto-join key (optional)
+# IMPORTANT: Use an ephemeral one-time-use key (expires after first node auth).
+# Generate at: https://login.tailscale.com/admin/settings/keys
 tailscale_auth_key = ""

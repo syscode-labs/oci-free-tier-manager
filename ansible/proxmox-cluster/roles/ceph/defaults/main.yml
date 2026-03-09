@@ -7,3 +7,4 @@ ceph_pool_replicas: 3           # 3 nodes → 3 replicas
 # Using the boot disk for Ceph OSD risks data loss if Ceph claims the LV.
 ceph_osd_device: ""
 ceph_osd_lv_size: "20G"         # Reserve 20G of boot disk for Ceph OSD
+allow_boot_disk_osd: false  # Set true only in dev/test environments

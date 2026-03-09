@@ -154,6 +154,10 @@ resource "oci_core_instance" "ampere_instance" {
 
   metadata = {
     ssh_authorized_keys = var.ssh_public_key
+    # SECURITY: tailscale_auth_key is written into OCI instance metadata (user_data)
+    # and into Terraform state in plaintext. Use a one-time-use ephemeral auth key
+    # (Tailscale admin console → Auth Keys → Ephemeral) so the key expires after
+    # first use. Encrypt state storage (OCI Object Storage SSE or remote backend).
     user_data = var.tailscale_auth_key != "" ? base64encode(<<-CLOUDINIT
       #cloud-config
       runcmd:
