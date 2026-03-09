@@ -1,0 +1,110 @@
+---
+# Ceph setup via pveceph on Proxmox ARM64
+# Run only after proxmox-cluster role completes (quorum must be established)
+
+- name: Check if Ceph is already initialised
+  stat:
+    path: /etc/ceph/ceph.conf
+  register: ceph_conf
+
+# pveceph install is interactive — pipe 'y' to accept the EULA
+- name: Install Ceph packages via pveceph (primary node only)
+  shell: echo 'y' | pveceph install
+  when:
+    - proxmox_primary | bool
+    - not ceph_conf.stat.exists
+  changed_when: true
+
+- name: Wait for Ceph packages on non-primary nodes
+  shell: echo 'y' | pveceph install
+  when:
+    - not proxmox_primary | bool
+    - not ceph_conf.stat.exists
+  changed_when: true
+
+- name: Initialise Ceph on primary node
+  command: "pveceph init --network {{ ceph_network }}"
+  when:
+    - proxmox_primary | bool
+    - not ceph_conf.stat.exists
+
+- name: Wait for Ceph init to propagate
+  pause:
+    seconds: 15
+  when: proxmox_primary | bool
+
+- name: Create Ceph monitor on each node
+  command: "pveceph mon create"
+  register: mon_result
+  failed_when:
+    - mon_result.rc != 0
+    - "'already exists' not in mon_result.stderr"
+  changed_when: "'already exists' not in mon_result.stderr"
+
+- name: Create Ceph manager on each node
+  command: "pveceph mgr create"
+  register: mgr_result
+  failed_when:
+    - mgr_result.rc != 0
+    - "'already exists' not in mgr_result.stderr"
+  changed_when: "'already exists' not in mgr_result.stderr"
+
+- name: Check if OSD LV already exists
+  command: lvs --noheadings -o lv_name vg0
+  register: lv_list
+  failed_when: false
+  changed_when: false
+
+- name: Create LVM volume for Ceph OSD on boot disk
+  block:
+    - name: Find the boot disk device
+      shell: lsblk -dpno NAME | grep -v loop | head -1
+      register: boot_disk
+      changed_when: false
+
+    - name: Create or extend VG
+      command: "vgcreate vg0 {{ boot_disk.stdout }}"
+      failed_when: false  # vg0 may already exist from OS install
+
+    - name: Create logical volume for OSD
+      command: "lvcreate -L {{ ceph_osd_lv_size }} -n ceph-osd vg0"
+      when: "'ceph-osd' not in lv_list.stdout"
+  when: ceph_osd_device == ""
+
+- name: Create Ceph OSD on each node
+  command: >
+    pveceph osd create
+    {{ '/dev/vg0/ceph-osd' if ceph_osd_device == '' else ceph_osd_device }}
+  register: osd_result
+  failed_when:
+    - osd_result.rc != 0
+    - "'already exists' not in osd_result.stderr"
+  changed_when: "'already exists' not in osd_result.stderr"
+
+- name: Create Ceph pool for VM storage (primary node only)
+  command: >
+    pveceph pool create {{ ceph_pool_name }}
+    --add_storages --size {{ ceph_pool_replicas }}
+  when: proxmox_primary | bool
+  register: pool_result
+  failed_when:
+    - pool_result.rc != 0
+    - "'already exists' not in pool_result.stderr"
+  changed_when: "'already exists' not in pool_result.stderr"
+
+- name: Wait for Ceph health
+  command: ceph health
+  register: ceph_health
+  until: "'HEALTH_OK' in ceph_health.stdout or 'HEALTH_WARN' in ceph_health.stdout"
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Show Ceph status
+  command: ceph -s
+  register: ceph_status
+  changed_when: false
+
+- name: Print Ceph status
+  debug:
+    msg: "{{ ceph_status.stdout_lines }}"
