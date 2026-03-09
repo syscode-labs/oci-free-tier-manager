@@ -40,3 +40,9 @@ micro_boot_volume_size  = 50  # GB (minimum is 47)
 # Note: Total storage (boot volumes + block volumes) must be ≤ 200GB
 create_additional_volume = false  # Set to true if you need extra storage
 additional_volume_size   = 50     # GB
+
+# Custom Proxmox image from Packer build (leave empty to use platform Ubuntu)
+proxmox_image_ocid = ""  # Set to OCID after running: packer build proxmox-ampere.pkr.hcl
+
+# Tailscale auto-join key (optional)
+tailscale_auth_key = ""
