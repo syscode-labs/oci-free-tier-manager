@@ -61,12 +61,9 @@ PermitTunnel no
 Subsystem sftp /usr/lib/openssh/sftp-server -f AUTHPRIV -l INFO
 
 # Security
-AllowUsers root
+AllowUsers root ubuntu
 DenyUsers nobody
 DenyGroups nogroup
-
-# Banner
-Banner /etc/ssh/banner
 
 # Misc
 AcceptEnv LANG LC_*
