@@ -9,6 +9,9 @@ set -euo pipefail
 
 echo "==> Running Proxmox community post-install hardening..."
 
+# Disable command-not-found apt hook (fails on Ubuntu 22.04 ARM64)
+rm -f /etc/apt/apt.conf.d/50command-not-found || true
+
 # 1. Disable enterprise subscription repository (requires paid sub)
 if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
   sed -i 's|^deb|#deb|' /etc/apt/sources.list.d/pve-enterprise.list

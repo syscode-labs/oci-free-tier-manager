@@ -4,7 +4,6 @@ subnet_ocid          = "ocid1.subnet.oc1.uk-london-1.aaaaaaaaw3dw6toglzaivepv3bb
 ssh_private_key_path = "~/.ssh/oci_free_tier"
 ssh_public_key       = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIlJA4nTzCz5FcjSxGDbzqkeWRyKGc3SW4rWnVMHYdGr oci-free-tier"
 
-# Base image: Ubuntu 22.04 ARM64 (latest in uk-london-1)
-# Note: OCI does not offer Debian 12 ARM64 — Ubuntu is used as base.
-# install-proxmox.sh handles the conversion to Proxmox.
-base_image_ocid = "ocid1.image.oc1.uk-london-1.aaaaaaaaeg4bdaglofcnt2ga4riomxvzqllga4hqzpiliiyrxh57nn67kqkq"
+# Base image: oci-freetier-ampere-a1flex-base (hardened Ubuntu 22.04 ARM64)
+# Built by oci-ampere-base.pkr.hcl — run that first if this image is missing.
+base_image_ocid = "ocid1.image.oc1.uk-london-1.aaaaaaaallq23bk4hob3fevrvk3dmzhkomlsyzy3j75idxyt44jyzkaexbma"
