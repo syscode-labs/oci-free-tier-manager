@@ -30,11 +30,11 @@ file:
   /etc/apt/sources.list.d/pve-install-repo.list:
     exists: true
     contains:
-      - "mirrors.apqa.cn"
+      - "lierfang.com"
   /etc/apt/sources.list.d/ceph.list:
     exists: true
     contains:
-      - "mirrors.apqa.cn"
+      - "lierfang.com"
   /etc/sysctl.d/99-proxmox-forwarding.conf:
     exists: true
     contains:

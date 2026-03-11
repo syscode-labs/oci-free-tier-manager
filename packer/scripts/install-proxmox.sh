@@ -27,14 +27,15 @@ net.ipv6.conf.all.forwarding = 1
 EOF
 sysctl -p /etc/sysctl.d/99-proxmox-forwarding.conf
 
-# Add the ARM64 Proxmox port repository
-# mirrors.apqa.cn ships packages built against Debian bookworm (compatible with Ubuntu 22.04)
-echo "deb [arch=arm64] https://mirrors.apqa.cn/proxmox/debian/pve bookworm port" \
+# Add the ARM64 Proxmox VE port repository (PXVIRT — formerly Proxmox-Port/mirrors.apqa.cn)
+# Project moved to https://mirrors.lierfang.com/pxcloud/
+# Repo only has 'bookworm' — works on Ubuntu 22.04 with Debian-compatible dependencies
+echo "deb [arch=arm64 signed-by=/etc/apt/trusted.gpg.d/lierfang.gpg] https://mirrors.lierfang.com/pxcloud/pxvirt bookworm main" \
   > /etc/apt/sources.list.d/pve-install-repo.list
 
-# Import the repository GPG key
-curl -fsSL https://mirrors.apqa.cn/proxmox/debian/proxmox-port-release.gpg \
-  -o /etc/apt/trusted.gpg.d/proxmox-port-release.gpg
+# Import the GPG key for PXVIRT (lierfang.com mirror)
+curl -fsSL https://mirrors.lierfang.com/pxcloud/lierfang.gpg \
+  -o /etc/apt/trusted.gpg.d/lierfang.gpg
 
 # Update package lists
 apt-get update || true
