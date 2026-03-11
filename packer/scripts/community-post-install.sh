@@ -23,16 +23,16 @@ if [ -f /etc/apt/sources.list.d/pve-enterprise.sources ]; then
   sed -i 's/^Enabled: yes/Enabled: no/' /etc/apt/sources.list.d/pve-enterprise.sources
 fi
 
-# 2. Enable no-subscription repository (already added by install-proxmox.sh via apqa mirror)
-# Verify it is present; add the official no-sub repo as fallback source for metadata
-if ! grep -rq "pve-no-subscription\|mirrors.apqa.cn" /etc/apt/sources.list.d/ 2>/dev/null; then
-  echo "deb [arch=arm64] https://mirrors.apqa.cn/proxmox/debian/pve bookworm port" \
-    > /etc/apt/sources.list.d/pve-no-sub.list
+# 2. Verify PXVIRT no-sub repository is present (added by install-proxmox.sh)
+# PXVIRT is the successor to the Proxmox-Port ARM64 project (formerly mirrors.apqa.cn)
+if ! grep -rq "lierfang.com\|pxvirt" /etc/apt/sources.list.d/ 2>/dev/null; then
+  echo "deb [arch=arm64 signed-by=/etc/apt/trusted.gpg.d/lierfang.gpg] https://mirrors.lierfang.com/pxcloud/pxvirt bookworm main" \
+    > /etc/apt/sources.list.d/pve-install-repo.list
 fi
 
-# 3. Set up Ceph repository for the ARM64 port
-echo "deb [arch=arm64] https://mirrors.apqa.cn/proxmox/debian/ceph-reef bookworm port" \
-  > /etc/apt/sources.list.d/ceph.list
+# 3. Ceph packages — use Ubuntu's native Ceph packages (no separate ARM64 Ceph repo needed)
+# Ubuntu 22.04 ships Ceph Quincy (17.x) which is compatible with Proxmox VE
+echo "    Using Ubuntu native Ceph packages (no separate Ceph repo needed)"
 
 # 4. Remove subscription nag from Proxmox web UI
 # Patches proxmoxlib.js to suppress the no-subscription popup
@@ -51,7 +51,7 @@ if [ -n "$MOBILE_JS" ]; then
 fi
 
 # 5. Full system upgrade
-apt-get update
+apt-get update || true
 DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -y
 
 # 6. Reinstall proxmox-widget-toolkit to ensure consistent state post-patch
