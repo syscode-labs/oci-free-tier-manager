@@ -6,9 +6,6 @@ Port 22
 AddressFamily inet
 ListenAddress 0.0.0.0
 
-# Protocol
-Protocol 2
-
 # Host keys
 HostKey /etc/ssh/ssh_host_ed25519_key
 HostKey /etc/ssh/ssh_host_rsa_key
@@ -32,10 +29,13 @@ MaxSessions 10
 PubkeyAuthentication yes
 AuthorizedKeysFile .ssh/authorized_keys
 
+# Required for Ubuntu 22.04 PAM session management
+UsePAM yes
+
 # Password authentication (disabled for security)
 PasswordAuthentication no
 PermitEmptyPasswords no
-ChallengeResponseAuthentication no
+KbdInteractiveAuthentication no
 
 # Kerberos and GSSAPI (disabled)
 KerberosAuthentication no
@@ -58,7 +58,7 @@ UseDNS no
 PermitTunnel no
 
 # Subsystems
-Subsystem sftp /usr/lib/openssh/sftp-server -f AUTHPRIV -l INFO
+Subsystem sftp /usr/lib/openssh/sftp-server
 
 # Security
 AllowUsers root ubuntu
