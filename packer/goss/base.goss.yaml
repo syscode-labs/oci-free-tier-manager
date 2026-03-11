@@ -6,7 +6,6 @@ package:
 
 service:
   ssh:
-    enabled: true
     running: true
   fail2ban:
     enabled: true

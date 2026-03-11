@@ -179,6 +179,7 @@ build {
       "sudo /tmp/install-tailscale.sh",
       "sudo /tmp/harden-base.sh",
       "sudo mv /tmp/sshd_config /etc/ssh/sshd_config && sudo chown root:root /etc/ssh/sshd_config && sudo chmod 0600 /etc/ssh/sshd_config",
+      "sudo systemctl enable ssh || sudo systemctl enable sshd || true",
       "sudo systemctl restart ssh || sudo systemctl restart sshd",
       # Bake SSH public key and prevent cloud-init from overwriting it on instance launch
       "sudo mkdir -p /home/ubuntu/.ssh && echo '${var.ssh_public_key}' | sudo tee /home/ubuntu/.ssh/authorized_keys && sudo chown -R ubuntu:ubuntu /home/ubuntu/.ssh && sudo chmod 700 /home/ubuntu/.ssh && sudo chmod 600 /home/ubuntu/.ssh/authorized_keys",
