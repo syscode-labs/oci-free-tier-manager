@@ -180,8 +180,10 @@ build {
       "sudo /tmp/harden-base.sh",
       "sudo mv /tmp/sshd_config /etc/ssh/sshd_config && sudo chown root:root /etc/ssh/sshd_config && sudo chmod 0600 /etc/ssh/sshd_config",
       "sudo systemctl restart ssh || sudo systemctl restart sshd",
-      # Bake the SSH public key into the image so downstream deployments don't rely on cloud-init injection
+      # Bake SSH public key and prevent cloud-init from overwriting it on instance launch
       "sudo mkdir -p /home/ubuntu/.ssh && echo '${var.ssh_public_key}' | sudo tee /home/ubuntu/.ssh/authorized_keys && sudo chown -R ubuntu:ubuntu /home/ubuntu/.ssh && sudo chmod 700 /home/ubuntu/.ssh && sudo chmod 600 /home/ubuntu/.ssh/authorized_keys",
+      # Prevent cloud-init from overwriting our baked-in authorized_keys on instance launch
+      "printf 'allow_public_ssh_keys: false\\nssh_authorized_keys: []\\n' | sudo tee /etc/cloud/cloud.cfg.d/99-no-ssh-inject.cfg",
       "if [ -n \"${var.tailscale_auth_key}\" ]; then echo \"TS_AUTHKEY=${var.tailscale_auth_key}\" | sudo tee /etc/default/tailscaled >/dev/null; fi",
       "sudo apt-get autoremove -y",
       "sudo apt-get clean",
