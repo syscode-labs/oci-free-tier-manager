@@ -6,4 +6,4 @@ ssh_public_key       = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIlJA4nTzCz5FcjSxGDb
 
 # Base image: oci-freetier-ampere-a1flex-base (hardened Ubuntu 22.04 ARM64)
 # Built by oci-ampere-base.pkr.hcl — run that first if this image is missing.
-base_image_ocid = "ocid1.image.oc1.uk-london-1.aaaaaaaatzk75onrwuw4ne4vixvijfu44fcrmh4lpimznic2ho6pz33w3qka"
+base_image_ocid = "ocid1.image.oc1.uk-london-1.aaaaaaaa3g2kconolmt7gwhnshdkqokxrv75a7nt5eck4knjjk4mfzfk33sq"
