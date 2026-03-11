@@ -160,11 +160,6 @@ build {
   }
 
   provisioner "file" {
-    source      = "files/firewall.rules"
-    destination = "/tmp/firewall.rules"
-  }
-
-  provisioner "file" {
     source      = "goss/base.goss.yaml"
     destination = "/tmp/base.goss.yaml"
   }
@@ -184,7 +179,6 @@ build {
       "sudo /tmp/install-tailscale.sh",
       "sudo /tmp/harden-base.sh",
       "sudo mv /tmp/sshd_config /etc/ssh/sshd_config && sudo chown root:root /etc/ssh/sshd_config && sudo chmod 0600 /etc/ssh/sshd_config",
-      "sudo mv /tmp/firewall.rules /etc/iptables/rules.v4",
       "sudo systemctl restart ssh || sudo systemctl restart sshd",
       "if [ -n \"${var.tailscale_auth_key}\" ]; then echo \"TS_AUTHKEY=${var.tailscale_auth_key}\" | sudo tee /etc/default/tailscaled >/dev/null; fi",
       "sudo apt-get autoremove -y",
