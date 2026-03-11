@@ -5,5 +5,5 @@ ssh_username         = "ubuntu"
 ssh_private_key_path = "~/.ssh/oci_free_tier"
 ssh_public_key       = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIlJA4nTzCz5FcjSxGDbzqkeWRyKGc3SW4rWnVMHYdGr oci-free-tier"
 
-# Base image: Ubuntu 22.04 ARM64 platform image (OCI has no Debian 12 ARM64)
-base_image_ocid = "ocid1.image.oc1.uk-london-1.aaaaaaaaeg4bdaglofcnt2ga4riomxvzqllga4hqzpiliiyrxh57nn67kqkq"
+# Base image: Ubuntu 24.04 ARM64 — 22.04 libs too old for PXVIRT (need perl>=5.36, libzstd>=1.5.2)
+base_image_ocid = "ocid1.image.oc1.uk-london-1.aaaaaaaarlzudoyt5g2ofuqhmkak5bcosbqstkcutdpx3eva5dc7t4v5wgpq"
