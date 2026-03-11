@@ -1,7 +1,7 @@
 package:
   proxmox-ve:
     installed: true
-  pve-kernel-6.8:
+  pve-kernel-6.12-pve:
     installed: true
   chrony:
     installed: true
