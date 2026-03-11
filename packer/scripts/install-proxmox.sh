@@ -37,6 +37,12 @@ echo "deb [arch=arm64 signed-by=/etc/apt/trusted.gpg.d/lierfang.gpg] https://mir
 curl -fsSL https://mirrors.lierfang.com/pxcloud/lierfang.gpg \
   -o /etc/apt/trusted.gpg.d/lierfang.gpg
 
+# Wait for cloud-init apt processes to release the lock
+while fuser /var/lib/apt/lists/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+  echo "    Waiting for apt lock to release..."
+  sleep 5
+done
+
 # Update package lists
 apt-get update || true
 
