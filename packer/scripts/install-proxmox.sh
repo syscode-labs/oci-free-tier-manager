@@ -41,7 +41,7 @@ curl -fsSL https://mirrors.lierfang.com/pxcloud/lierfang.gpg \
 apt-get update || true
 
 # Install Proxmox VE kernel first
-DEBIAN_FRONTEND=noninteractive apt-get install -y pve-kernel-6.8
+DEBIAN_FRONTEND=noninteractive apt-get install -y pve-kernel-6.12-pve
 
 # Install Proxmox VE and dependencies
 DEBIAN_FRONTEND=noninteractive apt-get install -y \
