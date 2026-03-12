@@ -86,9 +86,13 @@ source "qemu" "proxmox" {
   memory       = var.memory
   cpus         = var.cpus
 
-  # UEFI firmware for ARM64
+  # ARM64 UEFI firmware — AAVMF (from qemu-efi-aarch64 or ovmf package)
+  # On Ubuntu 24.04 ARM64: /usr/share/AAVMF/AAVMF_CODE.fd
   qemuargs = [
-    ["-bios", "/usr/share/qemu-efi-aarch64/QEMU_EFI.fd"],
+    ["-machine", "virt,gic-version=3"],
+    ["-cpu", "host"],
+    ["-drive", "if=pflash,format=raw,readonly=on,file=/usr/share/AAVMF/AAVMF_CODE.fd"],
+    ["-drive", "if=pflash,format=raw,file=/tmp/AAVMF_VARS.fd"],
     ["-device", "virtio-rng-pci"],
   ]
 
