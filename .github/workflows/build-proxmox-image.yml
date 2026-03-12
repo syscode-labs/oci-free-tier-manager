@@ -101,6 +101,8 @@ jobs:
             > /tmp/packer-cidata/meta-data
 
       - name: Build Proxmox QCOW2 image
+        env:
+          PACKER_LOG: "1"
         run: |
           cd packer
           packer build \
