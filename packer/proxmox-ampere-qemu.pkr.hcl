@@ -106,7 +106,7 @@ source "qemu" "proxmox" {
 
   # SSH settings (cloud-init injects the key from the seed)
   ssh_username         = "debian"
-  ssh_timeout          = "20m"
+  ssh_timeout          = "60m"
   ssh_private_key_file = "~/.ssh/id_ed25519"
 
   headless         = true
