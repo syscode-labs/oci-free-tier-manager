@@ -82,6 +82,15 @@ jobs:
           cd packer
           packer init proxmox-ampere-qemu.pkr.hcl
 
+      - name: Create cloud-init NoCloud seed for Packer
+        run: |
+          # cd_files in Packer QEMU builder must exist before packer build starts
+          mkdir -p /tmp/packer-cidata
+          printf '#cloud-config\nssh_authorized_keys:\n  - %s\n' \
+            "${PACKER_SSH_PUBLIC_KEY}" > /tmp/packer-cidata/user-data
+          printf 'instance-id: proxmox-build\nlocal-hostname: proxmox-build\n' \
+            > /tmp/packer-cidata/meta-data
+
       - name: Build Proxmox QCOW2 image
         run: |
           cd packer
