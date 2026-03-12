@@ -77,8 +77,6 @@ source "qemu" "proxmox" {
   disk_size        = var.disk_size
   disk_interface   = "virtio"
   format           = "qcow2"
-  machine_type     = "virt"
-
   # ARM64 + KVM acceleration (GitHub ubuntu-24.04-arm runner has KVM)
   accelerator  = "kvm"
   qemu_binary  = "qemu-system-aarch64"
@@ -88,7 +86,11 @@ source "qemu" "proxmox" {
 
   # ARM64 UEFI firmware — AAVMF (from qemu-efi-aarch64 or ovmf package)
   # On Ubuntu 24.04 ARM64: /usr/share/AAVMF/AAVMF_CODE.fd
+  # -enable-kvm: explicit KVM flag required alongside accelerator setting
+  # -cpu host: pass through host CPU (ARM64 Graviton) — requires KVM
+  # -machine virt,gic-version=3: ARM64 virtual machine with GIC v3
   qemuargs = [
+    ["-enable-kvm"],
     ["-machine", "virt,gic-version=3"],
     ["-cpu", "host"],
     ["-drive", "if=pflash,format=raw,readonly=on,file=/usr/share/AAVMF/AAVMF_CODE.fd"],
