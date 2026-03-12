@@ -94,26 +94,22 @@ jobs:
             --shape-name VM.Standard.A1.Flex
           echo "Image ready: ${IMAGE_OCID}"
 
-      - name: Update tofu/oci/terraform.tfvars with new OCID
-        run: |
-          sed -i "s|proxmox_image_ocid = \".*\"|proxmox_image_ocid = \"${IMAGE_OCID}\"|" \
-            tofu/oci/terraform.tfvars
-          grep "proxmox_image_ocid" tofu/oci/terraform.tfvars
-
-      - name: Open PR with updated OCID
+      - name: Open PR with new image OCID
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore: update Proxmox image OCID to ${{ env.IMAGE_OCID }}"
-          title: "chore: new Proxmox ARM64 image available"
+          commit-message: "chore: record Proxmox image OCID ${{ env.IMAGE_OCID }}"
+          title: "chore: new Proxmox ARM64 image — ${{ env.IMAGE_NAME }}"
           body: |
-            Automated Proxmox image build via debootstrap on ARM64 runner.
+            Automated Proxmox image build via native debootstrap on ARM64 runner.
 
             **Image OCID:** `${{ env.IMAGE_OCID }}`
             **Image name:** `${{ env.IMAGE_NAME }}`
 
-            Sets `proxmox_image_ocid` in `tofu/oci/terraform.tfvars`.
-            After merging: run `tofu apply` in `tofu/oci/` to deploy instances.
+            To deploy: set `proxmox_image_ocid` in `tofu/oci/terraform.tfvars`:
+            ```hcl
+            proxmox_image_ocid = "${{ env.IMAGE_OCID }}"
+            ```
+            Then run `tofu apply` in `tofu/oci/`.
           branch: "chore/update-proxmox-image"
           delete-branch: true
-          add-paths: tofu/oci/terraform.tfvars
