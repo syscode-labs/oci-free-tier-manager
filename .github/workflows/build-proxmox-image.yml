@@ -110,7 +110,7 @@ jobs:
             -var "debian_image_checksum=${{ inputs.debian_checksum || 'none' }}" \
             -var "output_directory=/tmp/proxmox-output" \
             proxmox-ampere-qemu.pkr.hcl
-        timeout-minutes: 90
+        timeout-minutes: 120
 
       - name: Upload QCOW2 to OCI Object Storage
         run: |

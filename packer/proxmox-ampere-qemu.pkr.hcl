@@ -77,22 +77,20 @@ source "qemu" "proxmox" {
   disk_size        = var.disk_size
   disk_interface   = "virtio"
   format           = "qcow2"
-  # ARM64 + KVM acceleration (GitHub ubuntu-24.04-arm runner has KVM)
-  accelerator  = "kvm"
+  # GitHub ubuntu-24.04-arm runners are VMs (no KVM) — use TCG software emulation
+  # Graviton3 processors are fast enough for TCG at reasonable speed
+  accelerator  = "none"
   qemu_binary  = "qemu-system-aarch64"
   net_device   = "virtio-net"
   memory       = var.memory
   cpus         = var.cpus
 
   # ARM64 UEFI firmware — AAVMF (from qemu-efi-aarch64 or ovmf package)
-  # On Ubuntu 24.04 ARM64: /usr/share/AAVMF/AAVMF_CODE.fd
-  # -enable-kvm: explicit KVM flag required alongside accelerator setting
-  # -cpu host: pass through host CPU (ARM64 Graviton) — requires KVM
+  # -cpu max: best TCG CPU with full 64-bit ARM feature set (required for 4GB+ RAM in TCG)
   # -machine virt,gic-version=3: ARM64 virtual machine with GIC v3
   qemuargs = [
-    ["-enable-kvm"],
     ["-machine", "virt,gic-version=3"],
-    ["-cpu", "host"],
+    ["-cpu", "max"],
     ["-drive", "if=pflash,format=raw,readonly=on,file=/usr/share/AAVMF/AAVMF_CODE.fd"],
     ["-drive", "if=pflash,format=raw,file=/tmp/AAVMF_VARS.fd"],
     ["-device", "virtio-rng-pci"],
