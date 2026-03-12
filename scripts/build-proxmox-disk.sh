@@ -30,7 +30,12 @@ parted -s "$DISK_IMG" \
 
 # ── 3. Loop-mount and format ─────────────────────────────────────────────────
 echo "==> Formatting partitions..."
+# Ensure loop module is loaded and partitions are probed
+modprobe loop 2>/dev/null || true
 LOOP=$(losetup -fP --show "$DISK_IMG")
+# Wait for partition devices to appear
+sleep 2
+ls "${LOOP}p1" "${LOOP}p2" || { echo "Partition devices not found"; losetup -d "$LOOP"; exit 1; }
 EFI_DEV="${LOOP}p1"
 ROOT_DEV="${LOOP}p2"
 
@@ -45,7 +50,12 @@ mount "$EFI_DEV" "$MOUNT_DIR/boot/efi"
 
 # ── 5. Debootstrap Debian 12 ─────────────────────────────────────────────────
 echo "==> Bootstrapping Debian 12 bookworm (native ARM64)..."
-debootstrap --arch=arm64 bookworm "$MOUNT_DIR" "$DEBIAN_MIRROR"
+# Install debian-archive-keyring first so debootstrap can verify signatures
+apt-get install -y debian-archive-keyring 2>/dev/null || true
+debootstrap \
+  --arch=arm64 \
+  --include=debian-archive-keyring,ca-certificates,curl,sudo \
+  bookworm "$MOUNT_DIR" "$DEBIAN_MIRROR"
 
 # ── 6. Bind mounts for chroot ────────────────────────────────────────────────
 mount --bind /dev     "$MOUNT_DIR/dev"
