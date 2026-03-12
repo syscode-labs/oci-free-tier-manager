@@ -2,18 +2,10 @@ name: Build Proxmox ARM64 Image
 
 on:
   workflow_dispatch:
-    inputs:
-      debian_checksum:
-        description: "SHA512 checksum of Debian 12 image (leave 'none' to skip)"
-        required: false
-        default: "none"
 
   push:
     paths:
-      - "packer/proxmox-ampere-qemu.pkr.hcl"
-      - "packer/scripts/install-proxmox.sh"
-      - "packer/scripts/community-post-install.sh"
-      - "packer/goss/proxmox.goss.yaml"
+      - "scripts/build-proxmox-disk.sh"
     branches: [main]
 
 env:
@@ -21,7 +13,6 @@ env:
   OCI_NAMESPACE: lrbmlfacfnqw
   OCI_BUCKET: proxmox-images
   OCI_REGION: uk-london-1
-  PACKER_TEMPLATE: packer/proxmox-ampere-qemu.pkr.hcl
 
 jobs:
   build:
@@ -33,39 +24,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install build dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y \
-            qemu-system-arm \
-            qemu-efi-aarch64 \
+            debootstrap \
             qemu-utils \
-            ovmf \
-            cloud-image-utils \
+            parted \
+            dosfstools \
+            e2fsprogs \
             python3-pip
           pip3 install oci-cli --quiet
-
-      - name: Install Packer
-        run: |
-          GPG_KEY=/usr/share/keyrings/hashicorp-archive-keyring.gpg
-          wget -qO- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o "$GPG_KEY"
-          CODENAME=$(lsb_release -cs)
-          echo "deb [signed-by=${GPG_KEY}] https://apt.releases.hashicorp.com ${CODENAME} main" \
-            | sudo tee /etc/apt/sources.list.d/hashicorp.list
-          sudo apt-get update -qq && sudo apt-get install -y packer
-
-      - name: Verify QEMU and KVM setup
-        run: |
-          ls -la /dev/kvm && echo "KVM available" || echo "KVM not available"
-          qemu-system-aarch64 --version
-          find /usr/share -name "AAVMF_CODE*" -o -name "QEMU_EFI*" 2>/dev/null | head -5
-          AAVMF_VARS=$(find /usr/share -name "AAVMF_VARS*" 2>/dev/null | head -1)
-          if [ -n "$AAVMF_VARS" ]; then
-            cp "$AAVMF_VARS" /tmp/AAVMF_VARS.fd
-          else
-            dd if=/dev/zero of=/tmp/AAVMF_VARS.fd bs=1M count=64
-          fi
-          echo "AAVMF_VARS ready"
 
       - name: Configure OCI CLI
         run: |
@@ -81,47 +50,22 @@ jobs:
           echo "${{ secrets.OCI_API_KEY_PEM }}" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem ~/.oci/config
 
-      - name: Generate SSH keypair for Packer
+      - name: Build Proxmox disk image (native ARM64 debootstrap)
         run: |
-          ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N "" -q
-          echo "PACKER_SSH_PUBLIC_KEY=$(cat ~/.ssh/id_ed25519.pub)" >> "$GITHUB_ENV"
-
-      - name: Init Packer plugins
-        run: |
-          cd packer
-          packer init proxmox-ampere-qemu.pkr.hcl
-
-      - name: Create cloud-init NoCloud seed for Packer
-        run: |
-          # cd_files in Packer QEMU builder must exist before packer build starts
-          mkdir -p /tmp/packer-cidata
-          printf '#cloud-config\nssh_authorized_keys:\n  - %s\n' \
-            "${PACKER_SSH_PUBLIC_KEY}" > /tmp/packer-cidata/user-data
-          printf 'instance-id: proxmox-build\nlocal-hostname: proxmox-build\n' \
-            > /tmp/packer-cidata/meta-data
-
-      - name: Build Proxmox QCOW2 image
-        env:
-          PACKER_LOG: "1"
-        run: |
-          cd packer
-          packer build \
-            -var "ssh_public_key=${PACKER_SSH_PUBLIC_KEY}" \
-            -var "debian_image_checksum=${{ inputs.debian_checksum || 'none' }}" \
-            -var "output_directory=/tmp/proxmox-output" \
-            proxmox-ampere-qemu.pkr.hcl
-        timeout-minutes: 120
+          chmod +x scripts/build-proxmox-disk.sh
+          sudo -E scripts/build-proxmox-disk.sh
+          ls -lh /tmp/proxmox-arm64.qcow2
+        timeout-minutes: 60
 
       - name: Upload QCOW2 to OCI Object Storage
         run: |
           IMAGE_NAME="proxmox-ampere-arm64-$(date +%Y%m%d%H%M%S).qcow2"
           echo "IMAGE_NAME=${IMAGE_NAME}" >> "$GITHUB_ENV"
-
           oci os object put \
             --namespace ${OCI_NAMESPACE} \
             --bucket-name ${OCI_BUCKET} \
-            --file /tmp/proxmox-output/proxmox-ampere-arm64.qcow2 \
-            --name ${IMAGE_NAME}
+            --file /tmp/proxmox-arm64.qcow2 \
+            --name "${IMAGE_NAME}"
 
       - name: Import as OCI custom image
         run: |
@@ -129,54 +73,47 @@ jobs:
             --compartment-id ${OCI_COMPARTMENT} \
             --namespace ${OCI_NAMESPACE} \
             --bucket-name ${OCI_BUCKET} \
-            --name ${IMAGE_NAME} \
+            --name "${IMAGE_NAME}" \
             --display-name "oci-freetier-ampere-a1flex-proxmox-$(date +%Y%m%d%H%M%S)" \
             --source-image-type QCOW2 \
             --launch-mode PARAVIRTUALIZED \
             --query 'data.id' --raw-output)
-
           echo "IMAGE_OCID=${IMAGE_OCID}" >> "$GITHUB_ENV"
-          echo "Importing image OCID: ${IMAGE_OCID}"
-
-          # Wait for import to complete
+          echo "Importing: ${IMAGE_OCID}"
           while true; do
             STATE=$(oci compute image get \
-              --image-id ${IMAGE_OCID} \
+              --image-id "${IMAGE_OCID}" \
               --query 'data."lifecycle-state"' --raw-output)
-            echo "Import state: ${STATE}"
+            echo "  state: ${STATE}"
             [ "${STATE}" = "AVAILABLE" ] && break
             [ "${STATE}" = "DELETED" ] && exit 1
             sleep 30
           done
-
-          # Add ARM64 shape compatibility
           oci compute image-shape-compatibility-entry add \
-            --image-id ${IMAGE_OCID} \
+            --image-id "${IMAGE_OCID}" \
             --shape-name VM.Standard.A1.Flex
-
           echo "Image ready: ${IMAGE_OCID}"
 
-      - name: Open PR to update image OCID
+      - name: Update tofu/oci/terraform.tfvars with new OCID
+        run: |
+          sed -i "s|proxmox_image_ocid = \".*\"|proxmox_image_ocid = \"${IMAGE_OCID}\"|" \
+            tofu/oci/terraform.tfvars
+          grep "proxmox_image_ocid" tofu/oci/terraform.tfvars
+
+      - name: Open PR with updated OCID
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore(packer): update Proxmox image OCID to ${{ env.IMAGE_OCID }}"
-          title: "chore: update Proxmox ARM64 image"
+          commit-message: "chore: update Proxmox image OCID to ${{ env.IMAGE_OCID }}"
+          title: "chore: new Proxmox ARM64 image available"
           body: |
-            Automated Proxmox image build.
+            Automated Proxmox image build via debootstrap on ARM64 runner.
 
-            New image OCID: `${{ env.IMAGE_OCID }}`
-            Image name: `${{ env.IMAGE_NAME }}`
+            **Image OCID:** `${{ env.IMAGE_OCID }}`
+            **Image name:** `${{ env.IMAGE_NAME }}`
 
-            Update `tofu/oci/terraform.tfvars` with:
-            ```
-            proxmox_image_ocid = "${{ env.IMAGE_OCID }}"
-            ```
+            Sets `proxmox_image_ocid` in `tofu/oci/terraform.tfvars`.
+            After merging: run `tofu apply` in `tofu/oci/` to deploy instances.
           branch: "chore/update-proxmox-image"
           delete-branch: true
-          add-paths: |
-            packer/vars/proxmox-ampere.pkrvars.hcl
-      - name: Update proxmox vars file with new OCID
-        run: |
-          sed -i "s|base_image_ocid = \".*\"|base_image_ocid = \"${{ env.IMAGE_OCID }}\"|" \
-            packer/vars/proxmox-ampere.pkrvars.hcl
+          add-paths: tofu/oci/terraform.tfvars
