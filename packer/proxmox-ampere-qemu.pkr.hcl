@@ -113,14 +113,9 @@ build {
   name    = "proxmox-ampere-qemu"
   sources = ["source.qemu.proxmox"]
 
-  # Prepare cloud-init seed files before the VM boots
-  provisioner "shell-local" {
-    inline = [
-      "mkdir -p /tmp/packer-cidata",
-      "printf '#cloud-config\\nssh_authorized_keys:\\n  - ${var.ssh_public_key}\\n' > /tmp/packer-cidata/user-data",
-      "printf 'instance-id: proxmox-build\\nlocal-hostname: proxmox-build\\n' > /tmp/packer-cidata/meta-data",
-    ]
-  }
+  # Note: /tmp/packer-cidata/user-data and meta-data must be created before packer build.
+  # In GitHub Actions: the "Create cloud-init NoCloud seed" step does this.
+  # Locally: run scripts/create-packer-cidata.sh before building.
 
   # Wait for cloud-init to complete SSH key setup
   provisioner "shell" {
