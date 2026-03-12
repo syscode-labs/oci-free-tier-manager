@@ -7,11 +7,10 @@ set -euo pipefail
 echo "Hardening base system..."
 
 # Install essential security packages
-apt-get install -y \
-    iptables \
-    iptables-persistent \
+# Note: iptables/ufw not included — OCI security lists provide network-level firewall.
+# Adding iptables with DROP default blocks OCI cloud-init metadata access.
+DEBIAN_FRONTEND=noninteractive apt-get install -y \
     fail2ban \
-    ufw \
     aide \
     rkhunter \
     lynis

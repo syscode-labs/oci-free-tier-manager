@@ -3,41 +3,39 @@ set -euo pipefail
 
 # Install Proxmox VE on Debian 12 ARM64 (aarch64)
 #
-# Uses the unofficial ARM64 port maintained at mirrors.apqa.cn
-# Official Proxmox packages are amd64-only; this port is community-maintained.
-# See: https://github.com/jiangcuo/Proxmox-Port
+# Runs on real Debian 12 (inside QEMU during GitHub Actions CI build).
+# Uses PXVIRT — the Proxmox ARM64 unofficial port (formerly mirrors.apqa.cn).
+# See: https://github.com/jiangcuo/pxvirt
 
-echo "==> Installing Proxmox VE (ARM64 unofficial port) on Debian 12..."
+echo "==> Installing Proxmox VE (ARM64 PXVIRT port) on Debian 12..."
 
 # Fix /etc/hosts: Proxmox installer needs hostname to resolve to a non-loopback IP.
-# On OCI the instance hostname resolves via DHCP; add an explicit entry.
 PVE_HOSTNAME=$(hostname -s)
 HOST_IP=$(hostname -I | awk '{print $1}')
 if ! grep -q "^${HOST_IP}" /etc/hosts; then
   echo "${HOST_IP} ${PVE_HOSTNAME}.proxmox.local ${PVE_HOSTNAME}" >> /etc/hosts
 fi
 
-# Enable IP forwarding (required for Proxmox bridge and container networking).
-# Overrides the restrictive sysctl set by the base image hardening script.
+# Enable IP forwarding (required for Proxmox bridge and container networking)
 cat > /etc/sysctl.d/99-proxmox-forwarding.conf <<'EOF'
 net.ipv4.ip_forward = 1
 net.ipv6.conf.all.forwarding = 1
 EOF
 sysctl -p /etc/sysctl.d/99-proxmox-forwarding.conf
 
-# Add the ARM64 Proxmox port repository
-echo "deb [arch=arm64] https://mirrors.apqa.cn/proxmox/debian/pve bookworm port" \
-  > /etc/apt/sources.list.d/pve-install-repo.list
+# Add PXVIRT ARM64 repository (successor to Proxmox-Port / mirrors.apqa.cn)
+curl -fsSL https://mirrors.lierfang.com/pxcloud/lierfang.gpg \
+  -o /etc/apt/trusted.gpg.d/lierfang.gpg
 
-# Import the repository GPG key
-curl -fsSL https://mirrors.apqa.cn/proxmox/debian/proxmox-port-release.gpg \
-  -o /etc/apt/trusted.gpg.d/proxmox-port-release.gpg
+echo "deb [arch=arm64 signed-by=/etc/apt/trusted.gpg.d/lierfang.gpg] https://mirrors.lierfang.com/pxcloud/pxvirt bookworm main" \
+  > /etc/apt/sources.list.d/pve-install-repo.list
 
 # Update package lists
 apt-get update
 
-# Install Proxmox VE kernel first (boot into it on first OCI instance launch)
-DEBIAN_FRONTEND=noninteractive apt-get install -y pve-kernel-6.8
+# Install Proxmox VE kernel first (boots into it on OCI instance launch)
+# PXVIRT provides pve-kernel-6.12-pve for ARM64
+DEBIAN_FRONTEND=noninteractive apt-get install -y pve-kernel-6.12-pve
 
 # Install Proxmox VE and dependencies
 DEBIAN_FRONTEND=noninteractive apt-get install -y \
@@ -47,14 +45,16 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y \
   chrony \
   ifupdown2
 
-# Remove the Debian kernel to avoid GRUB conflicts
+# Remove Debian kernel to avoid GRUB conflicts
 # Proxmox boot-tool manages kernels from this point forward
-apt-get remove -y "linux-image-arm64" "linux-image-6.1*" || true
+DEBIAN_FRONTEND=noninteractive apt-get remove -y \
+  "linux-image-arm64" \
+  "linux-image-6.*" || true
 update-grub || proxmox-boot-tool refresh || true
 
 # Configure chrony for time sync (Proxmox clusters are time-sensitive)
 systemctl enable chrony
 systemctl start chrony || true
 
-echo "==> Proxmox VE (ARM64) installed successfully"
-echo "==> NOTE: Instance must reboot into pve-kernel before Proxmox web UI is available"
+echo "==> Proxmox VE (ARM64 PXVIRT) installed successfully"
+echo "==> NOTE: Instance will boot into pve-kernel on next launch"

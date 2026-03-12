@@ -78,10 +78,10 @@ variable "ssh_public_key" {
   }
 }
 
-variable "image_name_prefix" {
-  description = "Prefix for the resulting OCI custom image name"
+variable "machine_type" {
+  description = "Machine type identifier for the image name (e.g. a1flex, e2micro)"
   type        = string
-  default     = "proxmox-ampere-arm64"
+  default     = "a1flex"
 }
 
 variable "region" {
@@ -91,19 +91,22 @@ variable "region" {
 }
 
 source "oracle-oci" "proxmox" {
-  access_cfg_file_account = "syscode"
+  access_cfg_file_account = "syscode-homelab"
   availability_domain     = var.availability_domain
   base_image_ocid         = var.base_image_ocid
   compartment_ocid        = var.compartment_ocid
-  image_name              = "${var.image_name_prefix}-${formatdate("YYYYMMDDhhmmss", timestamp())}"
+  image_name              = "oci-freetier-ampere-${var.machine_type}-proxmox-${formatdate("YYYYMMDDhhmmss", timestamp())}"
   region                  = var.region
   shape                   = "VM.Standard.A1.Flex"
-  subnet_ocid             = var.subnet_ocid
 
-  assign_public_ip     = true
-  ssh_username         = "debian"
+  ssh_username         = "ubuntu"
   ssh_timeout          = "30m"
   ssh_private_key_file = var.ssh_private_key_path
+
+  create_vnic_details {
+    assign_public_ip = true
+    subnet_id        = var.subnet_ocid
+  }
 
   shape_config {
     ocpus         = 2
@@ -113,8 +116,6 @@ source "oracle-oci" "proxmox" {
   metadata = {
     ssh_authorized_keys = var.ssh_public_key
   }
-
-  state_timeout = "60m"
 }
 
 build {
@@ -143,7 +144,7 @@ build {
 
   # Stage 3: Ansible hardening (ZFS tuning, Proxmox-specific sysctl, fail2ban jail)
   provisioner "ansible" {
-    playbook_file = "ansible/packer-harden-proxmox.yml"
+    playbook_file = "../ansible/packer-harden-proxmox.yml"
     user          = "debian"
     use_proxy     = false
     ansible_env_vars = [

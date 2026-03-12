@@ -1,7 +1,7 @@
 package:
   proxmox-ve:
     installed: true
-  pve-kernel-6.8:
+  pve-kernel-6.12-pve:
     installed: true
   chrony:
     installed: true
@@ -30,11 +30,11 @@ file:
   /etc/apt/sources.list.d/pve-install-repo.list:
     exists: true
     contains:
-      - "mirrors.apqa.cn"
+      - "lierfang.com"
   /etc/apt/sources.list.d/ceph.list:
     exists: true
     contains:
-      - "mirrors.apqa.cn"
+      - "lierfang.com"
   /etc/sysctl.d/99-proxmox-forwarding.conf:
     exists: true
     contains:
