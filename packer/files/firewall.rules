@@ -14,6 +14,12 @@
 # Allow established connections
 -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 
+# Allow DHCP responses (required for OCI networking and cloud-init)
+-A INPUT -p udp --sport 67 --dport 68 -j ACCEPT
+
+# Allow OCI Instance Metadata Service (required for cloud-init SSH key injection)
+-A INPUT -s 169.254.169.254 -j ACCEPT
+
 # Allow SSH
 -A INPUT -p tcp --dport 22 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
 

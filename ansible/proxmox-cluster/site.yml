@@ -25,3 +25,10 @@
   gather_facts: true
   roles:
     - role: tailscale-lxc
+
+- name: Install Tailscale on Proxmox host and create API token
+  hosts: proxmox
+  become: true
+  gather_facts: true
+  roles:
+    - role: tailscale-host

@@ -22,7 +22,7 @@ variable "compartment_ocid" {
 
   validation {
     condition     = length(var.compartment_ocid) > 0
-    error_message = "compartment_ocid is required."
+    error_message = "The compartment_ocid variable is required."
   }
 }
 
@@ -33,7 +33,7 @@ variable "region" {
 
   validation {
     condition     = length(var.region) > 0
-    error_message = "region is required."
+    error_message = "The region variable is required."
   }
 }
 
@@ -43,7 +43,7 @@ variable "availability_domain" {
 
   validation {
     condition     = length(var.availability_domain) > 0
-    error_message = "availability_domain is required."
+    error_message = "The availability_domain variable is required."
   }
 }
 
@@ -53,7 +53,7 @@ variable "subnet_ocid" {
 
   validation {
     condition     = length(var.subnet_ocid) > 0
-    error_message = "subnet_ocid is required."
+    error_message = "The subnet_ocid variable is required."
   }
 }
 
@@ -63,7 +63,7 @@ variable "base_image_ocid" {
 
   validation {
     condition     = length(var.base_image_ocid) > 0
-    error_message = "base_image_ocid is required."
+    error_message = "The base_image_ocid variable is required."
   }
 }
 
@@ -79,7 +79,7 @@ variable "ssh_private_key_path" {
 
   validation {
     condition     = length(var.ssh_private_key_path) > 0
-    error_message = "ssh_private_key_path is required."
+    error_message = "The ssh_private_key_path variable is required."
   }
 }
 
@@ -89,7 +89,7 @@ variable "ssh_public_key" {
 
   validation {
     condition     = length(var.ssh_public_key) > 0
-    error_message = "ssh_public_key is required."
+    error_message = "The ssh_public_key variable is required."
   }
 }
 
@@ -99,10 +99,10 @@ variable "assign_public_ip" {
   default     = true
 }
 
-variable "image_name_prefix" {
-  description = "Prefix for the generated custom image"
+variable "machine_type" {
+  description = "Machine type identifier for the image name (e.g. a1flex, e2micro)"
   type        = string
-  default     = "oci-base-hardened-arm64"
+  default     = "a1flex"
 }
 
 variable "tailscale_auth_key" {
@@ -112,19 +112,23 @@ variable "tailscale_auth_key" {
 }
 
 source "oracle-oci" "ampere" {
-  access_cfg_file_account = "syscode"
+  access_cfg_file_account = "syscode-homelab"
   availability_domain     = var.availability_domain
   base_image_ocid         = var.base_image_ocid
   compartment_ocid        = var.compartment_ocid
-  image_name              = "${var.image_name_prefix}-${formatdate("YYYYMMDDhhmmss", timestamp())}"
+  image_name              = "oci-freetier-ampere-${var.machine_type}-base-${formatdate("YYYYMMDDhhmmss", timestamp())}"
   region                  = var.region
   shape                   = "VM.Standard.A1.Flex"
   subnet_ocid             = var.subnet_ocid
 
-  assign_public_ip     = var.assign_public_ip
   ssh_username         = var.ssh_username
   ssh_timeout          = "30m"
   ssh_private_key_file = var.ssh_private_key_path
+
+  create_vnic_details {
+    assign_public_ip = var.assign_public_ip
+    subnet_id        = var.subnet_ocid
+  }
 
   shape_config {
     ocpus         = 1
@@ -134,8 +138,6 @@ source "oracle-oci" "ampere" {
   metadata = {
     ssh_authorized_keys = var.ssh_public_key
   }
-
-  state_timeout = "45m"
 }
 
 build {
@@ -158,11 +160,6 @@ build {
   }
 
   provisioner "file" {
-    source      = "files/firewall.rules"
-    destination = "/tmp/firewall.rules"
-  }
-
-  provisioner "file" {
     source      = "goss/base.goss.yaml"
     destination = "/tmp/base.goss.yaml"
   }
@@ -175,15 +172,19 @@ build {
   provisioner "shell" {
     inline = [
       "sudo chmod +x /tmp/install-tailscale.sh /tmp/harden-base.sh",
-      "sudo apt-get update",
-      "sudo apt-get upgrade -y",
-      "sudo apt-get install -y curl wget gnupg2 ca-certificates apt-transport-https qemu-guest-agent cloud-init",
-      "sudo systemctl enable qemu-guest-agent",
+      "sudo rm -f /etc/apt/apt.conf.d/50command-not-found || true",
+      "sudo apt-get update || true",
+      "sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y",
+      "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y curl wget gnupg2 ca-certificates apt-transport-https cloud-init",
       "sudo /tmp/install-tailscale.sh",
       "sudo /tmp/harden-base.sh",
-      "sudo mv /tmp/sshd_config /etc/ssh/sshd_config",
-      "sudo mv /tmp/firewall.rules /etc/iptables/rules.v4",
+      "sudo mv /tmp/sshd_config /etc/ssh/sshd_config && sudo chown root:root /etc/ssh/sshd_config && sudo chmod 0600 /etc/ssh/sshd_config",
+      "sudo systemctl enable ssh || sudo systemctl enable sshd || true",
       "sudo systemctl restart ssh || sudo systemctl restart sshd",
+      # Bake SSH public key and prevent cloud-init from overwriting it on instance launch
+      "sudo mkdir -p /home/ubuntu/.ssh && echo '${var.ssh_public_key}' | sudo tee /home/ubuntu/.ssh/authorized_keys && sudo chown -R ubuntu:ubuntu /home/ubuntu/.ssh && sudo chmod 700 /home/ubuntu/.ssh && sudo chmod 600 /home/ubuntu/.ssh/authorized_keys",
+      # cloud-init: no additional SSH key overrides (baked key is the only one needed)
+      "sudo touch /etc/cloud/cloud.cfg.d/99-custom.cfg",
       "if [ -n \"${var.tailscale_auth_key}\" ]; then echo \"TS_AUTHKEY=${var.tailscale_auth_key}\" | sudo tee /etc/default/tailscaled >/dev/null; fi",
       "sudo apt-get autoremove -y",
       "sudo apt-get clean",
