@@ -60,12 +60,10 @@ jobs:
           echo "${{ secrets.OCI_API_KEY_PEM }}" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem ~/.oci/config
 
-      - name: Write SSH key for smoke checks
+      - name: Generate ephemeral SSH key for smoke checks
         run: |
-          cat <<'EOF' > "$SSH_PRIVATE_KEY_PATH"
-          ${{ secrets.OCI_SSH_PRIVATE_KEY }}
-          EOF
-          chmod 600 "$SSH_PRIVATE_KEY_PATH"
+          ssh-keygen -t ed25519 -N "" -f "$SSH_PRIVATE_KEY_PATH" -C "ci-smoke" >/dev/null
+          chmod 600 "$SSH_PRIVATE_KEY_PATH" "${SSH_PRIVATE_KEY_PATH}.pub"
 
       - name: Build Proxmox disk image (native ARM64 debootstrap)
         run: |
