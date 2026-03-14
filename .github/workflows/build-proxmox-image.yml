@@ -2,6 +2,15 @@ name: Build Proxmox ARM64 Image
 
 on:
   workflow_dispatch:
+    inputs:
+      build_target:
+        description: "Image target to build"
+        required: true
+        default: "debian-base"
+        type: choice
+        options:
+          - debian-base
+          - proxmox
 
 env:
   OCI_COMPARTMENT: ocid1.compartment.oc1..aaaaaaaahox2upn7fvv4mhoifgbnshs42xlejatfcinkje26faq7yds3yffq
@@ -25,6 +34,9 @@ jobs:
           sudo apt-get install -y \
             debootstrap \
             qemu-utils \
+            qemu-system-arm \
+            cloud-image-utils \
+            netcat-openbsd \
             zstd \
             jq \
             parted \
@@ -49,16 +61,34 @@ jobs:
 
       - name: Build Proxmox disk image (native ARM64 debootstrap)
         run: |
-          chmod +x scripts/build-proxmox-disk.sh
-          sudo -E scripts/build-proxmox-disk.sh
-          ls -lh /tmp/proxmox-arm64.qcow2
+          TARGET="${{ github.event.inputs.build_target }}"
+          if [ "${TARGET}" = "debian-base" ]; then
+            chmod +x scripts/build-debian-base-disk.sh
+            sudo -E scripts/build-debian-base-disk.sh
+            RAW_PATH="/tmp/debian-base-arm64.qcow2"
+            echo "RAW_IMAGE_PATH=${RAW_PATH}" >> "$GITHUB_ENV"
+            echo "IMAGE_KIND=debian-base" >> "$GITHUB_ENV"
+          else
+            chmod +x scripts/build-proxmox-disk.sh
+            sudo -E scripts/build-proxmox-disk.sh
+            RAW_PATH="/tmp/proxmox-arm64.qcow2"
+            echo "RAW_IMAGE_PATH=${RAW_PATH}" >> "$GITHUB_ENV"
+            echo "IMAGE_KIND=proxmox" >> "$GITHUB_ENV"
+          fi
+          ls -lh "${RAW_PATH}"
         timeout-minutes: 60
+
+      - name: Local parity smoke test (NoCloud, localhost-only SSH)
+        run: |
+          chmod +x scripts/smoke-image-unraid-local.sh
+          scripts/smoke-image-unraid-local.sh "${RAW_IMAGE_PATH}"
+        timeout-minutes: 20
 
       - name: Compress image and evaluate GitHub mirror eligibility
         run: |
           set -euo pipefail
-          zstd -T0 -19 -f /tmp/proxmox-arm64.qcow2 -o /tmp/proxmox-arm64.qcow2.zst
-          COMPRESSED_PATH=/tmp/proxmox-arm64.qcow2.zst
+          COMPRESSED_PATH="/tmp/${IMAGE_KIND}-arm64.qcow2.zst"
+          zstd -T0 -19 -f "${RAW_IMAGE_PATH}" -o "${COMPRESSED_PATH}"
           COMPRESSED_SIZE=$(stat -c%s "$COMPRESSED_PATH")
           echo "COMPRESSED_IMAGE_PATH=${COMPRESSED_PATH}" >> "$GITHUB_ENV"
           echo "COMPRESSED_IMAGE_SIZE=${COMPRESSED_SIZE}" >> "$GITHUB_ENV"
@@ -73,18 +103,18 @@ jobs:
       - name: Upload compressed image as workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: proxmox-arm64-qcow2-zst
+          name: ${{ env.IMAGE_KIND }}-arm64-qcow2-zst
           path: ${{ env.COMPRESSED_IMAGE_PATH }}
           if-no-files-found: error
 
       - name: Upload QCOW2 to OCI Object Storage
         run: |
-          IMAGE_NAME="proxmox-ampere-arm64-$(date +%Y%m%d%H%M%S).qcow2"
+          IMAGE_NAME="${IMAGE_KIND}-ampere-arm64-$(date +%Y%m%d%H%M%S).qcow2"
           echo "IMAGE_NAME=${IMAGE_NAME}" >> "$GITHUB_ENV"
           oci os object put \
             --namespace ${OCI_NAMESPACE} \
             --bucket-name ${OCI_BUCKET} \
-            --file /tmp/proxmox-arm64.qcow2 \
+            --file "${RAW_IMAGE_PATH}" \
             --name "${IMAGE_NAME}"
 
       - name: Import as OCI custom image
@@ -94,7 +124,7 @@ jobs:
             --namespace ${OCI_NAMESPACE} \
             --bucket-name ${OCI_BUCKET} \
             --name "${IMAGE_NAME}" \
-            --display-name "oci-freetier-ampere-a1flex-proxmox-$(date +%Y%m%d%H%M%S)" \
+            --display-name "oci-freetier-ampere-a1flex-${IMAGE_KIND}-$(date +%Y%m%d%H%M%S)" \
             --source-image-type QCOW2 \
             --launch-mode PARAVIRTUALIZED \
             --query 'data.id' --raw-output)
@@ -119,15 +149,39 @@ jobs:
           set -euo pipefail
 
           SMOKE_NAME="proxmox-smoketest-${GITHUB_RUN_ID}"
+          SMOKE_AD="${{ secrets.OCI_AVAILABILITY_DOMAIN }}"
+          if [ -z "${SMOKE_AD}" ]; then
+            SMOKE_AD=$(oci iam availability-domain list \
+              --compartment-id "${{ secrets.OCI_TENANCY_OCID }}" \
+              --query 'data[0].name' --raw-output)
+          fi
+
+          SMOKE_SUBNET="${{ secrets.OCI_SUBNET_OCID }}"
+          if [ -z "${SMOKE_SUBNET}" ]; then
+            SMOKE_SUBNET=$(oci network subnet list \
+              --compartment-id "${OCI_COMPARTMENT}" \
+              --query 'data[?"display-name"==`free-tier-subnet`][0].id' \
+              --raw-output)
+          fi
+
+          SMOKE_PUBKEY="${{ secrets.OCI_SSH_PUBLIC_KEY }}"
+          if [ -z "${SMOKE_PUBKEY}" ]; then
+            SMOKE_PUBKEY=$(ssh-keygen -y -f "$SSH_PRIVATE_KEY_PATH")
+          fi
+
+          [ -n "${SMOKE_AD}" ] && [ "${SMOKE_AD}" != "null" ]
+          [ -n "${SMOKE_SUBNET}" ] && [ "${SMOKE_SUBNET}" != "null" ]
+          [ -n "${SMOKE_PUBKEY}" ]
+
           SMOKE_METADATA_JSON=$(mktemp)
-          jq -n --arg key "${{ secrets.OCI_SSH_PUBLIC_KEY }}" '{ssh_authorized_keys: $key}' > "${SMOKE_METADATA_JSON}"
+          jq -n --arg key "${SMOKE_PUBKEY}" '{ssh_authorized_keys: $key}' > "${SMOKE_METADATA_JSON}"
           echo "Launching smoke-test instance: ${SMOKE_NAME}"
           SMOKE_ID=$(oci compute instance launch \
-            --availability-domain "${{ secrets.OCI_AVAILABILITY_DOMAIN }}" \
+            --availability-domain "${SMOKE_AD}" \
             --compartment-id "${OCI_COMPARTMENT}" \
             --shape VM.Standard.A1.Flex \
             --shape-config '{"ocpus":1,"memoryInGBs":6}' \
-            --subnet-id "${{ secrets.OCI_SUBNET_OCID }}" \
+            --subnet-id "${SMOKE_SUBNET}" \
             --assign-public-ip true \
             --display-name "${SMOKE_NAME}" \
             --image-id "${IMAGE_OCID}" \
@@ -187,8 +241,8 @@ jobs:
         if: env.MIRROR_TO_GITHUB == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "proxmox-arm64-${{ github.run_id }}"
-          name: "Proxmox ARM64 image ${{ env.IMAGE_NAME }}"
+          tag_name: "${{ env.IMAGE_KIND }}-arm64-${{ github.run_id }}"
+          name: "${{ env.IMAGE_KIND }} ARM64 image ${{ env.IMAGE_NAME }}"
           files: ${{ env.COMPRESSED_IMAGE_PATH }}
           fail_on_unmatched_files: true
           generate_release_notes: false
@@ -202,8 +256,8 @@ jobs:
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore: record Proxmox image OCID ${{ env.IMAGE_OCID }}"
-          title: "chore: new Proxmox ARM64 image — ${{ env.IMAGE_NAME }}"
+          commit-message: "chore: record ${{ env.IMAGE_KIND }} image OCID ${{ env.IMAGE_OCID }}"
+          title: "chore: new ${{ env.IMAGE_KIND }} ARM64 image — ${{ env.IMAGE_NAME }}"
           body: |
             Automated Proxmox image build via native debootstrap on ARM64 runner.
 
