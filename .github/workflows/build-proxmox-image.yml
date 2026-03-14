@@ -113,6 +113,73 @@ jobs:
             --shape-name VM.Standard.A1.Flex
           echo "Image ready: ${IMAGE_OCID}"
 
+      - name: Smoke test imported image (single instance, ubuntu SSH)
+        run: |
+          set -euo pipefail
+
+          SMOKE_NAME="proxmox-smoketest-${GITHUB_RUN_ID}"
+          echo "Launching smoke-test instance: ${SMOKE_NAME}"
+          SMOKE_ID=$(oci compute instance launch \
+            --availability-domain "${{ secrets.OCI_AVAILABILITY_DOMAIN }}" \
+            --compartment-id "${OCI_COMPARTMENT}" \
+            --shape VM.Standard.A1.Flex \
+            --shape-config '{"ocpus":1,"memoryInGBs":6}' \
+            --subnet-id "${{ secrets.OCI_SUBNET_OCID }}" \
+            --assign-public-ip true \
+            --display-name "${SMOKE_NAME}" \
+            --image-id "${IMAGE_OCID}" \
+            --metadata "{\"ssh_authorized_keys\":\"${{ secrets.OCI_SSH_PUBLIC_KEY }}\"}" \
+            --query 'data.id' --raw-output)
+          echo "SMOKE_ID=${SMOKE_ID}" >> "$GITHUB_ENV"
+
+          cleanup() {
+            if [ -n "${SMOKE_ID:-}" ]; then
+              echo "Terminating smoke-test instance ${SMOKE_ID}"
+              oci compute instance terminate \
+                --instance-id "${SMOKE_ID}" \
+                --preserve-boot-volume false \
+                --force >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup EXIT
+
+          echo "Waiting for instance RUNNING..."
+          for _ in $(seq 1 60); do
+            STATE=$(oci compute instance get \
+              --instance-id "${SMOKE_ID}" \
+              --query 'data."lifecycle-state"' --raw-output)
+            [ "${STATE}" = "RUNNING" ] && break
+            sleep 5
+          done
+
+          SMOKE_IP=$(oci compute instance list-vnics \
+            --instance-id "${SMOKE_ID}" \
+            --query 'data[0]."public-ip"' --raw-output)
+          echo "Smoke-test public IP: ${SMOKE_IP}"
+          [ -n "${SMOKE_IP}" ] && [ "${SMOKE_IP}" != "null" ]
+
+          # Prove port 22 and ubuntu login work on a fresh instance.
+          chmod 600 "$SSH_PRIVATE_KEY_PATH"
+          for i in $(seq 1 12); do
+            echo "SSH probe attempt ${i}/12"
+            if nc -vz -w 8 "${SMOKE_IP}" 22; then
+              if timeout 20 ssh \
+                -i "$SSH_PRIVATE_KEY_PATH" \
+                -o BatchMode=yes \
+                -o StrictHostKeyChecking=no \
+                -o ConnectTimeout=8 \
+                ubuntu@"${SMOKE_IP}" \
+                'echo ok && hostname && id -un'; then
+                echo "Smoke test passed."
+                exit 0
+              fi
+            fi
+            sleep 20
+          done
+
+          echo "Smoke test failed: cannot SSH as ubuntu to ${SMOKE_IP}"
+          exit 1
+
       - name: Mirror compressed image to GitHub Release (<= 2 GiB)
         if: env.MIRROR_TO_GITHUB == 'true'
         uses: softprops/action-gh-release@v2
