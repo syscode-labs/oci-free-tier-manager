@@ -3,11 +3,6 @@ name: Build Proxmox ARM64 Image
 on:
   workflow_dispatch:
 
-  push:
-    paths:
-      - "scripts/build-proxmox-disk.sh"
-    branches: [main]
-
 env:
   OCI_COMPARTMENT: ocid1.compartment.oc1..aaaaaaaahox2upn7fvv4mhoifgbnshs42xlejatfcinkje26faq7yds3yffq
   OCI_NAMESPACE: lrbmlfacfnqw
@@ -30,6 +25,7 @@ jobs:
           sudo apt-get install -y \
             debootstrap \
             qemu-utils \
+            zstd \
             parted \
             dosfstools \
             e2fsprogs \
@@ -56,6 +52,29 @@ jobs:
           sudo -E scripts/build-proxmox-disk.sh
           ls -lh /tmp/proxmox-arm64.qcow2
         timeout-minutes: 60
+
+      - name: Compress image and evaluate GitHub mirror eligibility
+        run: |
+          set -euo pipefail
+          zstd -T0 -19 -f /tmp/proxmox-arm64.qcow2 -o /tmp/proxmox-arm64.qcow2.zst
+          COMPRESSED_PATH=/tmp/proxmox-arm64.qcow2.zst
+          COMPRESSED_SIZE=$(stat -c%s "$COMPRESSED_PATH")
+          echo "COMPRESSED_IMAGE_PATH=${COMPRESSED_PATH}" >> "$GITHUB_ENV"
+          echo "COMPRESSED_IMAGE_SIZE=${COMPRESSED_SIZE}" >> "$GITHUB_ENV"
+          if [ "$COMPRESSED_SIZE" -le 2147483648 ]; then
+            echo "MIRROR_TO_GITHUB=true" >> "$GITHUB_ENV"
+          else
+            echo "MIRROR_TO_GITHUB=false" >> "$GITHUB_ENV"
+          fi
+          ls -lh "$COMPRESSED_PATH"
+          echo "Compressed size bytes: ${COMPRESSED_SIZE}"
+
+      - name: Upload compressed image as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: proxmox-arm64-qcow2-zst
+          path: ${{ env.COMPRESSED_IMAGE_PATH }}
+          if-no-files-found: error
 
       - name: Upload QCOW2 to OCI Object Storage
         run: |
@@ -93,6 +112,21 @@ jobs:
             --image-id "${IMAGE_OCID}" \
             --shape-name VM.Standard.A1.Flex
           echo "Image ready: ${IMAGE_OCID}"
+
+      - name: Mirror compressed image to GitHub Release (<= 2 GiB)
+        if: env.MIRROR_TO_GITHUB == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "proxmox-arm64-${{ github.run_id }}"
+          name: "Proxmox ARM64 image ${{ env.IMAGE_NAME }}"
+          files: ${{ env.COMPRESSED_IMAGE_PATH }}
+          fail_on_unmatched_files: true
+          generate_release_notes: false
+          body: |
+            Automated mirror of compressed Proxmox ARM64 image from CI.
+            Source OCI object: `${{ env.IMAGE_NAME }}`
+            Imported OCI image OCID: `${{ env.IMAGE_OCID }}`
+            Compressed size (bytes): `${{ env.COMPRESSED_IMAGE_SIZE }}`
 
       - name: Open PR with new image OCID
         uses: peter-evans/create-pull-request@v7
