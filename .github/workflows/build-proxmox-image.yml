@@ -89,7 +89,8 @@ jobs:
           chmod +x scripts/smoke-image-unraid-local.sh
           SSH_PUB_FILE=/tmp/oci_builder_ssh.pub
           ssh-keygen -y -f "$SSH_PRIVATE_KEY_PATH" > "$SSH_PUB_FILE"
-          SSH_PUB_KEY_PATH="$SSH_PUB_FILE" \
+          VM_ARCH=arm64 \
+            SSH_PUB_KEY_PATH="$SSH_PUB_FILE" \
             SSH_PRIV_KEY_PATH="$SSH_PRIVATE_KEY_PATH" \
             scripts/smoke-image-unraid-local.sh "${RAW_IMAGE_PATH}"
         timeout-minutes: 20
