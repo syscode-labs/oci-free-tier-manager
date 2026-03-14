@@ -1,0 +1,163 @@
+name: Build Proxmox From Debian Base
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_image_ocid:
+        description: "Debian base image OCID (from Build Debian Base workflow)"
+        required: true
+      machine_type:
+        description: "Suffix for image naming"
+        required: false
+        default: "a1flex"
+
+env:
+  OCI_COMPARTMENT: ocid1.compartment.oc1..aaaaaaaahox2upn7fvv4mhoifgbnshs42xlejatfcinkje26faq7yds3yffq
+  OCI_REGION: uk-london-1
+  SSH_PRIVATE_KEY_PATH: /tmp/oci_builder_ssh
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y jq netcat-openbsd python3-pip
+          pip3 install oci-cli --quiet
+
+      - name: Setup Packer
+        uses: hashicorp/setup-packer@v2
+        with:
+          version: latest
+
+      - name: Configure OCI profile for Packer
+        run: |
+          mkdir -p ~/.oci
+          cat > ~/.oci/config << EOF
+          [syscode-homelab]
+          user=${{ secrets.OCI_USER_OCID }}
+          fingerprint=${{ secrets.OCI_FINGERPRINT }}
+          tenancy=${{ secrets.OCI_TENANCY_OCID }}
+          region=${OCI_REGION}
+          key_file=~/.oci/oci_api_key.pem
+          EOF
+          echo "${{ secrets.OCI_API_KEY_PEM }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem ~/.oci/config
+
+      - name: Write SSH key for builder/smoke
+        run: |
+          cat <<'EOF' > "${SSH_PRIVATE_KEY_PATH}"
+          ${{ secrets.OCI_SSH_PRIVATE_KEY }}
+          EOF
+          chmod 600 "${SSH_PRIVATE_KEY_PATH}"
+          SSH_PUBLIC_KEY="$(ssh-keygen -y -f "${SSH_PRIVATE_KEY_PATH}")"
+          echo "SSH_PUBLIC_KEY=${SSH_PUBLIC_KEY}" >> "$GITHUB_ENV"
+
+      - name: Init Packer plugins
+        working-directory: packer
+        run: packer init proxmox-ampere.pkr.hcl
+
+      - name: Build Proxmox image on top of Debian base
+        id: packer_build
+        working-directory: packer
+        run: |
+          set -euo pipefail
+          packer build \
+            -color=false \
+            -var "compartment_ocid=${OCI_COMPARTMENT}" \
+            -var "region=${OCI_REGION}" \
+            -var "availability_domain=${{ secrets.OCI_AVAILABILITY_DOMAIN }}" \
+            -var "subnet_ocid=${{ secrets.OCI_SUBNET_OCID }}" \
+            -var "base_image_ocid=${{ github.event.inputs.base_image_ocid }}" \
+            -var "ssh_private_key_path=${SSH_PRIVATE_KEY_PATH}" \
+            -var "ssh_public_key=${SSH_PUBLIC_KEY}" \
+            -var "machine_type=${{ github.event.inputs.machine_type }}" \
+            -machine-readable \
+            proxmox-ampere.pkr.hcl | tee /tmp/packer-proxmox.log
+
+          RAW_ID=$(grep 'artifact,0,id' /tmp/packer-proxmox.log | tail -n1 | awk -F, '{print $6}')
+          IMAGE_OCID="${RAW_ID##*:}"
+          [ -n "${IMAGE_OCID}" ]
+          echo "IMAGE_OCID=${IMAGE_OCID}" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packer-proxmox-log
+          path: /tmp/packer-proxmox.log
+          if-no-files-found: error
+
+      - name: Smoke test Proxmox image (single instance)
+        run: |
+          set -euo pipefail
+
+          SMOKE_NAME="proxmox-smoketest-${GITHUB_RUN_ID}"
+          SMOKE_METADATA_JSON=$(mktemp)
+          jq -n --arg key "${SSH_PUBLIC_KEY}" '{ssh_authorized_keys: $key}' > "${SMOKE_METADATA_JSON}"
+
+          SMOKE_ID=$(oci --profile syscode-homelab compute instance launch \
+            --availability-domain "${{ secrets.OCI_AVAILABILITY_DOMAIN }}" \
+            --compartment-id "${OCI_COMPARTMENT}" \
+            --shape VM.Standard.A1.Flex \
+            --shape-config '{"ocpus":1,"memoryInGBs":6}' \
+            --subnet-id "${{ secrets.OCI_SUBNET_OCID }}" \
+            --assign-public-ip true \
+            --display-name "${SMOKE_NAME}" \
+            --image-id "${IMAGE_OCID}" \
+            --metadata "file://${SMOKE_METADATA_JSON}" \
+            --query 'data.id' --raw-output)
+
+          cleanup() {
+            oci --profile syscode-homelab compute instance terminate \
+              --instance-id "${SMOKE_ID}" \
+              --preserve-boot-volume false \
+              --force >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          for _ in $(seq 1 60); do
+            STATE=$(oci --profile syscode-homelab compute instance get \
+              --instance-id "${SMOKE_ID}" \
+              --query 'data."lifecycle-state"' --raw-output)
+            [ "${STATE}" = "RUNNING" ] && break
+            sleep 5
+          done
+
+          SMOKE_IP=$(oci --profile syscode-homelab compute instance list-vnics \
+            --instance-id "${SMOKE_ID}" \
+            --query 'data[0]."public-ip"' --raw-output)
+          [ -n "${SMOKE_IP}" ] && [ "${SMOKE_IP}" != "null" ]
+
+          for i in $(seq 1 12); do
+            echo "ssh-probe=${i}"
+            if nc -vz -w 8 "${SMOKE_IP}" 22; then
+              if timeout 20 ssh \
+                -i "${SSH_PRIVATE_KEY_PATH}" \
+                -o BatchMode=yes \
+                -o StrictHostKeyChecking=no \
+                -o ConnectTimeout=8 \
+                ubuntu@"${SMOKE_IP}" \
+                'echo ok && id -un && hostname'; then
+                echo "Proxmox smoke test passed"
+                exit 0
+              fi
+            fi
+            sleep 20
+          done
+
+          echo "Proxmox smoke test failed: cannot SSH ubuntu@${SMOKE_IP}"
+          exit 1
+
+      - name: Summarize output
+        run: |
+          {
+            echo "### Proxmox Build Output"
+            echo ""
+            echo "- Base image OCID: \`${{ github.event.inputs.base_image_ocid }}\`"
+            echo "- Proxmox image OCID: \`${IMAGE_OCID}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
