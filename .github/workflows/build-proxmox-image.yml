@@ -85,6 +85,7 @@ jobs:
         timeout-minutes: 60
 
       - name: Local parity smoke test (NoCloud, localhost-only SSH)
+        if: github.event.inputs.build_target != 'debian-base'
         run: |
           chmod +x scripts/smoke-image-unraid-local.sh
           SSH_PUB_FILE=/tmp/oci_builder_ssh.pub
