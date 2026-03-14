@@ -26,6 +26,7 @@ jobs:
             debootstrap \
             qemu-utils \
             zstd \
+            jq \
             parted \
             dosfstools \
             e2fsprogs \
@@ -118,6 +119,8 @@ jobs:
           set -euo pipefail
 
           SMOKE_NAME="proxmox-smoketest-${GITHUB_RUN_ID}"
+          SMOKE_METADATA_JSON=$(mktemp)
+          jq -n --arg key "${{ secrets.OCI_SSH_PUBLIC_KEY }}" '{ssh_authorized_keys: $key}' > "${SMOKE_METADATA_JSON}"
           echo "Launching smoke-test instance: ${SMOKE_NAME}"
           SMOKE_ID=$(oci compute instance launch \
             --availability-domain "${{ secrets.OCI_AVAILABILITY_DOMAIN }}" \
@@ -128,7 +131,7 @@ jobs:
             --assign-public-ip true \
             --display-name "${SMOKE_NAME}" \
             --image-id "${IMAGE_OCID}" \
-            --metadata "{\"ssh_authorized_keys\":\"${{ secrets.OCI_SSH_PUBLIC_KEY }}\"}" \
+            --metadata "file://${SMOKE_METADATA_JSON}" \
             --query 'data.id' --raw-output)
           echo "SMOKE_ID=${SMOKE_ID}" >> "$GITHUB_ENV"
 
