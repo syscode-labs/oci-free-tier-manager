@@ -155,6 +155,32 @@ jobs:
             --shape-name VM.Standard.A1.Flex
           echo "Image ready: ${IMAGE_OCID}"
 
+      - name: Wait for Always Free A1 capacity before smoke launch
+        run: |
+          set -euo pipefail
+          SMOKE_AD="${{ secrets.OCI_AVAILABILITY_DOMAIN }}"
+          if [ -z "${SMOKE_AD}" ]; then
+            SMOKE_AD=$(oci iam availability-domain list \
+              --compartment-id "${{ secrets.OCI_TENANCY_OCID }}" \
+              --query 'data[0].name' --raw-output)
+          fi
+
+          echo "Checking A1 capacity in ${SMOKE_AD}"
+          for i in $(seq 1 30); do
+            STATUS=$(oci compute shape availability list \
+              --compartment-id "${OCI_COMPARTMENT}" \
+              --availability-domain "${SMOKE_AD}" \
+              --query 'data[?shape==`VM.Standard.A1.Flex`][0]."availability-status"' \
+              --raw-output 2>/dev/null || echo "UNKNOWN")
+            echo "capacity-check ${i}/30: ${STATUS}"
+            if [ "${STATUS}" = "AVAILABLE" ]; then
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "A1 capacity unavailable in ${SMOKE_AD}"
+          exit 1
+
       - name: Smoke test imported image (single instance, ubuntu SSH)
         run: |
           set -euo pipefail

@@ -63,6 +63,26 @@ jobs:
         working-directory: packer
         run: packer init proxmox-ampere.pkr.hcl
 
+      - name: Wait for Always Free A1 capacity before packer launch
+        run: |
+          set -euo pipefail
+          AD="${{ secrets.OCI_AVAILABILITY_DOMAIN }}"
+          echo "Checking A1 capacity in ${AD}"
+          for i in $(seq 1 30); do
+            STATUS=$(oci --profile syscode-homelab compute shape availability list \
+              --compartment-id "${OCI_COMPARTMENT}" \
+              --availability-domain "${AD}" \
+              --query 'data[?shape==`VM.Standard.A1.Flex`][0]."availability-status"' \
+              --raw-output 2>/dev/null || echo "UNKNOWN")
+            echo "capacity-check ${i}/30: ${STATUS}"
+            if [ "${STATUS}" = "AVAILABLE" ]; then
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "A1 capacity unavailable in ${AD}"
+          exit 1
+
       - name: Build Proxmox image on top of Debian base
         id: packer_build
         working-directory: packer
@@ -91,6 +111,26 @@ jobs:
           name: packer-proxmox-log
           path: /tmp/packer-proxmox.log
           if-no-files-found: error
+
+      - name: Wait for Always Free A1 capacity before smoke launch
+        run: |
+          set -euo pipefail
+          AD="${{ secrets.OCI_AVAILABILITY_DOMAIN }}"
+          echo "Checking A1 capacity in ${AD}"
+          for i in $(seq 1 30); do
+            STATUS=$(oci --profile syscode-homelab compute shape availability list \
+              --compartment-id "${OCI_COMPARTMENT}" \
+              --availability-domain "${AD}" \
+              --query 'data[?shape==`VM.Standard.A1.Flex`][0]."availability-status"' \
+              --raw-output 2>/dev/null || echo "UNKNOWN")
+            echo "capacity-check ${i}/30: ${STATUS}"
+            if [ "${STATUS}" = "AVAILABLE" ]; then
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "A1 capacity unavailable in ${AD}"
+          exit 1
 
       - name: Smoke test Proxmox image (single instance)
         run: |
