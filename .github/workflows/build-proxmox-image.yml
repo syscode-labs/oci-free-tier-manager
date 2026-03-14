@@ -17,6 +17,7 @@ env:
   OCI_NAMESPACE: lrbmlfacfnqw
   OCI_BUCKET: proxmox-images
   OCI_REGION: uk-london-1
+  SSH_PRIVATE_KEY_PATH: /tmp/oci_builder_ssh
 
 jobs:
   build:
@@ -58,6 +59,13 @@ jobs:
           EOF
           echo "${{ secrets.OCI_API_KEY_PEM }}" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem ~/.oci/config
+
+      - name: Write SSH key for smoke checks
+        run: |
+          cat <<'EOF' > "$SSH_PRIVATE_KEY_PATH"
+          ${{ secrets.OCI_SSH_PRIVATE_KEY }}
+          EOF
+          chmod 600 "$SSH_PRIVATE_KEY_PATH"
 
       - name: Build Proxmox disk image (native ARM64 debootstrap)
         run: |
