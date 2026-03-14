@@ -165,8 +165,10 @@ if [ -n "$PROXMOX_JS" ]; then
 fi
 
 systemctl enable chrony cloud-init cloud-init-local cloud-config cloud-final 2>/dev/null || true
-systemctl enable networking ssh sshd 2>/dev/null || true
-systemctl disable --now pve-firewall 2>/dev/null || true
+systemctl enable networking ssh 2>/dev/null || true
+# In chroot builds, avoid --now; enforce disabled + masked for first boot.
+systemctl disable pve-firewall pvefw-logger nftables ufw 2>/dev/null || true
+systemctl mask pve-firewall pvefw-logger nftables ufw 2>/dev/null || true
 
 echo "==> Proxmox VE installed"
 CHROOT
