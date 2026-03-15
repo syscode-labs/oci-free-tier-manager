@@ -57,8 +57,8 @@ oci_retry_json() {
       return 0
     fi
     rc=$?
-    log "OCI call failed attempt ${attempt}/${OCI_RETRIES} rc=${rc}: oci $*"
-    sed -n '1,6p' "$err_file" || true
+    log "OCI call failed attempt ${attempt}/${OCI_RETRIES} rc=${rc}: oci $*" >&2
+    sed -n '1,6p' "$err_file" >&2 || true
     sleep 2
   done
   rm -f "$err_file"
