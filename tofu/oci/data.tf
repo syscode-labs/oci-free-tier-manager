@@ -118,8 +118,34 @@ data "oci_core_images" "micro_images" {
 }
 
 locals {
-  # Talos Omni image is required — import it first with oci-free-tier-images oci-import.sh.
-  # Download the image from your Omni instance: Omni UI → Nodes → Download Installation Media → Oracle Cloud.
-  ampere_image_id = var.talos_image_ocid
+  # When omni_ready = true: use the imported Talos+Tailscale image.
+  # When omni_ready = false: use latest Ubuntu 22.04 from the data source.
+  ampere_image_id = var.omni_ready ? var.talos_image_ocid : data.oci_core_images.ampere_images.images[0].id
   micro_image_id  = data.oci_core_images.micro_images.images[0].id
+}
+
+# ---------------------------------------------------------------------------
+# Talos MachineConfig user_data (omni_ready = true only)
+#
+# Multi-document YAML consumed by Talos on first boot:
+#   SideroLinkConfig  — connects node to Omni via WireGuard
+#   ExtensionServiceConfig — starts Tailscale with the provided auth key
+#
+# Talos reads user_data from OCI instance metadata (base64-decoded).
+# SideroLink is node-initiated: OCI node dials out → Omni, no inbound needed.
+# ---------------------------------------------------------------------------
+locals {
+  _ampere_user_data = var.omni_ready ? join("\n", [
+    "---",
+    "apiVersion: v1alpha1",
+    "kind: SideroLinkConfig",
+    "apiUrl: \"grpc://${var.omni_endpoint}?jointoken=${var.omni_join_token}\"",
+    "---",
+    "apiVersion: v1alpha1",
+    "kind: ExtensionServiceConfig",
+    "name: tailscale",
+    "environment:",
+    "  - TS_AUTHKEY=${var.tailscale_auth_key}",
+    "",
+  ]) : null
 }
