@@ -135,17 +135,24 @@ locals {
 # SideroLink is node-initiated: OCI node dials out → Omni, no inbound needed.
 # ---------------------------------------------------------------------------
 locals {
+  # Null-safe wrappers used only inside _ampere_user_data to avoid string
+  # interpolation errors when prerequisite variables are null.  The check
+  # blocks in validation.tf will catch the missing-value case before apply.
+  _omni_endpoint      = var.omni_endpoint != null ? var.omni_endpoint : ""
+  _omni_join_token    = var.omni_join_token != null ? var.omni_join_token : ""
+  _tailscale_auth_key = var.tailscale_auth_key != null ? var.tailscale_auth_key : ""
+
   _ampere_user_data = var.omni_ready ? join("\n", [
     "---",
     "apiVersion: v1alpha1",
     "kind: SideroLinkConfig",
-    "apiUrl: \"grpc://${var.omni_endpoint}?jointoken=${var.omni_join_token}\"",
+    "apiUrl: \"grpc://${local._omni_endpoint}?jointoken=${local._omni_join_token}\"",
     "---",
     "apiVersion: v1alpha1",
     "kind: ExtensionServiceConfig",
     "name: tailscale",
     "environment:",
-    "  - TS_AUTHKEY=${var.tailscale_auth_key}",
+    "  - TS_AUTHKEY=${local._tailscale_auth_key}",
     "",
   ]) : null
 }
