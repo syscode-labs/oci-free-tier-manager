@@ -5,6 +5,9 @@ oci_config_profile = "syscode-homelab"
 # Compartment (required — cannot be auto-detected)
 compartment_ocid = "ocid1.compartment.oc1..aaaaaaaxxxxx"
 
+# Tenancy (required — for budget creation)
+tenancy_ocid = "ocid1.tenancy.oc1..aaaaaaaxxxxx"
+
 # Adoption mode safety toggle (OFF by default).
 # Set true only when adopting pre-created OCI resources into Terraform state.
 adopt_existing_resources = false
@@ -16,37 +19,61 @@ region = "uk-london-1"
 budget_alert_email = "your-email@example.com"
 
 # ---------------------------------------------------------------------------
-# Talos Omni image (required)
+# Mode A: Plain Ubuntu instances (default — omni_ready = false)
 #
-# 1. In Omni UI: Nodes → Download Installation Media → Oracle Cloud (ARM64)
-#    This generates an image pre-configured with your Omni SideroLink endpoint.
-# 2. Import it: OCI_COMPARTMENT_ID=<ocid> ./scripts/oci-import.sh talos-omni.raw.zst talos-omni-<version>
-#    (Use oci-free-tier-images/scripts/oci-import.sh — sets UEFI_64 + PARAVIRTUALIZED)
-# 3. Paste the resulting image OCID below.
+# Ampere nodes boot Ubuntu 22.04. Connect via SSH using the provided key.
+# micro_nodes can serve as a bastion or be suppressed with [].
 # ---------------------------------------------------------------------------
-talos_image_ocid = "ocid1.image.oc1.uk-london-1.aaaaaaaa..."
+# ssh_public_key = "ssh-ed25519 AAAA... user@host"
+#
+# ampere_nodes = [
+#   { name = "app-1", ocpus = 2, memory_gb = 12, boot_vol_gb = 50 },
+#   { name = "app-2", ocpus = 2, memory_gb = 12, boot_vol_gb = 50 },
+# ]
+# micro_nodes = [{ name = "bastion" }]
 
 # ---------------------------------------------------------------------------
-# Instance configuration — 4× Ampere for Talos cluster
+# Mode B: Talos + Omni + Tailscale (omni_ready = true)
 #
-# Layout: 3 control-plane + 1 worker, all mixed CP+worker via allow-scheduling.
-# Total: 4 OCPUs / 24 GB RAM / 200 GB storage (maxes out free tier).
+# Ampere nodes boot Talos, connect to your Omni instance via SideroLink over
+# Tailscale. No SSH key needed. No public Omni IP needed.
 #
-# After provisioning, label nodes in Omni and apply the cluster template:
-#   omnictl machine set-labels <id> role=oci-cp    # ×3
-#   omnictl machine set-labels <id> role=oci-worker # ×1
+# Prerequisites:
+#   1. Import Talos+Tailscale image to OCI:
+#      a. Go to https://factory.talos.dev — select ARM64, add Tailscale extension
+#      b. Download Oracle Cloud image variant
+#      c. Import: scripts/oci-import.sh talos-arm64.raw.xz talos-omni-<version>
+#      d. Set talos_image_ocid below (or store as GitHub variable TALOS_IMAGE_OCID)
+#
+#   2. Get join token (static, from your Omni instance):
+#      omnictl get connections -o yaml | grep joinToken
+#      Store as GitHub secret OMNI_JOIN_TOKEN.
+#
+#   3. Create Tailscale auth key at admin.tailscale.com:
+#      - Reusable, tag: tag:oci
+#      Store as GitHub secret TAILSCALE_AUTH_KEY.
+#
+# After provisioning, label nodes in Omni then apply the cluster template:
+#   omnictl machine set-labels <id> role=oci-cp    # x3
+#   omnictl machine set-labels <id> role=oci-worker # x1
 #   cd omni-oci-proxmox && mise run oci:machine-classes:apply && mise run oci:cluster:apply
 # ---------------------------------------------------------------------------
+omni_ready       = true
+talos_image_ocid = "ocid1.image.oc1.uk-london-1.aaaaaaaa..."
+omni_endpoint    = "omni.wind-bearded.ts.net:8090"
+# omni_join_token and tailscale_auth_key are passed via CI secrets or -var flags:
+#   tofu apply -var="omni_join_token=$OMNI_JOIN_TOKEN" -var="tailscale_auth_key=$TAILSCALE_AUTH_KEY"
+
 ampere_nodes = [
   { name = "oci-talos-cp-1",     ocpus = 1, memory_gb = 6, boot_vol_gb = 50 },
   { name = "oci-talos-cp-2",     ocpus = 1, memory_gb = 6, boot_vol_gb = 50 },
   { name = "oci-talos-cp-3",     ocpus = 1, memory_gb = 6, boot_vol_gb = 50 },
   { name = "oci-talos-worker-1", ocpus = 1, memory_gb = 6, boot_vol_gb = 50 },
 ]
-micro_nodes = []  # No bastion — Omni SideroLink handles connectivity
+micro_nodes = [] # No bastion — Omni SideroLink handles connectivity
 
 # ---------------------------------------------------------------------------
-# Load Balancer (optional — OCI provides 1 × 10 Mbps free)
+# Load Balancer (optional — OCI provides 1 x 10 Mbps free)
 # Useful for K8s ingress. Annotate Services with:
 #   service.beta.kubernetes.io/oci-load-balancer-shape: "10Mbps"
 # ---------------------------------------------------------------------------
