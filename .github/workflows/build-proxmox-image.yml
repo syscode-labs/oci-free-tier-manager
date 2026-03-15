@@ -169,6 +169,53 @@ jobs:
           path: ${{ env.COMPRESSED_IMAGE_PATH }}
           if-no-files-found: error
 
+      - name: Ensure Object Storage quota headroom for upload
+        run: |
+          set -euo pipefail
+          QUOTA_BYTES=20000000000
+          SAFETY_MARGIN_BYTES=700000000
+          IMAGE_BYTES=$(stat -c%s "${RAW_IMAGE_PATH}")
+          CURRENT_BYTES=$(oci os object list \
+            --namespace "${OCI_NAMESPACE}" \
+            --bucket-name "${OCI_BUCKET}" \
+            --all \
+            --output json | jq '[.data[].size] | add // 0')
+          REQUIRED_BYTES=$((CURRENT_BYTES + IMAGE_BYTES + SAFETY_MARGIN_BYTES))
+
+          echo "quota_bytes=${QUOTA_BYTES}"
+          echo "current_bucket_bytes=${CURRENT_BYTES}"
+          echo "image_bytes=${IMAGE_BYTES}"
+          echo "safety_margin_bytes=${SAFETY_MARGIN_BYTES}"
+          echo "required_bytes=${REQUIRED_BYTES}"
+
+          if [ "${REQUIRED_BYTES}" -le "${QUOTA_BYTES}" ]; then
+            echo "Bucket headroom is sufficient."
+            exit 0
+          fi
+
+          echo "Insufficient headroom. Running safe cleanup with KEEP_DAYS=0."
+          OCI_PROFILE=DEFAULT \
+          DRY_RUN=false \
+          KEEP_DAYS=0 \
+          BOOTVOL_GRACE_HOURS=1 \
+          OCI_TIMEOUT_SEC=60 \
+          OCI_RETRIES=5 \
+          scripts/cleanup-oci-storage-safe.sh
+
+          CURRENT_BYTES=$(oci os object list \
+            --namespace "${OCI_NAMESPACE}" \
+            --bucket-name "${OCI_BUCKET}" \
+            --all \
+            --output json | jq '[.data[].size] | add // 0')
+          REQUIRED_BYTES=$((CURRENT_BYTES + IMAGE_BYTES + SAFETY_MARGIN_BYTES))
+          echo "post_cleanup_bucket_bytes=${CURRENT_BYTES}"
+          echo "post_cleanup_required_bytes=${REQUIRED_BYTES}"
+
+          if [ "${REQUIRED_BYTES}" -gt "${QUOTA_BYTES}" ]; then
+            echo "Still not enough headroom after safe cleanup."
+            exit 1
+          fi
+
       - name: Upload QCOW2 to OCI Object Storage
         run: |
           IMAGE_NAME="${IMAGE_KIND}-ampere-arm64-$(date +%Y%m%d%H%M%S).qcow2"
