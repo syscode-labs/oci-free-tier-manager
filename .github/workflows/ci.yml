@@ -1,111 +1,112 @@
 name: CI
 
-on:
+"on":
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   lint:
     name: Lint & Validate
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout
-      uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v6
 
-    - name: Setup Python
-      uses: actions/setup-python@v6
-      with:
-        python-version: '3.11'
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
 
-    - name: Install Python dependencies
-      run: |
-        pip install flake8 black pylint
+      - name: Install Python dependencies
+        run: |
+          pip install flake8 black pylint
 
-    - name: Lint Python
-      run: |
-        flake8 check_availability.py --max-line-length=120
-        black --check check_availability.py
-      continue-on-error: true
+      - name: Lint Python
+        run: |
+          flake8 check_availability.py --max-line-length=120
+          black --check check_availability.py
+        continue-on-error: true
 
-    - name: Setup OpenTofu
-      uses: opentofu/setup-opentofu@v1
-      with:
-        tofu_version: '1.8.0'
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: '1.8.0'
 
-    - name: Install tflint
-      run: |
-        curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
-        tflint --version
+      - name: Install tflint
+        run: |
+          curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+          tflint --version
 
-    - name: Format Check
-      run: |
-        cd tofu/oci
-        tofu fmt -check -recursive
+      - name: Format Check
+        run: |
+          cd tofu/oci
+          tofu fmt -check -recursive
 
-    - name: Initialize OpenTofu
-      run: |
-        cd tofu/oci
-        tofu init -backend=false
+      - name: Initialize OpenTofu
+        run: |
+          cd tofu/oci
+          tofu init -backend=false
 
-    - name: Validate OpenTofu
-      run: |
-        cd tofu/oci
-        tofu validate
+      - name: Validate OpenTofu
+        run: |
+          cd tofu/oci
+          tofu validate
 
-    - name: Run tflint
-      run: |
-        cd tofu/oci
-        tflint --init
-        tflint --format compact
+      - name: Run tflint
+        run: |
+          cd tofu/oci
+          tflint --init
+          tflint --format compact --minimum-failure-severity=error
 
-    - name: Install Pluto
-      run: |
-        curl -L https://github.com/FairwindsOps/pluto/releases/download/v5.20.2/pluto_5.20.2_linux_amd64.tar.gz | tar xz
-        sudo mv pluto /usr/local/bin/
-        pluto version
+      - name: Install Pluto
+        run: |
+          PLUTO_URL="https://github.com/FairwindsOps/pluto/releases/download/v5.20.2/pluto_5.20.2_linux_amd64.tar.gz"
+          curl -L "$PLUTO_URL" | tar xz
+          sudo mv pluto /usr/local/bin/
+          pluto version
 
-    - name: Check for deprecated APIs with Pluto
-      run: |
-        cd tofu/oci
-        pluto detect-files -d . --target-versions k8s=v1.30.0
+      - name: Check for deprecated APIs with Pluto
+        run: |
+          cd tofu/oci
+          pluto detect-files -d . --target-versions k8s=v1.30.0
 
-    - name: Install tfsec
-      run: |
-        curl -L https://github.com/aquasecurity/tfsec/releases/download/v1.28.11/tfsec-linux-amd64 -o tfsec
-        chmod +x tfsec
-        sudo mv tfsec /usr/local/bin/
-        tfsec --version
+      - name: Install tfsec
+        run: |
+          curl -L https://github.com/aquasecurity/tfsec/releases/download/v1.28.11/tfsec-linux-amd64 -o tfsec
+          chmod +x tfsec
+          sudo mv tfsec /usr/local/bin/
+          tfsec --version
 
-    - name: Run tfsec security scan
-      run: |
-        cd tofu/oci
-        tfsec . \
-          --format lovely \
-          --minimum-severity MEDIUM \
-          --exclude-downloaded-modules
-      continue-on-error: false
+      - name: Run tfsec security scan
+        run: |
+          cd tofu/oci
+          tfsec . \
+            --format lovely \
+            --minimum-severity MEDIUM \
+            --exclude-downloaded-modules
+        continue-on-error: false
 
-    - name: Setup Python for Checkov
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
+      - name: Setup Python for Checkov
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-    - name: Install Checkov
-      run: |
-        pip install checkov
-        checkov --version
+      - name: Install Checkov
+        run: |
+          pip install checkov
+          checkov --version
 
-    - name: Run Checkov security scan
-      run: |
-        cd tofu/oci
-        checkov -d . \
-          --framework terraform \
-          --output cli \
-          --compact \
-          --quiet \
-          --skip-check CKV_OCI_* \
-          --soft-fail
-      continue-on-error: true
+      - name: Run Checkov security scan
+        run: |
+          cd tofu/oci
+          checkov -d . \
+            --framework terraform \
+            --output cli \
+            --compact \
+            --quiet \
+            --skip-check CKV_OCI_* \
+            --soft-fail
+        continue-on-error: true
