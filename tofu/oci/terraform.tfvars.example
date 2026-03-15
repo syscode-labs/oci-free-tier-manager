@@ -8,9 +8,6 @@ compartment_ocid = "ocid1.compartment.oc1..aaaaaaaxxxxx"
 # Tenancy (required — for budget creation)
 tenancy_ocid = "ocid1.tenancy.oc1..aaaaaaaxxxxx"
 
-# Adoption mode safety toggle (OFF by default).
-# Set true only when adopting pre-created OCI resources into Terraform state.
-adopt_existing_resources = false
 
 # Region
 region = "uk-london-1"
