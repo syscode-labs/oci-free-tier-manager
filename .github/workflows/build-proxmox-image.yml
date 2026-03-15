@@ -3,6 +3,15 @@ name: Build Proxmox ARM64 Image
 on:
   workflow_dispatch:
     inputs:
+      run_mode:
+        description: "Run build flow or storage cleanup flow"
+        required: true
+        default: "build"
+        type: choice
+        options:
+          - build
+          - cleanup-dry-run
+          - cleanup-apply
       build_target:
         description: "Image target to build"
         required: true
@@ -20,7 +29,48 @@ env:
   SSH_PRIVATE_KEY_PATH: /tmp/oci_builder_ssh
 
 jobs:
+  cleanup:
+    if: github.event.inputs.run_mode == 'cleanup-dry-run' || github.event.inputs.run_mode == 'cleanup-apply'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cleanup dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y jq python3-pip
+          pip3 install oci-cli --quiet
+
+      - name: Configure OCI CLI
+        run: |
+          mkdir -p ~/.oci
+          cat > ~/.oci/config << EOF
+          [DEFAULT]
+          user=${{ secrets.OCI_USER_OCID }}
+          fingerprint=${{ secrets.OCI_FINGERPRINT }}
+          tenancy=${{ secrets.OCI_TENANCY_OCID }}
+          region=${OCI_REGION}
+          key_file=~/.oci/oci_api_key.pem
+          EOF
+          echo "${{ secrets.OCI_API_KEY_PEM }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem ~/.oci/config
+
+      - name: Safe OCI cleanup
+        env:
+          OCI_PROFILE: DEFAULT
+          DRY_RUN: ${{ github.event.inputs.run_mode == 'cleanup-apply' && 'false' || 'true' }}
+          KEEP_DAYS: "2"
+          BOOTVOL_GRACE_HOURS: "6"
+          OCI_TIMEOUT_SEC: "60"
+          OCI_RETRIES: "5"
+        run: |
+          scripts/cleanup-oci-storage-safe.sh
+
   build:
+    if: github.event.inputs.run_mode != 'cleanup-dry-run' && github.event.inputs.run_mode != 'cleanup-apply'
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: write
