@@ -59,6 +59,7 @@ variables {
   compartment_ocid   = "ocid1.compartment.test"
   tenancy_ocid       = "ocid1.tenancy.test"
   budget_alert_email = "test@example.com"
+  omni_ready         = false
 }
 
 # --- Empty {} per node uses defaults ---

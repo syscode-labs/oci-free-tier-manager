@@ -77,7 +77,10 @@ variables {
   compartment_ocid   = "ocid1.compartment.test"
   tenancy_ocid       = "ocid1.tenancy.test"
   budget_alert_email = "test@example.com"
-  # ampere_nodes, micro_nodes intentionally omitted → defaults
+  omni_ready         = false
+  # null → use tier defaults (overrides any terraform.tfvars values)
+  ampere_nodes = null
+  micro_nodes  = null
 }
 
 # --- Default node counts: 3 Ampere + 1 Micro ---
