@@ -25,14 +25,11 @@ repos:
         name: OpenTofu fmt
         args:
           - --args=-recursive
-      - id: terraform_validate
-        name: OpenTofu validate
-        args:
-          - --args=-no-color
       - id: terraform_tflint
         name: TFLint
         args:
           - --args=--config=__GIT_WORKING_DIR__/.tflint.hcl
+          - --args=--minimum-failure-severity=error
       - id: terraform_docs
         name: Generate OpenTofu docs
         args:

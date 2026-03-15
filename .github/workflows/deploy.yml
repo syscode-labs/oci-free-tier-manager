@@ -1,0 +1,151 @@
+name: Deploy
+
+"on":
+  push:
+    branches: ["main"]
+    paths:
+      - "tofu/oci/**"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "tofu/oci/**"
+
+concurrency:
+  group: tofu-oci
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  plan:
+    name: Tofu Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup OCI CLI credentials
+        run: |
+          mkdir -p ~/.oci
+          printf '%s\n' "${{ secrets.OCI_API_KEY_PEM }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+          {
+            echo "[syscode-homelab]"
+            echo "user=${{ secrets.OCI_USER_OCID }}"
+            echo "fingerprint=${{ secrets.OCI_FINGERPRINT }}"
+            echo "tenancy=${{ secrets.OCI_TENANCY_OCID }}"
+            echo "region=uk-london-1"
+            echo "key_file=~/.oci/oci_api_key.pem"
+          } > ~/.oci/config
+          chmod 600 ~/.oci/config
+
+      - name: Install OCI CLI
+        run: |
+          INSTALL_URL="https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh"
+          curl -sL "$INSTALL_URL" | bash -s -- --accept-all-defaults
+          echo "$HOME/bin" >> $GITHUB_PATH
+
+      - name: Download backend config from OCI Object Storage
+        run: |
+          oci --profile syscode-homelab os object get \
+            --bucket-name tofu-state-syscode-homelab \
+            --name backend-config.tfvars \
+            --file tofu/oci/backend-config.tfvars
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: "1.8.0"
+
+      - name: Tofu Init
+        working-directory: tofu/oci
+        run: |
+          tofu init -backend-config=backend-config.tfvars
+
+      - name: Tofu Plan
+        working-directory: tofu/oci
+        run: |
+          tofu plan \
+            -var="tenancy_ocid=${{ secrets.OCI_TENANCY_OCID }}" \
+            -var="compartment_ocid=${{ secrets.OCI_COMPARTMENT_OCID }}" \
+            -var="talos_image_ocid=${{ vars.TALOS_IMAGE_OCID }}" \
+            -var="omni_join_token=${{ secrets.OMNI_JOIN_TOKEN }}" \
+            -var="tailscale_auth_key=${{ secrets.TAILSCALE_AUTH_KEY }}" \
+            -var-file=terraform.tfvars \
+            -out=tfplan
+        env:
+          TF_LOG: WARN
+
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: tofu/oci/tfplan
+          retention-days: 1
+
+  apply:
+    name: Tofu Apply
+    runs-on: ubuntu-latest
+    needs: plan
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup OCI CLI credentials
+        run: |
+          mkdir -p ~/.oci
+          printf '%s\n' "${{ secrets.OCI_API_KEY_PEM }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+          {
+            echo "[syscode-homelab]"
+            echo "user=${{ secrets.OCI_USER_OCID }}"
+            echo "fingerprint=${{ secrets.OCI_FINGERPRINT }}"
+            echo "tenancy=${{ secrets.OCI_TENANCY_OCID }}"
+            echo "region=uk-london-1"
+            echo "key_file=~/.oci/oci_api_key.pem"
+          } > ~/.oci/config
+          chmod 600 ~/.oci/config
+
+      - name: Install OCI CLI
+        run: |
+          INSTALL_URL="https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh"
+          curl -sL "$INSTALL_URL" | bash -s -- --accept-all-defaults
+          echo "$HOME/bin" >> $GITHUB_PATH
+
+      - name: Download backend config from OCI Object Storage
+        run: |
+          oci --profile syscode-homelab os object get \
+            --bucket-name tofu-state-syscode-homelab \
+            --name backend-config.tfvars \
+            --file tofu/oci/backend-config.tfvars
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: "1.8.0"
+
+      - name: Tofu Init
+        working-directory: tofu/oci
+        run: |
+          tofu init -backend-config=backend-config.tfvars
+
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: tofu/oci/
+
+      - name: Tofu Apply
+        working-directory: tofu/oci
+        run: |
+          tofu apply -auto-approve tfplan
+        env:
+          TF_LOG: WARN

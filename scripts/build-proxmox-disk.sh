@@ -131,9 +131,32 @@ cat > /etc/cloud/cloud.cfg.d/99-oracle.cfg << 'CLOUDINIT'
 datasource_list: [Oracle, None]
 CLOUDINIT
 
-# Create debian user (used for Packer SSH during later builds)
+# Ensure OCI cloud-init applies metadata SSH keys to ubuntu by default.
+cat > /etc/cloud/cloud.cfg.d/99-default-user.cfg << 'CLOUDINITUSER'
+system_info:
+  default_user:
+    name: ubuntu
+    lock_passwd: true
+    gecos: Ubuntu
+    groups: [adm, sudo]
+    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+    shell: /bin/bash
+CLOUDINITUSER
+
+# Create debian user (used for some Packer SSH paths) and ubuntu user for OCI runtime.
 useradd -m -s /bin/bash -G sudo debian 2>/dev/null || true
 echo "debian ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/debian
+useradd -m -s /bin/bash -G sudo ubuntu 2>/dev/null || true
+echo "ubuntu ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/ubuntu
+
+# Use predictable DHCP network for OCI first boot.
+cat > /etc/network/interfaces << 'NETCFG'
+auto lo
+iface lo inet loopback
+
+allow-hotplug ens3
+iface ens3 inet dhcp
+NETCFG
 
 # Disable Proxmox subscription nag
 PROXMOX_JS=$(find /usr/share/javascript/proxmox-widget-toolkit -name 'proxmoxlib.js' 2>/dev/null | head -1)
@@ -142,6 +165,10 @@ if [ -n "$PROXMOX_JS" ]; then
 fi
 
 systemctl enable chrony cloud-init cloud-init-local cloud-config cloud-final 2>/dev/null || true
+systemctl enable networking ssh 2>/dev/null || true
+# In chroot builds, avoid --now; enforce disabled + masked for first boot.
+systemctl disable pve-firewall pvefw-logger nftables ufw 2>/dev/null || true
+systemctl mask pve-firewall pvefw-logger nftables ufw 2>/dev/null || true
 
 echo "==> Proxmox VE installed"
 CHROOT

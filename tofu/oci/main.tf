@@ -5,15 +5,17 @@
  * Always Free tier limits. It includes:
  * - VCN and networking components
  * - Ampere A1 compute instances (up to 4 OCPUs, 24GB RAM total)
- * - AMD E2.1.Micro instances (up to 2 instances)
+ * - AMD E2.1.Micro instances (up to 2 instances, Always Free accounts only)
  * - Block storage (up to 200GB total including boot volumes)
+ * - Optional 10 Mbps load balancer (free on both account types)
  * - Budget alerts for cost monitoring
  *
  * All resources are configured to stay within free tier limits.
+ * See variables.tf for the full list of configurable options.
  */
 
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.7" # mock_provider in tests requires 1.7+; check blocks require 1.5+
 
   required_providers {
     oci = {
@@ -24,16 +26,8 @@ terraform {
 }
 
 provider "oci" {
-  # Use variables if provided, otherwise falls back to ~/.oci/config
-  tenancy_ocid     = var.tenancy_ocid != "" ? var.tenancy_ocid : null
-  user_ocid        = var.user_ocid != "" ? var.user_ocid : null
-  fingerprint      = var.fingerprint != "" ? var.fingerprint : null
-  private_key_path = var.private_key_path != "" ? var.private_key_path : null
-  region           = var.region
-
-  # When above values are null, provider automatically reads from:
-  # - Environment variables: TF_VAR_* or OCI_*
-  # - Config file: ~/.oci/config (default profile)
+  region              = var.region
+  config_file_profile = var.oci_config_profile
 }
 
 # Virtual Cloud Network
@@ -112,6 +106,42 @@ resource "oci_core_security_list" "free_tier_security_list" {
     protocol = "1" # ICMP
     source   = "0.0.0.0/0"
   }
+
+  # Ingress: Talos API (apid)
+  ingress_security_rules {
+    protocol = "6" # TCP
+    source   = "0.0.0.0/0"
+    tcp_options {
+      min = 50000
+      max = 50000
+    }
+  }
+
+  # Ingress: Kubernetes API server
+  ingress_security_rules {
+    protocol = "6" # TCP
+    source   = "0.0.0.0/0"
+    tcp_options {
+      min = 6443
+      max = 6443
+    }
+  }
+
+  # Ingress: SideroLink (WireGuard — Omni homelab → OCI nodes)
+  ingress_security_rules {
+    protocol = "17" # UDP
+    source   = "0.0.0.0/0"
+    udp_options {
+      min = 50180
+      max = 50180
+    }
+  }
+
+  # Ingress: Kubernetes node-to-node (inter-pod, intra-cluster)
+  ingress_security_rules {
+    protocol = "all"
+    source   = "10.0.0.0/16"
+  }
 }
 
 # Subnet
@@ -126,78 +156,69 @@ resource "oci_core_subnet" "free_tier_subnet" {
 }
 
 # Ampere A1 Instances (ARM-based, free tier)
-# Configuration: 4 instances with 1 OCPU and 6GB RAM each
-# Total: 4 OCPUs and 24GB RAM (within free tier limits)
+# Node configuration is resolved in data.tf from var.ampere_nodes + tier defaults.
 resource "oci_core_instance" "ampere_instance" {
-  count               = var.ampere_instance_count
-  availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
+  count               = length(local._ampere_nodes)
+  availability_domain = var.availability_domain
   compartment_id      = var.compartment_ocid
-  display_name        = "ampere-instance-${count.index + 1}"
+  display_name        = local._ampere_nodes[count.index].name
   shape               = "VM.Standard.A1.Flex"
 
   shape_config {
-    ocpus         = var.ampere_ocpus_per_instance
-    memory_in_gbs = var.ampere_memory_per_instance
+    ocpus         = local._ampere_nodes[count.index].ocpus
+    memory_in_gbs = local._ampere_nodes[count.index].memory_gb
   }
 
   source_details {
     source_type             = "image"
     source_id               = local.ampere_image_id
-    boot_volume_size_in_gbs = var.ampere_boot_volume_size
+    boot_volume_size_in_gbs = local._ampere_nodes[count.index].boot_vol_gb
   }
 
   create_vnic_details {
     subnet_id        = oci_core_subnet.free_tier_subnet.id
-    assign_public_ip = true
+    assign_public_ip = false # public IPs are managed explicitly via oci_core_public_ip.ampere_instance[*]
     display_name     = "ampere-vnic-${count.index + 1}"
   }
 
-  metadata = {
-    ssh_authorized_keys = var.ssh_public_key
-    # SECURITY: tailscale_auth_key is written into OCI instance metadata (user_data)
-    # and into Terraform state in plaintext. Use a one-time-use ephemeral auth key
-    # (Tailscale admin console → Auth Keys → Ephemeral) so the key expires after
-    # first use. Encrypt state storage (OCI Object Storage SSE or remote backend).
-    user_data = var.tailscale_auth_key != "" ? base64encode(<<-CLOUDINIT
-      #cloud-config
-      runcmd:
-        - tailscale up --authkey ${var.tailscale_auth_key} --hostname ampere-$(hostname -s) --accept-routes
-      CLOUDINIT
-    ) : null
-  }
+  metadata = merge(
+    # user_data: Talos MachineConfig for omni_ready mode (null = omit for Ubuntu)
+    var.omni_ready ? { user_data = base64encode(local._ampere_user_data) } : {},
+    # ssh_authorized_keys: Ubuntu cloud-init only (Talos ignores this)
+    !var.omni_ready && var.ssh_public_key != null ? { ssh_authorized_keys = var.ssh_public_key } : {},
+  )
 
-  # Prevent accidental deletion
   lifecycle {
     ignore_changes = [
-      source_details[0].source_id, # Ignore image updates
+      source_details[0].source_id, # Ignore image updates after initial deploy
     ]
   }
 }
 
-# AMD E2.1.Micro Instances (x86-based, free tier)
-# Maximum: 2 instances per tenancy
+# AMD E2.1.Micro Instances (x86-based, Always Free accounts only)
+# Node configuration is resolved in data.tf from var.micro_nodes + tier defaults.
 resource "oci_core_instance" "micro_instance" {
-  count               = var.micro_instance_count
-  availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
+  count               = length(local._micro_nodes)
+  availability_domain = var.micro_availability_domain
   compartment_id      = var.compartment_ocid
-  display_name        = "micro-instance-${count.index + 1}"
+  display_name        = local._micro_nodes[count.index].name
   shape               = "VM.Standard.E2.1.Micro"
 
   source_details {
     source_type             = "image"
-    source_id               = data.oci_core_images.micro_images.images[0].id
-    boot_volume_size_in_gbs = var.micro_boot_volume_size
+    source_id               = local.micro_image_id
+    boot_volume_size_in_gbs = local._micro_nodes[count.index].boot_vol_gb
   }
 
   create_vnic_details {
     subnet_id        = oci_core_subnet.free_tier_subnet.id
-    assign_public_ip = true
+    assign_public_ip = false # reserved IP assigned separately via oci_core_public_ip.bastion
     display_name     = "micro-vnic-${count.index + 1}"
   }
 
-  metadata = {
+  metadata = var.ssh_public_key != null ? {
     ssh_authorized_keys = var.ssh_public_key
-  }
+  } : {}
 
   lifecycle {
     ignore_changes = [
@@ -206,19 +227,27 @@ resource "oci_core_instance" "micro_instance" {
   }
 }
 
-# Additional Block Volume (if needed within 200GB total limit)
-resource "oci_core_volume" "additional_storage" {
-  count               = var.create_additional_volume ? 1 : 0
-  availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
-  compartment_id      = var.compartment_ocid
-  display_name        = "free-tier-volume"
-  size_in_gbs         = var.additional_volume_size
+# Optional Load Balancer (free 10 Mbps tier)
+# Set load_balancer = {} in tfvars to create the free LB.
+# For Kubernetes: annotate Services with oci-load-balancer-shape: "10Mbps"
+resource "oci_load_balancer_load_balancer" "free_tier_lb" {
+  count          = var.load_balancer != null ? 1 : 0
+  compartment_id = var.compartment_ocid
+  display_name   = "free-tier-lb"
+  shape          = var.load_balancer.shape
+
+  shape_details {
+    minimum_bandwidth_in_mbps = var.load_balancer.bandwidth_mbps
+    maximum_bandwidth_in_mbps = var.load_balancer.bandwidth_mbps
+  }
+
+  subnet_ids = [oci_core_subnet.free_tier_subnet.id]
 }
 
 # Budget Alert (monitors for any paid usage)
 resource "oci_budget_budget" "free_tier_budget" {
-  compartment_id = var.tenancy_ocid
-  amount         = 1 # Minimum allowed budget amount (threshold set to $0.01 below)
+  compartment_id = var.tenancy_ocid # budgets must be owned at tenancy (root) scope
+  amount         = 1                # Minimum allowed budget amount (threshold set to $0.01 below)
   reset_period   = "MONTHLY"
   display_name   = "free-tier-budget-alert"
   description    = "Alert when any costs are incurred beyond free tier"
@@ -239,16 +268,22 @@ resource "oci_budget_alert_rule" "free_tier_alert" {
   recipients     = var.budget_alert_email
 }
 
-# Reserved IP for bastion (micro instance) — stable SSH entry point
-resource "oci_core_public_ip" "bastion" {
+# Reserved IPs for all Ampere nodes — stable and explicitly managed.
+resource "oci_core_public_ip" "ampere_instance" {
+  count          = length(local._ampere_nodes)
   compartment_id = var.compartment_ocid
   lifetime       = "RESERVED"
-  display_name   = "bastion-ip"
-  private_ip_id  = data.oci_core_private_ips.micro_private_ip.private_ips[0].id
+  display_name   = "${local._ampere_nodes[count.index].name}-ip"
+  private_ip_id  = data.oci_core_private_ips.ampere_private_ip[count.index].private_ips[0].id
+}
 
-  lifecycle {
-    prevent_destroy = true
-  }
+# Reserved IPs for all Micro nodes — stable and explicitly managed.
+resource "oci_core_public_ip" "micro_instance" {
+  count          = length(local._micro_nodes)
+  compartment_id = var.compartment_ocid
+  lifetime       = "RESERVED"
+  display_name   = "${local._micro_nodes[count.index].name}-ip"
+  private_ip_id  = data.oci_core_private_ips.micro_private_ip[count.index].private_ips[0].id
 }
 
 # Reserved IP for K8s ingress controller — stable external endpoint
@@ -256,15 +291,26 @@ resource "oci_core_public_ip" "ingress" {
   compartment_id = var.compartment_ocid
   lifetime       = "RESERVED"
   display_name   = "k8s-ingress-ip"
-
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
-# NOTE: micro_instance_count may be 0; if so, this data source will error at plan time.
-# Ensure micro_instance_count >= 1 before applying resources that depend on the bastion IP.
 data "oci_core_private_ips" "micro_private_ip" {
+  count      = length(local._micro_nodes)
   subnet_id  = oci_core_subnet.free_tier_subnet.id
-  ip_address = oci_core_instance.micro_instance[0].private_ip
+  ip_address = oci_core_instance.micro_instance[count.index].private_ip
+}
+
+data "oci_core_private_ips" "ampere_private_ip" {
+  count      = length(local._ampere_nodes)
+  subnet_id  = oci_core_subnet.free_tier_subnet.id
+  ip_address = oci_core_instance.ampere_instance[count.index].private_ip
+}
+
+moved {
+  from = oci_core_public_ip.bastion[0]
+  to   = oci_core_public_ip.micro_instance[0]
+}
+
+moved {
+  from = oci_core_public_ip.ampere_ssh[0]
+  to   = oci_core_public_ip.ampere_instance[0]
 }
