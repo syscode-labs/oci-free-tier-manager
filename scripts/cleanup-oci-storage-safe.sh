@@ -47,13 +47,21 @@ run_or_echo() {
 
 oci_retry_json() {
   local out=""
-  for _ in $(seq 1 "$OCI_RETRIES"); do
-    if out=$(timeout "$OCI_TIMEOUT_SEC" oci --profile "$OCI_PROFILE" "$@" --output json 2>/dev/null); then
+  local err_file=""
+  local rc=0
+  err_file="$(mktemp)"
+  for attempt in $(seq 1 "$OCI_RETRIES"); do
+    if out=$(timeout "$OCI_TIMEOUT_SEC" oci --profile "$OCI_PROFILE" "$@" --output json 2>"$err_file"); then
+      rm -f "$err_file"
       printf '%s\n' "$out"
       return 0
     fi
+    rc=$?
+    log "OCI call failed attempt ${attempt}/${OCI_RETRIES} rc=${rc}: oci $*"
+    sed -n '1,6p' "$err_file" || true
     sleep 2
   done
+  rm -f "$err_file"
   return 1
 }
 
