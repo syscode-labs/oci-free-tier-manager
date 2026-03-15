@@ -1,3 +1,4 @@
+# yamllint disable rule:truthy
 name: Build Proxmox ARM64 Image
 
 on:
@@ -256,6 +257,11 @@ jobs:
       - name: Wait for Always Free A1 capacity before smoke launch
         run: |
           set -euo pipefail
+          if ! oci compute shape availability list --help >/dev/null 2>&1; then
+            echo "CLI does not support 'compute shape availability'; skipping pre-check."
+            echo "Smoke launch step will provide the real capacity signal."
+            exit 0
+          fi
           SMOKE_AD="${{ secrets.OCI_AVAILABILITY_DOMAIN }}"
           if [ -z "${SMOKE_AD}" ]; then
             SMOKE_AD=$(oci iam availability-domain list \
