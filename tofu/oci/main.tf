@@ -216,9 +216,9 @@ resource "oci_core_instance" "micro_instance" {
     display_name     = "micro-vnic-${count.index + 1}"
   }
 
-  metadata = {
+  metadata = var.ssh_public_key != null ? {
     ssh_authorized_keys = var.ssh_public_key
-  }
+  } : {}
 
   lifecycle {
     ignore_changes = [
