@@ -38,10 +38,8 @@ task setup
 # 4. Setup Flux repository (Cilium + SOPS + secrets)
 task setup:flux
 
-# 5. Build custom images with Dagger (one-time)
-task build:images      # Builds base-hardened + proxmox-ampere
-task build:validate    # Validates images < 20GB
-task build:upload      # Uploads to OCI (auto-fetches compartment from config)
+# 5. Build/import custom images in companion repo (one-time)
+# See: https://github.com/syscode-labs/oci-free-tier-images
 
 # 6. Check OCI capacity
 ./check_availability.py
@@ -113,39 +111,35 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for details.
    ./scripts/setup.sh
    ```
 
+### Required IAM Permissions (State Backend)
+
+For the group used by your Terraform/OpenTofu profile, grant:
+
+```text
+Allow group <group-name> to read objectstorage-namespaces in tenancy
+Allow group <group-name> to manage object-family in compartment <compartment-name>
+Allow group <group-name> to manage object-family in tenancy
+Allow group <group-name> to manage quotas in tenancy
+```
+
+Then bootstrap/migrate state:
+
+```bash
+task state:setup:homelab
+task state:migrate
+# or: mise run state-setup
+```
+
+See [docs/STATE-BACKEND.md](docs/STATE-BACKEND.md) for full details.
+
 ## Deployment
 
 ### Step 0: Build Custom Images (One-Time)
 
-Build images using Dagger:
+Image build pipelines were moved to:
+- https://github.com/syscode-labs/oci-free-tier-images
 
-```bash
-# Build both images (base-hardened + proxmox-ampere)
-task build:images
-
-# Validate images meet size requirements (< 20GB total)
-task build:validate
-
-# Upload to OCI Object Storage and create custom images
-task build:upload  # Auto-fetches compartment ID from OCI config
-```
-
-**What this does:**
-- Dagger builds `base-hardened.qcow2` (Debian + SSH + Tailscale)
-- Dagger builds `proxmox-ampere.qcow2` (base + Proxmox VE + Ceph)
-- Validates total size < 20GB (OCI Object Storage free tier limit)
-- Uploads to OCI Object Storage
-- Creates custom compute images
-
-**Note**: Image OCIDs are automatically referenced in `tofu/oci/data.tf`.
-
-### CI image builds
-
-Packer images are also built in CI via `.github/workflows/packer.yml` on changes under `packer/**`. Configure these repository secrets:
-- `PACKER_SSH_PUBLIC_KEY`: SSH public key injected into built images (`root` authorized_keys)
-- `TAILSCALE_AUTH_KEY` (optional): Stored in `/etc/default/tailscaled` for first-boot join
-
-Each run publishes `packer/output-base/*.qcow2`, `packer/output-proxmox/*.qcow2`, and a generated `artifacts/IMAGE_BUILD_REPORT.md` as workflow artifacts.
+This repository now focuses on OpenTofu infrastructure deployment and operations.
 
 ### Step 1: Check Capacity
 
