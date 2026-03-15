@@ -76,11 +76,6 @@ variable "compartment_ocid" {
   type        = string
 }
 
-variable "adopt_existing_resources" {
-  description = "Safety toggle for adoption mode. false (default) = normal behavior. true = add destroy guards for adopted resources."
-  type        = bool
-  default     = false
-}
 
 variable "talos_image_ocid" {
   description = "OCID of the Talos+Tailscale Image Factory image imported into OCI. Required when omni_ready = true. Create at factory.talos.dev (ARM64, add Tailscale extension), import with scripts/oci-import.sh, store OCID as GitHub variable TALOS_IMAGE_OCID."
