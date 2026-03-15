@@ -95,25 +95,14 @@ INST_JSON=$(oci_retry_json compute instance list --all --compartment-id "$OCI_CO
 ACTIVE_INSTANCE_IDS=$(echo "$INST_JSON" | jq -r '.data[] | select(."lifecycle-state" != "TERMINATED") | .id')
 ACTIVE_IMAGE_IDS=$(echo "$INST_JSON" | jq -r '.data[] | select(."lifecycle-state" != "TERMINATED") | ."image-id"' | sort -u)
 
-ATT_JSON=$(oci_retry_json compute boot-volume-attachment list --all --compartment-id "$OCI_COMPARTMENT")
-ACTIVE_BOOT_IDS=$(echo "$ATT_JSON" | jq -r --argjson ids "$(printf '%s\n' "$ACTIVE_INSTANCE_IDS" | jq -R . | jq -s .)" '
-  .data[]
-  | select((."lifecycle-state" == "ATTACHED") and ((."instance-id") as $i | $ids | index($i)))
-  | ."boot-volume-id"' | sort -u)
-
 log "Active instances: $(printf '%s\n' "$ACTIVE_INSTANCE_IDS" | sed '/^$/d' | wc -l | tr -d ' ')"
 log "Active image references: $(printf '%s\n' "$ACTIVE_IMAGE_IDS" | sed '/^$/d' | wc -l | tr -d ' ')"
-log "Active boot-volume refs: $(printf '%s\n' "$ACTIVE_BOOT_IDS" | sed '/^$/d' | wc -l | tr -d ' ')"
 
 log "Step 1/3: prune terminated boot volumes"
 BV_JSON=$(oci_retry_json bv boot-volume list --all --compartment-id "$OCI_COMPARTMENT")
 while IFS=$'\t' read -r id name state created; do
   [[ -z "$id" ]] && continue
   [[ "$state" != "TERMINATED" ]] && continue
-  if printf '%s\n' "$ACTIVE_BOOT_IDS" | grep -q "^${id}$"; then
-    log "skip boot-volume (still referenced): ${name} ${id}"
-    continue
-  fi
   ah=$(age_hours "$created")
   if (( ah < BOOTVOL_GRACE_HOURS )); then
     log "skip boot-volume (too new ${ah}h): ${name} ${id}"
