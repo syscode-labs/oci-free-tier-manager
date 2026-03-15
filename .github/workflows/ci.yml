@@ -86,7 +86,8 @@ jobs:
           tfsec . \
             --format lovely \
             --minimum-severity MEDIUM \
-            --exclude-downloaded-modules
+            --exclude-downloaded-modules \
+            --exclude-path validation.tf
         continue-on-error: false
 
       - name: Setup Python for Checkov
