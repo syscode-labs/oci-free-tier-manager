@@ -108,7 +108,7 @@ output "ingress_reserved_ip" {
 
 output "load_balancer_ip" {
   description = "Public IP of the free-tier load balancer (null if not created)"
-  value       = length(oci_load_balancer_load_balancer.free_tier_lb) > 0 ? oci_load_balancer_load_balancer.free_tier_lb[0].ip_address_details[0].ip_address : null
+  value       = length(oci_load_balancer_load_balancer.free_tier_lb) > 0 ? try(oci_load_balancer_load_balancer.free_tier_lb[0].ip_address_details[0].ip_address, null) : null
 }
 
 output "load_balancer_id" {
