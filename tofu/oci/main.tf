@@ -181,10 +181,12 @@ resource "oci_core_instance" "ampere_instance" {
     display_name     = "ampere-vnic-${count.index + 1}"
   }
 
-  metadata = {
-    # Talos ignores ssh_authorized_keys and cloud-init user_data.
-    # SideroLink (baked into the Talos Omni image) handles connectivity.
-  }
+  metadata = merge(
+    # user_data: Talos MachineConfig for omni_ready mode (null = omit for Ubuntu)
+    var.omni_ready ? { user_data = base64encode(local._ampere_user_data) } : {},
+    # ssh_authorized_keys: Ubuntu cloud-init only (Talos ignores this)
+    !var.omni_ready && var.ssh_public_key != null ? { ssh_authorized_keys = var.ssh_public_key } : {},
+  )
 
   lifecycle {
     ignore_changes = [
