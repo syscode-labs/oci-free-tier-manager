@@ -148,3 +148,29 @@ run "omni_ready_without_endpoint_fails" {
     check.omni_ready_requires_endpoint,
   ]
 }
+
+# --- omni_ready = true without omni_join_token fails prerequisite check ---
+run "omni_ready_without_join_token_fails" {
+  command = plan
+
+  variables {
+    omni_join_token = null
+  }
+
+  expect_failures = [
+    check.omni_ready_requires_join_token,
+  ]
+}
+
+# --- omni_ready = true without tailscale_auth_key fails prerequisite check ---
+run "omni_ready_without_tailscale_key_fails" {
+  command = plan
+
+  variables {
+    tailscale_auth_key = null # pragma: allowlist secret
+  }
+
+  expect_failures = [
+    check.omni_ready_requires_tailscale_key,
+  ]
+}
