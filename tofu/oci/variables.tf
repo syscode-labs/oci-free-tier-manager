@@ -1,151 +1,201 @@
 /*
  * Input variables for OCI Free Tier configuration
+ *
+ * Both Always Free and PAYG accounts offer the same free compute resources:
+ * ┌─────────────────────┬──────────────────────┬────────────────────────┐
+ * │ Resource            │ Always Free account  │ PAYG account           │
+ * ├─────────────────────┼──────────────────────┼────────────────────────┤
+ * │ A1.Flex OCPUs       │ 4 total, integer only│ 4 total, integer only  │
+ * │ A1.Flex RAM         │ 24 GB total          │ 24 GB total            │
+ * │ E2.1.Micro          │ Up to 2 instances    │ Up to 2 instances      │
+ * │ Block Storage       │ 200 GB total         │ 200 GB total           │
+ * └─────────────────────┴──────────────────────┴────────────────────────┘
+ *
+ * The account type is auto-detected via the standard-a1-core-count service limit:
+ *   ≤ 4  → Always Free account (hard cap — cannot add paid OCPUs)
+ *   > 4  → PAYG account (same free tier, but can exceed limits for a fee)
+ *
+ * All node/LB fields are optional — omit any field to use defaults:
+ *   3 × A1.Flex (1 OCPU / 8 GB / 50 GB) + 1 × Micro (50 GB)
+ *
+ * Override examples:
+ *
+ *   # 3 equal nodes (default)
+ *   ampere_nodes = [{}, {}, {}]
+ *
+ *   # 4 equal nodes, maxes out 4 OCPUs / 24 GB RAM
+ *   ampere_nodes = [{}, {}, {}, {}]
+ *
+ *   # Mixed sizes (must stay within 4 OCPUs / 24 GB / 200 GB total)
+ *   ampere_nodes = [
+ *     { name = "k8s-cp", ocpus = 2, memory_gb = 12, boot_vol_gb = 60 },
+ *     { name = "k8s-w1", ocpus = 2, memory_gb = 12, boot_vol_gb = 60 },
+ *   ]
+ *
+ *   # Explicit bastion (available on all account types)
+ *   micro_nodes = [{ name = "bastion", boot_vol_gb = 47 }]
+ *
+ *   # Free 10 Mbps load balancer
+ *   load_balancer = {}
  */
 
 # OCI Authentication
-# These variables are optional if you have ~/.oci/config configured
-# The OCI provider will automatically read from that file
+# Uses a named profile from ~/.oci/config. Run `oci setup config` to configure.
 
-variable "tenancy_ocid" {
-  description = "OCID of your tenancy (optional if using ~/.oci/config)"
+variable "oci_config_profile" {
+  description = "OCI CLI config profile name from ~/.oci/config"
   type        = string
-  default     = "" # Will be read from ~/.oci/config if empty
-}
-
-variable "user_ocid" {
-  description = "OCID of the user (optional if using ~/.oci/config)"
-  type        = string
-  default     = "" # Will be read from ~/.oci/config if empty
-}
-
-variable "fingerprint" {
-  description = "Fingerprint of the API key (optional if using ~/.oci/config)"
-  type        = string
-  default     = "" # Will be read from ~/.oci/config if empty
-}
-
-variable "private_key_path" {
-  description = "Path to your private key file (optional if using ~/.oci/config)"
-  type        = string
-  default     = "" # Will be read from ~/.oci/config if empty
+  default     = "DEFAULT"
 }
 
 variable "region" {
   description = "OCI region"
   type        = string
-  default     = "uk-london-1" # Closest to UK
+  default     = "uk-london-1"
+}
+
+variable "availability_domain" {
+  description = "Availability domain for Ampere A1 instances"
+  type        = string
+  default     = "EGzq:UK-LONDON-1-AD-1"
+}
+
+variable "micro_availability_domain" {
+  description = "Availability domain for E2.1.Micro instances (may differ from Ampere AD due to quota allocation)"
+  type        = string
+  default     = "EGzq:UK-LONDON-1-AD-3"
+}
+
+variable "tenancy_ocid" {
+  description = "OCID of the tenancy root compartment — required for budget creation"
+  type        = string
 }
 
 variable "compartment_ocid" {
-  description = "OCID of the compartment (required - cannot be auto-detected)"
+  description = "OCID of the compartment (required — cannot be auto-detected)"
   type        = string
 }
 
-# SSH Configuration
-variable "ssh_public_key" {
-  description = "SSH public key for instance access"
-  type        = string
-}
-
-variable "proxmox_image_ocid" {
-  description = "OCID of the custom Proxmox ARM64 image (from Packer build). Leave empty to use platform Ubuntu image."
-  type        = string
-  default     = ""
-}
-
-variable "tailscale_auth_key" {
-  description = "Tailscale auth key for node auto-join on first boot (optional)"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
-# Ampere A1 Configuration (ARM-based)
-# Free tier allows: 4 OCPUs and 24GB RAM total
-variable "ampere_instance_count" {
-  description = "Number of Ampere A1 instances (0-4)"
-  type        = number
-  default     = 3 # Recommended: 3 for Proxmox cluster quorum
-
-  validation {
-    condition     = var.ampere_instance_count >= 0 && var.ampere_instance_count <= 4
-    error_message = "Must create between 0 and 4 Ampere instances."
-  }
-}
-
-variable "ampere_ocpus_per_instance" {
-  description = "OCPUs per Ampere instance (total across all instances must be ≤ 4)"
-  type        = number
-  default     = 1.33 # With 3 instances = 3.99 OCPUs total
-
-  validation {
-    condition     = var.ampere_ocpus_per_instance >= 1 && var.ampere_ocpus_per_instance <= 4
-    error_message = "OCPUs must be between 1 and 4."
-  }
-}
-
-variable "ampere_memory_per_instance" {
-  description = "Memory in GB per Ampere instance (total across all instances must be ≤ 24)"
-  type        = number
-  default     = 8 # With 3 instances = 24GB total
-
-  validation {
-    condition     = var.ampere_memory_per_instance >= 1 && var.ampere_memory_per_instance <= 24
-    error_message = "Memory must be between 1 and 24 GB."
-  }
-}
-
-variable "ampere_boot_volume_size" {
-  description = "Boot volume size in GB for Ampere instances (min 47GB)"
-  type        = number
-  default     = 50 # Recommended: 50GB per instance
-
-  validation {
-    condition     = var.ampere_boot_volume_size >= 47 && var.ampere_boot_volume_size <= 200
-    error_message = "Boot volume must be between 47 and 200 GB."
-  }
-}
-
-# AMD E2.1.Micro Configuration (x86-based)
-# Free tier allows: 2 instances max
-variable "micro_instance_count" {
-  description = "Number of E2.1.Micro instances (0-2)"
-  type        = number
-  default     = 1 # Recommended: 1 for bastion/jump host
-
-  validation {
-    condition     = var.micro_instance_count >= 0 && var.micro_instance_count <= 2
-    error_message = "Must create between 0 and 2 Micro instances."
-  }
-}
-
-variable "micro_boot_volume_size" {
-  description = "Boot volume size in GB for Micro instances (min 47GB)"
-  type        = number
-  default     = 50 # Recommended: 50GB
-
-  validation {
-    condition     = var.micro_boot_volume_size >= 47 && var.micro_boot_volume_size <= 200
-    error_message = "Boot volume must be between 47 and 200 GB."
-  }
-}
-
-# Storage Configuration
-# Free tier allows: 200GB total (including boot volumes)
-variable "create_additional_volume" {
-  description = "Whether to create additional block volume"
+variable "adopt_existing_resources" {
+  description = "Safety toggle for adoption mode. false (default) = normal behavior. true = add destroy guards for adopted resources."
   type        = bool
   default     = false
 }
 
-variable "additional_volume_size" {
-  description = "Size of additional volume in GB"
-  type        = number
-  default     = 50
+variable "talos_image_ocid" {
+  description = "OCID of the Talos+Tailscale Image Factory image imported into OCI. Required when omni_ready = true. Create at factory.talos.dev (ARM64, add Tailscale extension), import with scripts/oci-import.sh, store OCID as GitHub variable TALOS_IMAGE_OCID."
+  type        = string
+  default     = null
 }
 
-# Budget Alert Configuration
+# ---------------------------------------------------------------------------
+# Omni-ready mode
+#
+# When omni_ready = true, Ampere instances boot Talos and auto-enroll into
+# your Omni instance via SideroLink over Tailscale. Requires:
+#   talos_image_ocid  — Talos+Tailscale image OCID (import once, store in GitHub vars)
+#   omni_endpoint     — Omni gRPC host:port (e.g. omni.wind-bearded.ts.net:8090)
+#   omni_join_token   — Static join token from: omnictl get connections -o yaml
+#   tailscale_auth_key — Reusable/ephemeral auth key from Tailscale admin with tag:oci
+#
+# When omni_ready = false (default), Ampere instances use Ubuntu 22.04.
+# ---------------------------------------------------------------------------
+variable "omni_ready" {
+  description = "When true, provision Talos+Omni nodes instead of Ubuntu. Requires talos_image_ocid, omni_endpoint, omni_join_token, tailscale_auth_key."
+  type        = bool
+  default     = false
+}
+
+variable "omni_endpoint" {
+  description = "Omni gRPC endpoint for SideroLink, e.g. omni.wind-bearded.ts.net:8090. Required when omni_ready = true."
+  type        = string
+  default     = null
+}
+
+variable "omni_join_token" {
+  description = "Static SideroLink join token. Get from: omnictl get connections -o yaml | grep joinToken. Required when omni_ready = true. Store as GitHub secret OMNI_JOIN_TOKEN."
+  type        = string
+  sensitive   = true
+  default     = null
+}
+
+variable "tailscale_auth_key" {
+  description = "Tailscale auth key for the Tailscale system extension on Talos nodes. Must have tag:oci applied. Required when omni_ready = true. Store as GitHub secret TAILSCALE_AUTH_KEY."
+  type        = string
+  sensitive   = true
+  default     = null
+}
+
 variable "budget_alert_email" {
   description = "Email address for budget alerts (comma-separated for multiple)"
   type        = string
+}
+
+variable "ssh_public_key" {
+  description = "SSH public key for E2.1.Micro instances. Not used when omni_ready = true (Talos ignores SSH keys)."
+  type        = string
+  default     = null
+}
+
+# ---------------------------------------------------------------------------
+# Ampere A1.Flex nodes (ARM64)
+#
+# Each entry in the list becomes one VM.Standard.A1.Flex instance.
+# All fields are optional; omitted fields default to:
+#   ocpus=1, memory_gb=8, boot_vol_gb=50  (same for all account types)
+#
+# Note: OCPUs must be integers (1, 2, 3, or 4) — the OCI API enforces
+#       integer-only values on all account types (min=1, step=1).
+#
+# Budgets (enforced by check blocks in validation.tf):
+#   Total OCPUs     ≤ 4
+#   Total RAM       ≤ 24 GB
+#   Total storage   ≤ 200 GB (ampere + micro boot volumes combined)
+# ---------------------------------------------------------------------------
+variable "ampere_nodes" {
+  description = "Ampere A1.Flex node configurations. null = use defaults (3 nodes, 1 OCPU / 8 GB / 50 GB each)."
+  type = list(object({
+    ocpus       = optional(number)
+    memory_gb   = optional(number)
+    boot_vol_gb = optional(number)
+    name        = optional(string)
+  }))
+  default = null
+}
+
+# ---------------------------------------------------------------------------
+# E2.1.Micro nodes (x86, AMD)
+#
+# Available on all OCI account types (up to 2 free instances).
+# If null (default), 1 micro node is created automatically.
+# Set to [] to suppress micro nodes entirely.
+#
+# Each E2.1.Micro instance has: 1/8 OCPU, 1 GB RAM (fixed, not configurable).
+# ---------------------------------------------------------------------------
+variable "micro_nodes" {
+  description = "E2.1.Micro node configurations. null = 1 node (default). [] = no micro nodes."
+  type = list(object({
+    boot_vol_gb = optional(number)
+    name        = optional(string)
+  }))
+  default = null
+}
+
+# ---------------------------------------------------------------------------
+# Load Balancer
+#
+# OCI provides 1 × 10 Mbps flexible LB at no cost (Always Free marker on both
+# account types). null = no LB created. {} = create with free-tier defaults.
+#
+# To use this LB as the Kubernetes ingress LoadBalancer, annotate your Service:
+#   service.beta.kubernetes.io/oci-load-balancer-shape: "10Mbps"
+# Without that annotation, OCI CCM defaults to a paid flexible shape.
+# ---------------------------------------------------------------------------
+variable "load_balancer" {
+  description = "Load balancer configuration. null = no LB created. {} = free-tier 10 Mbps LB. Defaults to the free 10 Mbps LB."
+  type = object({
+    shape          = optional(string, "flexible")
+    bandwidth_mbps = optional(number, 10)
+  })
+  default = {}
 }
