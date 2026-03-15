@@ -77,6 +77,7 @@ variables {
   compartment_ocid   = "ocid1.compartment.test"
   tenancy_ocid       = "ocid1.tenancy.test"
   budget_alert_email = "test@example.com"
+  omni_ready         = false
 }
 
 # ---------------------------------------------------------------------------
@@ -239,7 +240,7 @@ run "null_micro_defaults_to_one" {
     ampere_nodes = [
       { ocpus = 1, memory_gb = 6 },
     ]
-    # micro_nodes = null (omitted = default)
+    micro_nodes = null # null → tier default (1 micro node)
   }
 
   assert {
