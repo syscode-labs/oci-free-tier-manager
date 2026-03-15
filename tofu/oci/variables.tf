@@ -132,7 +132,7 @@ variable "budget_alert_email" {
 }
 
 variable "ssh_public_key" {
-  description = "SSH public key for E2.1.Micro instances. Not used when omni_ready = true (Talos ignores SSH keys)."
+  description = "SSH public key injected via metadata for all instances in Ubuntu mode (omni_ready = false). Talos ignores SSH keys."
   type        = string
   default     = null
 }
