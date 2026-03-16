@@ -1,3 +1,0 @@
----
-cluster_name: "oci-proxmox"
-corosync_link_interface: "ens3"
