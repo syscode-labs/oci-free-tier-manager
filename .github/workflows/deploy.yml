@@ -69,11 +69,13 @@ jobs:
       - name: Fetch Talos image OCID from oci-talos-gitops-apps
         id: talos_image
         run: |
-          OCID=$(curl -fsSL \
-            "https://raw.githubusercontent.com/syscode-labs/oci-talos-gitops-apps/main/omni/talos-image.yaml" \
-            | grep '^oci_image_ocid:' | awk '{print $2}')
-          if [ -z "$OCID" ] || [ "$OCID" = '""' ]; then
-            echo "ERROR: oci_image_ocid is empty in oci-talos-gitops-apps/omni/talos-image.yaml"
+          set -euo pipefail
+          RAW=$(curl -fsSL \
+            "https://raw.githubusercontent.com/syscode-labs/oci-talos-gitops-apps/main/omni/talos-image.yaml")
+          OCID=$(printf '%s\n' "$RAW" \
+            | grep '^oci_image_ocid:' | awk '{print $2}' | tr -d '"'"'")
+          if [ -z "$OCID" ] || [ "$OCID" = "null" ] || [ "$OCID" = "~" ]; then
+            echo "ERROR: oci_image_ocid is empty or invalid in oci-talos-gitops-apps/omni/talos-image.yaml"
             exit 1
           fi
           echo "ocid=${OCID}" >> "$GITHUB_OUTPUT"
@@ -159,6 +161,7 @@ jobs:
       - name: Tofu Apply
         working-directory: tofu/oci
         run: |
+          # OCID is already baked into the plan artifact from the plan job — no separate fetch needed
           tofu apply -auto-approve tfplan
         env:
           TF_LOG: WARN
