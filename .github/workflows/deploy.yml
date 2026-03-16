@@ -66,13 +66,28 @@ jobs:
         run: |
           tofu init -backend-config=backend-config.tfvars
 
+      - name: Fetch Talos image OCID from oci-talos-gitops-apps
+        id: talos_image
+        run: |
+          set -euo pipefail
+          RAW=$(curl -fsSL \
+            "https://raw.githubusercontent.com/syscode-labs/oci-talos-gitops-apps/main/omni/talos-image.yaml")
+          OCID=$(printf '%s\n' "$RAW" \
+            | grep '^oci_image_ocid:' | awk '{print $2}' | tr -d '"'"'")
+          if [ -z "$OCID" ] || [ "$OCID" = "null" ] || [ "$OCID" = "~" ]; then
+            echo "ERROR: oci_image_ocid is empty or invalid in oci-talos-gitops-apps/omni/talos-image.yaml"
+            exit 1
+          fi
+          echo "ocid=${OCID}" >> "$GITHUB_OUTPUT"
+          echo "Talos image OCID: ${OCID}"
+
       - name: Tofu Plan
         working-directory: tofu/oci
         run: |
           tofu plan \
             -var="tenancy_ocid=${{ secrets.OCI_TENANCY_OCID }}" \
             -var="compartment_ocid=${{ secrets.OCI_COMPARTMENT_OCID }}" \
-            -var="talos_image_ocid=${{ vars.TALOS_IMAGE_OCID }}" \
+            -var="talos_image_ocid=${{ steps.talos_image.outputs.ocid }}" \
             -var="omni_join_token=${{ secrets.OMNI_JOIN_TOKEN }}" \
             -var="tailscale_auth_key=${{ secrets.TAILSCALE_AUTH_KEY }}" \
             -var-file=terraform.tfvars \
@@ -146,6 +161,7 @@ jobs:
       - name: Tofu Apply
         working-directory: tofu/oci
         run: |
+          # OCID is already baked into the plan artifact from the plan job — no separate fetch needed
           tofu apply -auto-approve tfplan
         env:
           TF_LOG: WARN
