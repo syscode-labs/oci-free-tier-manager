@@ -1,50 +1,77 @@
-# OCI Authentication Configuration
-# These values are automatically read from ~/.oci/config by the OCI provider
-# Run `oci setup config` if you haven't configured OCI CLI yet
-# Only override these if you need to use different credentials than your OCI CLI default profile
+# OCI Authentication
+# Uses a named profile from ~/.oci/config. Run `oci setup config` to configure.
+oci_config_profile = "syscode-homelab"
 
-# Uncomment and set these only if NOT using OCI CLI config:
-# tenancy_ocid     = "ocid1.tenancy.oc1..aaaaaaaxxxxx"
-# user_ocid        = "ocid1.user.oc1..aaaaaaaxxxxx"
-# fingerprint      = "aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99"
-# private_key_path = "~/.oci/oci_api_key.pem"
-
-# Compartment (required - cannot be auto-detected)
+# Compartment (required — cannot be auto-detected)
 compartment_ocid = "ocid1.compartment.oc1..aaaaaaaxxxxx"
 
-# Region
-region = "uk-london-1"  # Closest to UK (or use eu-frankfurt-1)
+# Tenancy (required — for budget creation)
+tenancy_ocid = "ocid1.tenancy.oc1..aaaaaaaxxxxx"
 
-# SSH Key
-# Run: cat ~/.ssh/id_rsa.pub
-ssh_public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC... your-email@example.com"
+
+# Region
+region = "uk-london-1"
 
 # Budget Alert Email
 budget_alert_email = "your-email@example.com"
 
-# Ampere A1 Configuration (ARM-based, Always Free)
-# Total across all instances: max 4 OCPUs and 24GB RAM
-# Recommended for K8s: 3 Ampere + 1 Micro (maxes out free tier)
-ampere_instance_count      = 3    # Number of instances (0-4)
-ampere_ocpus_per_instance  = 1.33 # OCPUs per instance (total: 3.99)
-ampere_memory_per_instance = 8    # GB RAM per instance (total: 24GB)
-ampere_boot_volume_size    = 50   # GB (minimum is 47)
+# ---------------------------------------------------------------------------
+# Mode A: Plain Ubuntu instances (default — omni_ready = false)
+#
+# Ampere nodes boot Ubuntu 22.04. Connect via SSH using the provided key.
+# micro_nodes can serve as a bastion or be suppressed with [].
+# ---------------------------------------------------------------------------
+# ssh_public_key = "ssh-ed25519 AAAA... user@host"
+#
+# ampere_nodes = [
+#   { name = "app-1", ocpus = 2, memory_gb = 12, boot_vol_gb = 50 },
+#   { name = "app-2", ocpus = 2, memory_gb = 12, boot_vol_gb = 50 },
+# ]
+# micro_nodes = [{ name = "bastion" }]
 
-# AMD E2.1.Micro Configuration (x86-based, Always Free)
-# Maximum: 2 instances
-# Recommended: 1 instance as bastion/jump host
-micro_instance_count    = 1   # Number of instances (0-2)
-micro_boot_volume_size  = 50  # GB (minimum is 47)
+# ---------------------------------------------------------------------------
+# Mode B: Talos + Omni + Tailscale (omni_ready = true)
+#
+# Ampere nodes boot Talos, connect to your Omni instance via SideroLink over
+# Tailscale. No SSH key needed. No public Omni IP needed.
+#
+# Prerequisites:
+#   1. Import Talos+Tailscale image to OCI:
+#      a. Go to https://factory.talos.dev — select ARM64, add Tailscale extension
+#      b. Download Oracle Cloud image variant
+#      c. Import: scripts/oci-import.sh talos-arm64.raw.xz talos-omni-<version>
+#      d. Set talos_image_ocid below (or store as GitHub variable TALOS_IMAGE_OCID)
+#
+#   2. Get join token (static, from your Omni instance):
+#      omnictl get connections -o yaml | grep joinToken
+#      Store as GitHub secret OMNI_JOIN_TOKEN.
+#
+#   3. Create Tailscale auth key at admin.tailscale.com:
+#      - Reusable, tag: tag:oci
+#      Store as GitHub secret TAILSCALE_AUTH_KEY.
+#
+# After provisioning, label nodes in Omni then apply the cluster template:
+#   omnictl machine set-labels <id> role=oci-cp    # x3
+#   omnictl machine set-labels <id> role=oci-worker # x1
+#   cd oci-talos-gitops-apps && omnictl apply -f omni/machine-classes/ && omnictl apply -f omni/cluster-templates/
+# ---------------------------------------------------------------------------
+omni_ready       = true
+talos_image_ocid = "ocid1.image.oc1.uk-london-1.aaaaaaaa..."
+omni_endpoint    = "omni.wind-bearded.ts.net:8090"
+# omni_join_token and tailscale_auth_key are passed via CI secrets or -var flags:
+#   tofu apply -var="omni_join_token=$OMNI_JOIN_TOKEN" -var="tailscale_auth_key=$TAILSCALE_AUTH_KEY"
 
-# Additional Block Volume (Optional)
-# Note: Total storage (boot volumes + block volumes) must be ≤ 200GB
-create_additional_volume = false  # Set to true if you need extra storage
-additional_volume_size   = 50     # GB
+ampere_nodes = [
+  { name = "oci-talos-cp-1",     ocpus = 1, memory_gb = 6, boot_vol_gb = 50 },
+  { name = "oci-talos-cp-2",     ocpus = 1, memory_gb = 6, boot_vol_gb = 50 },
+  { name = "oci-talos-cp-3",     ocpus = 1, memory_gb = 6, boot_vol_gb = 50 },
+  { name = "oci-talos-worker-1", ocpus = 1, memory_gb = 6, boot_vol_gb = 50 },
+]
+micro_nodes = [] # No bastion — Omni SideroLink handles connectivity
 
-# Custom Proxmox image from Packer build (leave empty to use platform Ubuntu)
-proxmox_image_ocid = ""  # Set to OCID after running: packer build proxmox-ampere.pkr.hcl
-
-# Tailscale auto-join key (optional)
-# IMPORTANT: Use an ephemeral one-time-use key (expires after first node auth).
-# Generate at: https://login.tailscale.com/admin/settings/keys
-tailscale_auth_key = ""
+# ---------------------------------------------------------------------------
+# Load Balancer (optional — OCI provides 1 x 10 Mbps free)
+# Useful for K8s ingress. Annotate Services with:
+#   service.beta.kubernetes.io/oci-load-balancer-shape: "10Mbps"
+# ---------------------------------------------------------------------------
+# load_balancer = {}
