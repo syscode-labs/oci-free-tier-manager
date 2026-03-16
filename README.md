@@ -44,7 +44,7 @@ omni_ready = false
 
 # Talos + Omni enrollment
 omni_ready           = true
-talos_image_ocid     = "ocid1.image.oc1..."   # from oci-free-tier-images
+talos_image_ocid     = "ocid1.image.oc1..."   # auto-fetched from oci-talos-gitops-apps in CI
 omni_endpoint        = "https://your-omni.example.com"
 siderolink_join_token = "..."
 ```
