@@ -1,3 +1,0 @@
----
-tailscale_authkey: ""        # Set via --extra-vars or vault; same key as tailscale-lxc
-tailscale_hostname_prefix: "proxmox"  # Results in: proxmox-pve1, proxmox-pve2, etc.
