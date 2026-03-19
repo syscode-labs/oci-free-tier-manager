@@ -1,3 +1,4 @@
+# tofu/oci/variables.tf
 /*
  * Input variables for OCI Free Tier configuration
  *
