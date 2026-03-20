@@ -31,7 +31,7 @@ jobs:
         continue-on-error: true
 
       - name: Setup OpenTofu
-        uses: opentofu/setup-opentofu@v1
+        uses: opentofu/setup-opentofu@v1.4.0
         with:
           tofu_version: '1.8.0'
 
@@ -90,7 +90,7 @@ jobs:
         continue-on-error: true  # tfsec parser doesn't support OpenTofu check blocks
 
       - name: Setup Python for Checkov
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
