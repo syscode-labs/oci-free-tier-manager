@@ -57,7 +57,7 @@ jobs:
             --file tofu/oci/backend-config.tfvars
 
       - name: Setup OpenTofu
-        uses: opentofu/setup-opentofu@v1.4.0
+        uses: opentofu/setup-opentofu@v2.0.0
         with:
           tofu_version: "1.8.0"
 
@@ -143,7 +143,7 @@ jobs:
             --file tofu/oci/backend-config.tfvars
 
       - name: Setup OpenTofu
-        uses: opentofu/setup-opentofu@v1.4.0
+        uses: opentofu/setup-opentofu@v2.0.0
         with:
           tofu_version: "1.8.0"
 
