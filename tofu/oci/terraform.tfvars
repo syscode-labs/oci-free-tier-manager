@@ -25,3 +25,5 @@ ampere_nodes = [
   { name = "oci-talos-worker-1", ocpus = 1, memory_gb = 6, boot_vol_gb = 50 },
 ]
 micro_nodes = []
+
+# load_balancer = {}  # Uncomment to create a free 10 Mbps LB
