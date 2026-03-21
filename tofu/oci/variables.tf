@@ -187,6 +187,12 @@ variable "micro_nodes" {
 #   service.beta.kubernetes.io/oci-load-balancer-shape: "10Mbps"
 # Without that annotation, OCI CCM defaults to a paid flexible shape.
 # ---------------------------------------------------------------------------
+variable "existing_subnet_ocid" {
+  description = "If set, skip VCN/networking creation and attach all instances to this existing subnet."
+  type        = string
+  default     = null
+}
+
 variable "load_balancer" {
   description = "Load balancer configuration. null = no LB created. {} = free-tier 10 Mbps LB. Defaults to the free 10 Mbps LB."
   type = object({
