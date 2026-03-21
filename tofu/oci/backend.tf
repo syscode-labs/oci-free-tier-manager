@@ -16,17 +16,9 @@
  * 3. Run: tofu init -migrate-state
  */
 
-# UNCOMMENT AFTER RUNNING BOOTSTRAP SCRIPT
-# terraform {
-#   backend "http" {
-#     address        = "https://objectstorage.${var.region}.oraclecloud.com/n/${var.namespace}/b/${var.state_bucket_name}/o/terraform.tfstate"
-#     update_method  = "PUT"
-#     lock_address   = "https://objectstorage.${var.region}.oraclecloud.com/n/${var.namespace}/b/${var.state_bucket_name}/o/terraform.tfstate.lock"
-#     lock_method    = "PUT"
-#     unlock_address = "https://objectstorage.${var.region}.oraclecloud.com/n/${var.namespace}/b/${var.state_bucket_name}/o/terraform.tfstate.lock"
-#     unlock_method  = "DELETE"
-#   }
-# }
+terraform {
+  backend "http" {}
+}
 
 # Alternative: S3-compatible backend (requires pre-authenticated request)
 # terraform {
