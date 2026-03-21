@@ -3,13 +3,13 @@
  */
 
 output "vcn_id" {
-  description = "ID of the VCN"
-  value       = oci_core_vcn.free_tier_vcn.id
+  description = "ID of the VCN (null if existing_subnet_ocid is set)"
+  value       = length(oci_core_vcn.free_tier_vcn) > 0 ? oci_core_vcn.free_tier_vcn[0].id : null
 }
 
 output "subnet_id" {
-  description = "ID of the subnet"
-  value       = oci_core_subnet.free_tier_subnet.id
+  description = "ID of the subnet (existing or created)"
+  value       = local.subnet_id
 }
 
 # ---------------------------------------------------------------------------
