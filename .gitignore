@@ -100,3 +100,5 @@ packer_cache/
 # Kubernetes
 .kube/config
 kubeconfig*
+tofu/oci/terraform.tfvars
+tofu/oci/terraform.tfvars.example
