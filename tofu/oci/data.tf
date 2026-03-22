@@ -118,6 +118,10 @@ data "oci_core_images" "micro_images" {
 }
 
 locals {
+  subnet_id = var.existing_subnet_ocid != null ? var.existing_subnet_ocid : oci_core_subnet.free_tier_subnet[0].id
+}
+
+locals {
   # When omni_ready = true: use the imported Talos+Tailscale image.
   # When omni_ready = false: use latest Ubuntu 22.04 from the data source.
   ampere_image_id = var.omni_ready ? var.talos_image_ocid : data.oci_core_images.ampere_images.images[0].id

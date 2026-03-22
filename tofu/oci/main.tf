@@ -32,6 +32,7 @@ provider "oci" {
 
 # Virtual Cloud Network
 resource "oci_core_vcn" "free_tier_vcn" {
+  count          = var.existing_subnet_ocid == null ? 1 : 0
   compartment_id = var.compartment_ocid
   display_name   = "free-tier-vcn"
   cidr_blocks    = ["10.0.0.0/16"]
@@ -40,20 +41,22 @@ resource "oci_core_vcn" "free_tier_vcn" {
 
 # Internet Gateway
 resource "oci_core_internet_gateway" "free_tier_igw" {
+  count          = var.existing_subnet_ocid == null ? 1 : 0
   compartment_id = var.compartment_ocid
-  vcn_id         = oci_core_vcn.free_tier_vcn.id
+  vcn_id         = oci_core_vcn.free_tier_vcn[0].id
   display_name   = "free-tier-igw"
   enabled        = true
 }
 
 # Route Table
 resource "oci_core_route_table" "free_tier_route_table" {
+  count          = var.existing_subnet_ocid == null ? 1 : 0
   compartment_id = var.compartment_ocid
-  vcn_id         = oci_core_vcn.free_tier_vcn.id
+  vcn_id         = oci_core_vcn.free_tier_vcn[0].id
   display_name   = "free-tier-route-table"
 
   route_rules {
-    network_entity_id = oci_core_internet_gateway.free_tier_igw.id
+    network_entity_id = oci_core_internet_gateway.free_tier_igw[0].id
     destination       = "0.0.0.0/0"
     destination_type  = "CIDR_BLOCK"
   }
@@ -61,8 +64,9 @@ resource "oci_core_route_table" "free_tier_route_table" {
 
 # Security List
 resource "oci_core_security_list" "free_tier_security_list" {
+  count          = var.existing_subnet_ocid == null ? 1 : 0
   compartment_id = var.compartment_ocid
-  vcn_id         = oci_core_vcn.free_tier_vcn.id
+  vcn_id         = oci_core_vcn.free_tier_vcn[0].id
   display_name   = "free-tier-security-list"
 
   # Egress: Allow all outbound
@@ -146,13 +150,14 @@ resource "oci_core_security_list" "free_tier_security_list" {
 
 # Subnet
 resource "oci_core_subnet" "free_tier_subnet" {
+  count             = var.existing_subnet_ocid == null ? 1 : 0
   compartment_id    = var.compartment_ocid
-  vcn_id            = oci_core_vcn.free_tier_vcn.id
+  vcn_id            = oci_core_vcn.free_tier_vcn[0].id
   cidr_block        = "10.0.1.0/24"
   display_name      = "free-tier-subnet"
   dns_label         = "subnet"
-  route_table_id    = oci_core_route_table.free_tier_route_table.id
-  security_list_ids = [oci_core_security_list.free_tier_security_list.id]
+  route_table_id    = oci_core_route_table.free_tier_route_table[0].id
+  security_list_ids = [oci_core_security_list.free_tier_security_list[0].id]
 }
 
 # Ampere A1 Instances (ARM-based, free tier)
@@ -176,7 +181,7 @@ resource "oci_core_instance" "ampere_instance" {
   }
 
   create_vnic_details {
-    subnet_id        = oci_core_subnet.free_tier_subnet.id
+    subnet_id        = local.subnet_id
     assign_public_ip = false # public IPs are managed explicitly via oci_core_public_ip.ampere_instance[*]
     display_name     = "ampere-vnic-${count.index + 1}"
   }
@@ -211,7 +216,7 @@ resource "oci_core_instance" "micro_instance" {
   }
 
   create_vnic_details {
-    subnet_id        = oci_core_subnet.free_tier_subnet.id
+    subnet_id        = local.subnet_id
     assign_public_ip = false # reserved IP assigned separately via oci_core_public_ip.bastion
     display_name     = "micro-vnic-${count.index + 1}"
   }
@@ -241,7 +246,7 @@ resource "oci_load_balancer_load_balancer" "free_tier_lb" {
     maximum_bandwidth_in_mbps = var.load_balancer.bandwidth_mbps
   }
 
-  subnet_ids = [oci_core_subnet.free_tier_subnet.id]
+  subnet_ids = [local.subnet_id]
 }
 
 # Budget Alert (monitors for any paid usage)
@@ -295,13 +300,13 @@ resource "oci_core_public_ip" "ingress" {
 
 data "oci_core_private_ips" "micro_private_ip" {
   count      = length(local._micro_nodes)
-  subnet_id  = oci_core_subnet.free_tier_subnet.id
+  subnet_id  = local.subnet_id
   ip_address = oci_core_instance.micro_instance[count.index].private_ip
 }
 
 data "oci_core_private_ips" "ampere_private_ip" {
   count      = length(local._ampere_nodes)
-  subnet_id  = oci_core_subnet.free_tier_subnet.id
+  subnet_id  = local.subnet_id
   ip_address = oci_core_instance.ampere_instance[count.index].private_ip
 }
 
