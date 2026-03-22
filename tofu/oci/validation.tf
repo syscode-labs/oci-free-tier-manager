@@ -104,3 +104,21 @@ check "omni_ready_requires_tailscale_key" {
     error_message = "omni_ready = true requires tailscale_auth_key with tag:oci applied."
   }
 }
+
+# ---------------------------------------------------------------------------
+# Compartment/IAM preconditions
+# ---------------------------------------------------------------------------
+
+check "compartment_name_required" {
+  assert {
+    condition     = ! var.create_compartment || var.compartment_name != null
+    error_message = "compartment_name is required when create_compartment = true."
+  }
+}
+
+check "iam_key_requires_compartment" {
+  assert {
+    condition     = var.iam_api_public_key == null || var.create_compartment
+    error_message = "iam_api_public_key is only used when create_compartment = true. Set create_compartment = true or remove iam_api_public_key."
+  }
+}
