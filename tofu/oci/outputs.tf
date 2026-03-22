@@ -144,6 +144,31 @@ output "ssh_connection_commands" {
   )
 }
 
+# ---------------------------------------------------------------------------
+# Managed compartment and IAM user (only populated when create_compartment = true)
+# ---------------------------------------------------------------------------
+
+output "managed_compartment_id" {
+  description = "OCID of the managed compartment (null if create_compartment = false)"
+  value       = var.create_compartment ? oci_identity_compartment.managed[0].id : null
+}
+
+output "iam_user_ocid" {
+  description = "OCID of the IAM service user (null if create_compartment = false)"
+  value       = var.create_compartment ? oci_identity_user.free_tier[0].id : null
+}
+
+output "iam_user_name" {
+  description = "Name of the IAM service user (null if create_compartment = false)"
+  value       = var.create_compartment ? oci_identity_user.free_tier[0].name : null
+}
+
+output "iam_api_key_fingerprint" {
+  description = "Fingerprint of the registered API key (null if iam_api_public_key not provided)"
+  value       = var.create_compartment && var.iam_api_public_key != null ? oci_identity_api_key.free_tier[0].fingerprint : null
+  sensitive   = true
+}
+
 output "resource_summary" {
   description = "Summary of provisioned free-tier resources"
   value = {
