@@ -98,8 +98,8 @@ output "ampere_ssh_reserved_ip" {
 }
 
 output "ingress_reserved_ip" {
-  description = "Reserved public IP for the K8s ingress controller"
-  value       = oci_core_public_ip.ingress.ip_address
+  description = "Reserved public IP for the K8s ingress controller (null if create_ingress_ip = false)"
+  value       = var.create_ingress_ip ? oci_core_public_ip.ingress[0].ip_address : null
 }
 
 # ---------------------------------------------------------------------------
@@ -121,8 +121,8 @@ output "load_balancer_id" {
 # ---------------------------------------------------------------------------
 
 output "budget_id" {
-  description = "ID of the budget alert"
-  value       = oci_budget_budget.free_tier_budget.id
+  description = "ID of the budget alert (null if create_budget = false)"
+  value       = var.create_budget ? oci_budget_budget.free_tier_budget[0].id : null
 }
 
 # ---------------------------------------------------------------------------

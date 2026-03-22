@@ -196,7 +196,7 @@ resource "oci_core_instance" "ampere_instance" {
   lifecycle {
     ignore_changes = [
       source_details[0].source_id, # Ignore image updates after initial deploy
-      metadata,                    # Ignore SSH key / user_data drift on imported instances
+      metadata,
     ]
   }
 }
@@ -229,7 +229,7 @@ resource "oci_core_instance" "micro_instance" {
   lifecycle {
     ignore_changes = [
       source_details[0].source_id,
-      metadata, # Ignore SSH key drift on imported instances
+      metadata,
     ]
   }
 }
@@ -253,6 +253,7 @@ resource "oci_load_balancer_load_balancer" "free_tier_lb" {
 
 # Budget Alert (monitors for any paid usage)
 resource "oci_budget_budget" "free_tier_budget" {
+  count          = var.create_budget ? 1 : 0
   compartment_id = var.tenancy_ocid # budgets must be owned at tenancy (root) scope
   amount         = 1                # Minimum allowed budget amount (threshold set to $0.01 below)
   reset_period   = "MONTHLY"
@@ -266,7 +267,8 @@ resource "oci_budget_budget" "free_tier_budget" {
 
 # Budget Alert Rule
 resource "oci_budget_alert_rule" "free_tier_alert" {
-  budget_id      = oci_budget_budget.free_tier_budget.id
+  count          = var.create_budget ? 1 : 0
+  budget_id      = oci_budget_budget.free_tier_budget[0].id
   display_name   = "free-tier-cost-alert"
   type           = "ACTUAL"
   threshold      = 1 # Alert at 1% of budget ($0.01)
@@ -295,6 +297,7 @@ resource "oci_core_public_ip" "micro_instance" {
 
 # Reserved IP for K8s ingress controller — stable external endpoint
 resource "oci_core_public_ip" "ingress" {
+  count          = var.create_ingress_ip ? 1 : 0
   compartment_id = var.compartment_ocid
   lifetime       = "RESERVED"
   display_name   = "k8s-ingress-ip"
@@ -315,6 +318,11 @@ data "oci_core_private_ips" "ampere_private_ip" {
 moved {
   from = oci_core_public_ip.bastion[0]
   to   = oci_core_public_ip.micro_instance[0]
+}
+
+moved {
+  from = oci_core_public_ip.ingress
+  to   = oci_core_public_ip.ingress[0]
 }
 
 moved {
