@@ -196,7 +196,7 @@ resource "oci_core_instance" "ampere_instance" {
   lifecycle {
     ignore_changes = [
       source_details[0].source_id, # Ignore image updates after initial deploy
-      metadata,                    # Ignore SSH key / user_data drift on imported instances
+      metadata,
     ]
   }
 }
@@ -229,7 +229,7 @@ resource "oci_core_instance" "micro_instance" {
   lifecycle {
     ignore_changes = [
       source_details[0].source_id,
-      metadata, # Ignore SSH key drift on imported instances
+      metadata,
     ]
   }
 }
