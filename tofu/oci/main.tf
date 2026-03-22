@@ -264,9 +264,16 @@ resource "oci_core_instance" "ampere_instance" {
   )
 
   lifecycle {
+    # SAFETY: prevent_destroy blocks tofu from ever destroying an instance.
+    # Instances provisioned by the capacity watcher are imported into state —
+    # destroying and recreating them would lose data and reserved IPs.
+    # To intentionally remove an instance, set this to false in a separate PR.
+    prevent_destroy = true
     ignore_changes = [
-      source_details[0].source_id, # Ignore image updates after initial deploy
-      metadata,
+      source_details[0].source_id, # image OCID changes on new OCI image releases
+      metadata,                    # SSH keys / user_data managed outside tofu
+      availability_domain,         # may differ from var if instance was imported
+      shape_config,                # OCPUs/memory set at launch; resize via OCI console
     ]
   }
 }
@@ -297,9 +304,12 @@ resource "oci_core_instance" "micro_instance" {
   } : {}
 
   lifecycle {
+    prevent_destroy = true
     ignore_changes = [
       source_details[0].source_id,
       metadata,
+      availability_domain,
+      shape_config,
     ]
   }
 }
