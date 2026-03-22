@@ -123,8 +123,21 @@ variable "tailscale_auth_key" {
 }
 
 variable "budget_alert_email" {
-  description = "Email address for budget alerts (comma-separated for multiple)"
+  description = "Email address for budget alerts (comma-separated for multiple). Required when create_budget = true."
   type        = string
+  default     = null
+}
+
+variable "create_budget" {
+  description = "Create the OCI budget and alert rule. Requires the configured OCI profile to have tenancy-level IAM permissions for the Budget service."
+  type        = bool
+  default     = true
+}
+
+variable "create_ingress_ip" {
+  description = "Create a reserved public IP for the Kubernetes ingress controller. Set to false for non-k8s deployments to avoid consuming reserved IP quota."
+  type        = bool
+  default     = true
 }
 
 variable "ssh_public_key" {
