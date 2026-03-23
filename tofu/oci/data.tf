@@ -159,4 +159,8 @@ locals {
     "  - TS_AUTHKEY=${local._tailscale_auth_key}",
     "",
   ]) : null
+
+  # cert-hub bootstrap — Docker install, DNS stub disable, daemon DNS fix.
+  # Source of truth: syscode-cert-hub/scripts/cloud-init.yaml (kept in sync manually).
+  _micro_user_data = filebase64("${path.module}/files/cloud-init.yaml")
 }
