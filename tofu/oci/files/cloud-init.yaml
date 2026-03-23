@@ -1,0 +1,51 @@
+#cloud-config
+# cert-hub host bootstrap — mirrors syscode-cert-hub/scripts/cloud-init.yaml exactly.
+# Source of truth: syscode-cert-hub repo. Keep in sync when updating bootstrap steps.
+
+package_update: true
+
+packages:
+  - ca-certificates
+  - curl
+  - gnupg
+
+write_files:
+  # Disable systemd-resolved stub listener — it holds port 53, conflicting with
+  # the acme-dns container which binds 0.0.0.0:53.
+  - path: /etc/systemd/resolved.conf.d/no-stub.conf
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Resolve]
+      DNSStubListener=no
+      DNS=8.8.8.8 1.1.1.1
+
+  # Docker daemon: point at real resolvers. After disabling the stub listener,
+  # Docker's internal 127.0.0.11 DNS can no longer reach upstream — fix it here.
+  - path: /etc/docker/daemon.json
+    permissions: "0644"
+    owner: root:root
+    content: |
+      {"dns": ["8.8.8.8", "1.1.1.1"]}
+
+runcmd:
+  # ── Docker: official apt repo ──────────────────────────────────────────────
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - >-
+    echo
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc]
+    https://download.docker.com/linux/ubuntu
+    $(. /etc/os-release && echo $VERSION_CODENAME) stable"
+    > /etc/apt/sources.list.d/docker.list
+  - apt-get update -qq
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - systemctl enable --now containerd docker
+
+  # ── DNS: apply resolved drop-in and fix resolv.conf symlink ───────────────
+  - systemctl restart systemd-resolved
+  - ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+
+  # ── Docker daemon: restart with new daemon.json ───────────────────────────
+  - systemctl restart docker
