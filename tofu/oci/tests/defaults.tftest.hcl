@@ -192,3 +192,33 @@ run "default_resource_counts" {
     error_message = "Expected 1 micro instance, got ${length(oci_core_instance.micro_instance)}"
   }
 }
+
+# --- Micro instance always receives cloud-init user_data ---
+run "micro_has_user_data" {
+  command = plan
+
+  assert {
+    condition     = oci_core_instance.micro_instance[0].metadata["user_data"] != null
+    error_message = "Expected user_data to be set on micro instance"
+  }
+}
+
+# --- Micro user_data is valid base64 ---
+run "micro_user_data_is_base64" {
+  command = plan
+
+  assert {
+    condition     = can(base64decode(oci_core_instance.micro_instance[0].metadata["user_data"]))
+    error_message = "Micro user_data must be valid base64"
+  }
+}
+
+# --- Micro user_data decodes to a cloud-config document ---
+run "micro_user_data_is_cloud_config" {
+  command = plan
+
+  assert {
+    condition     = startswith(base64decode(oci_core_instance.micro_instance[0].metadata["user_data"]), "#cloud-config")
+    error_message = "Micro user_data must decode to a #cloud-config document"
+  }
+}

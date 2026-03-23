@@ -30,10 +30,80 @@ provider "oci" {
   config_file_profile = var.oci_config_profile
 }
 
+# Resolved compartment OCID — either the newly created one or the one passed in.
+# All resources in this module reference local.compartment_id, not var.compartment_ocid.
+locals {
+  compartment_id = var.create_compartment ? oci_identity_compartment.managed[0].id : var.compartment_ocid
+}
+
+# ---------------------------------------------------------------------------
+# Managed compartment + IAM (optional)
+# ---------------------------------------------------------------------------
+
+resource "oci_identity_compartment" "managed" {
+  count          = var.create_compartment ? 1 : 0
+  compartment_id = var.tenancy_ocid
+  name           = var.compartment_name
+  description    = "Managed free-tier compartment"
+  enable_delete  = true
+
+  lifecycle {
+    ignore_changes = [defined_tags, freeform_tags]
+  }
+}
+
+resource "oci_identity_group" "free_tier" {
+  count          = var.create_compartment ? 1 : 0
+  compartment_id = var.tenancy_ocid # groups are always tenancy-level
+  name           = "${var.compartment_name}-managers"
+  description    = "Service group with access to ${var.compartment_name} compartment"
+
+  lifecycle {
+    ignore_changes = [defined_tags, freeform_tags]
+  }
+}
+
+resource "oci_identity_user" "free_tier" {
+  count          = var.create_compartment ? 1 : 0
+  compartment_id = var.tenancy_ocid # users are always tenancy-level
+  name           = "${var.compartment_name}-user"
+  description    = "Service user for ${var.compartment_name} compartment"
+
+  lifecycle {
+    ignore_changes = [defined_tags, freeform_tags]
+  }
+}
+
+resource "oci_identity_user_group_membership" "free_tier" {
+  count    = var.create_compartment ? 1 : 0
+  group_id = oci_identity_group.free_tier[0].id
+  user_id  = oci_identity_user.free_tier[0].id
+}
+
+resource "oci_identity_policy" "free_tier" {
+  count          = var.create_compartment ? 1 : 0
+  compartment_id = var.tenancy_ocid # policies granting compartment access must be at tenancy level
+  name           = "${var.compartment_name}-policy"
+  description    = "Grants ${var.compartment_name}-managers full access to ${var.compartment_name}"
+  statements = [
+    "Allow group ${oci_identity_group.free_tier[0].name} to manage all-resources in compartment ${var.compartment_name}",
+  ]
+
+  lifecycle {
+    ignore_changes = [defined_tags, freeform_tags]
+  }
+}
+
+resource "oci_identity_api_key" "free_tier" {
+  count     = var.create_compartment && var.iam_api_public_key != null ? 1 : 0
+  user_id   = oci_identity_user.free_tier[0].id
+  key_value = var.iam_api_public_key
+}
+
 # Virtual Cloud Network
 resource "oci_core_vcn" "free_tier_vcn" {
   count          = var.existing_subnet_ocid == null ? 1 : 0
-  compartment_id = var.compartment_ocid
+  compartment_id = local.compartment_id
   display_name   = "free-tier-vcn"
   cidr_blocks    = ["10.0.0.0/16"]
   dns_label      = "freetier"
@@ -42,7 +112,7 @@ resource "oci_core_vcn" "free_tier_vcn" {
 # Internet Gateway
 resource "oci_core_internet_gateway" "free_tier_igw" {
   count          = var.existing_subnet_ocid == null ? 1 : 0
-  compartment_id = var.compartment_ocid
+  compartment_id = local.compartment_id
   vcn_id         = oci_core_vcn.free_tier_vcn[0].id
   display_name   = "free-tier-igw"
   enabled        = true
@@ -51,7 +121,7 @@ resource "oci_core_internet_gateway" "free_tier_igw" {
 # Route Table
 resource "oci_core_route_table" "free_tier_route_table" {
   count          = var.existing_subnet_ocid == null ? 1 : 0
-  compartment_id = var.compartment_ocid
+  compartment_id = local.compartment_id
   vcn_id         = oci_core_vcn.free_tier_vcn[0].id
   display_name   = "free-tier-route-table"
 
@@ -65,7 +135,7 @@ resource "oci_core_route_table" "free_tier_route_table" {
 # Security List
 resource "oci_core_security_list" "free_tier_security_list" {
   count          = var.existing_subnet_ocid == null ? 1 : 0
-  compartment_id = var.compartment_ocid
+  compartment_id = local.compartment_id
   vcn_id         = oci_core_vcn.free_tier_vcn[0].id
   display_name   = "free-tier-security-list"
 
@@ -151,7 +221,7 @@ resource "oci_core_security_list" "free_tier_security_list" {
 # Subnet
 resource "oci_core_subnet" "free_tier_subnet" {
   count             = var.existing_subnet_ocid == null ? 1 : 0
-  compartment_id    = var.compartment_ocid
+  compartment_id    = local.compartment_id
   vcn_id            = oci_core_vcn.free_tier_vcn[0].id
   cidr_block        = "10.0.1.0/24"
   display_name      = "free-tier-subnet"
@@ -165,7 +235,7 @@ resource "oci_core_subnet" "free_tier_subnet" {
 resource "oci_core_instance" "ampere_instance" {
   count               = length(local._ampere_nodes)
   availability_domain = var.availability_domain
-  compartment_id      = var.compartment_ocid
+  compartment_id      = local.compartment_id
   display_name        = local._ampere_nodes[count.index].name
   shape               = "VM.Standard.A1.Flex"
 
@@ -194,9 +264,16 @@ resource "oci_core_instance" "ampere_instance" {
   )
 
   lifecycle {
+    # SAFETY: prevent_destroy blocks tofu from ever destroying an instance.
+    # Instances provisioned by the capacity watcher are imported into state —
+    # destroying and recreating them would lose data and reserved IPs.
+    # To intentionally remove an instance, set this to false in a separate PR.
+    prevent_destroy = true
     ignore_changes = [
-      source_details[0].source_id, # Ignore image updates after initial deploy
-      metadata,
+      source_details[0].source_id, # image OCID changes on new OCI image releases
+      metadata,                    # SSH keys / user_data managed outside tofu
+      availability_domain,         # may differ from var if instance was imported
+      shape_config,                # OCPUs/memory set at launch; resize via OCI console
     ]
   }
 }
@@ -206,7 +283,7 @@ resource "oci_core_instance" "ampere_instance" {
 resource "oci_core_instance" "micro_instance" {
   count               = length(local._micro_nodes)
   availability_domain = var.micro_availability_domain
-  compartment_id      = var.compartment_ocid
+  compartment_id      = local.compartment_id
   display_name        = local._micro_nodes[count.index].name
   shape               = "VM.Standard.E2.1.Micro"
 
@@ -222,14 +299,18 @@ resource "oci_core_instance" "micro_instance" {
     display_name     = "micro-vnic-${count.index + 1}"
   }
 
-  metadata = var.ssh_public_key != null ? {
-    ssh_authorized_keys = var.ssh_public_key
-  } : {}
+  metadata = merge(
+    var.ssh_public_key != null ? { ssh_authorized_keys = var.ssh_public_key } : {},
+    { user_data = local._micro_user_data },
+  )
 
   lifecycle {
+    prevent_destroy = true
     ignore_changes = [
       source_details[0].source_id,
       metadata,
+      availability_domain,
+      shape_config,
     ]
   }
 }
@@ -239,7 +320,7 @@ resource "oci_core_instance" "micro_instance" {
 # For Kubernetes: annotate Services with oci-load-balancer-shape: "10Mbps"
 resource "oci_load_balancer_load_balancer" "free_tier_lb" {
   count          = var.load_balancer != null ? 1 : 0
-  compartment_id = var.compartment_ocid
+  compartment_id = local.compartment_id
   display_name   = "free-tier-lb"
   shape          = var.load_balancer.shape
 
@@ -261,7 +342,7 @@ resource "oci_budget_budget" "free_tier_budget" {
   description    = "Alert when any costs are incurred beyond free tier"
 
   target_type                           = "COMPARTMENT"
-  targets                               = [var.compartment_ocid]
+  targets                               = [local.compartment_id]
   budget_processing_period_start_offset = 1
 }
 
@@ -280,7 +361,7 @@ resource "oci_budget_alert_rule" "free_tier_alert" {
 # Reserved IPs for all Ampere nodes — stable and explicitly managed.
 resource "oci_core_public_ip" "ampere_instance" {
   count          = length(local._ampere_nodes)
-  compartment_id = var.compartment_ocid
+  compartment_id = local.compartment_id
   lifetime       = "RESERVED"
   display_name   = "${local._ampere_nodes[count.index].name}-ip"
   private_ip_id  = data.oci_core_private_ips.ampere_private_ip[count.index].private_ips[0].id
@@ -289,7 +370,7 @@ resource "oci_core_public_ip" "ampere_instance" {
 # Reserved IPs for all Micro nodes — stable and explicitly managed.
 resource "oci_core_public_ip" "micro_instance" {
   count          = length(local._micro_nodes)
-  compartment_id = var.compartment_ocid
+  compartment_id = local.compartment_id
   lifetime       = "RESERVED"
   display_name   = "${local._micro_nodes[count.index].name}-ip"
   private_ip_id  = data.oci_core_private_ips.micro_private_ip[count.index].private_ips[0].id
@@ -298,7 +379,7 @@ resource "oci_core_public_ip" "micro_instance" {
 # Reserved IP for K8s ingress controller — stable external endpoint
 resource "oci_core_public_ip" "ingress" {
   count          = var.create_ingress_ip ? 1 : 0
-  compartment_id = var.compartment_ocid
+  compartment_id = local.compartment_id
   lifetime       = "RESERVED"
   display_name   = "k8s-ingress-ip"
 }

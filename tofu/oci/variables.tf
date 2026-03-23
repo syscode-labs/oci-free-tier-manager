@@ -214,3 +214,33 @@ variable "load_balancer" {
   })
   default = {}
 }
+
+# ---------------------------------------------------------------------------
+# Compartment and IAM (optional)
+#
+# When create_compartment = true, the module creates:
+#   - A child compartment under the tenancy root
+#   - An IAM group + user with a policy scoped to that compartment
+#   - Optionally an API key if iam_api_public_key is provided
+#
+# All module resources are placed in the new compartment automatically.
+# var.compartment_ocid is ignored when create_compartment = true.
+# ---------------------------------------------------------------------------
+variable "create_compartment" {
+  description = "Create a dedicated child compartment for all free-tier resources. Requires tenancy-level IAM. When true, compartment_name is required."
+  type        = bool
+  default     = false
+}
+
+variable "compartment_name" {
+  description = "Name for the new compartment. Required when create_compartment = true."
+  type        = string
+  default     = null
+}
+
+variable "iam_api_public_key" {
+  description = "PEM-encoded RSA public key to register as an API key for the new IAM user. Optional — when null, the user is created but no API key is registered (you can add one manually). Only used when create_compartment = true."
+  type        = string
+  sensitive   = true
+  default     = null
+}
