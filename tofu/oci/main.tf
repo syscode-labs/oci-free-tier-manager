@@ -299,9 +299,10 @@ resource "oci_core_instance" "micro_instance" {
     display_name     = "micro-vnic-${count.index + 1}"
   }
 
-  metadata = var.ssh_public_key != null ? {
-    ssh_authorized_keys = var.ssh_public_key
-  } : {}
+  metadata = merge(
+    var.ssh_public_key != null ? { ssh_authorized_keys = var.ssh_public_key } : {},
+    { user_data = local._micro_user_data },
+  )
 
   lifecycle {
     prevent_destroy = true
