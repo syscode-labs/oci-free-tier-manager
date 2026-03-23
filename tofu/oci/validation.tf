@@ -79,28 +79,28 @@ check "micro_min_boot_vol" {
 
 check "omni_ready_requires_talos_image" {
   assert {
-    condition     = ! var.omni_ready || var.talos_image_ocid != null
+    condition     = !var.omni_ready || var.talos_image_ocid != null
     error_message = "omni_ready = true requires talos_image_ocid. Import the Talos+Tailscale Image Factory image and set talos_image_ocid."
   }
 }
 
 check "omni_ready_requires_endpoint" {
   assert {
-    condition     = ! var.omni_ready || var.omni_endpoint != null
+    condition     = !var.omni_ready || var.omni_endpoint != null
     error_message = "omni_ready = true requires omni_endpoint (e.g. omni.wind-bearded.ts.net:8090)."
   }
 }
 
 check "omni_ready_requires_join_token" {
   assert {
-    condition     = ! var.omni_ready || var.omni_join_token != null
+    condition     = !var.omni_ready || var.omni_join_token != null
     error_message = "omni_ready = true requires omni_join_token. Get from: omnictl get connections -o yaml | grep joinToken."
   }
 }
 
 check "omni_ready_requires_tailscale_key" {
   assert {
-    condition     = ! var.omni_ready || var.tailscale_auth_key != null
+    condition     = !var.omni_ready || var.tailscale_auth_key != null
     error_message = "omni_ready = true requires tailscale_auth_key with tag:oci applied."
   }
 }
@@ -111,7 +111,7 @@ check "omni_ready_requires_tailscale_key" {
 
 check "compartment_name_required" {
   assert {
-    condition     = ! var.create_compartment || var.compartment_name != null
+    condition     = !var.create_compartment || var.compartment_name != null
     error_message = "compartment_name is required when create_compartment = true."
   }
 }
