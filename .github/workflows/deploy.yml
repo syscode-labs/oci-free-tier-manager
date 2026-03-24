@@ -81,6 +81,7 @@ jobs:
         working-directory: tofu/oci
         run: |
           tofu plan \
+            -lock=false \
             -var="tenancy_ocid=$OCI_TENANCY_OCID" \
             -var="compartment_ocid=$OCI_COMPARTMENT_OCID" \
             -var="talos_image_ocid=${{ steps.talos_image.outputs.ocid }}" \
@@ -155,7 +156,7 @@ jobs:
 
       - name: Tofu Apply
         working-directory: tofu/oci
-        run: tofu apply -auto-approve tfplan
+        run: tofu apply -lock=false -auto-approve tfplan
         env:
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
           TF_LOG: WARN
