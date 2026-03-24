@@ -1,0 +1,162 @@
+name: Deploy
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "tofu/oci/**"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "tofu/oci/**"
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for manual deploy"
+        required: false
+        default: "manual"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  plan:
+    name: Tofu Plan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch Talos image OCID from oci-talos-gitops-apps
+        id: talos_image
+        run: |
+          OCID=$(curl -fsSL \
+            "https://raw.githubusercontent.com/syscode-labs/oci-talos-gitops-apps/main/omni/talos-image.yaml" \
+            | grep '^oci_image_ocid:' | awk '{print $2}')
+          if [ -z "$OCID" ] || [ "$OCID" = '""' ] || [ "$OCID" = "null" ]; then
+            echo "ERROR: oci_image_ocid is empty in oci-talos-gitops-apps/omni/talos-image.yaml"
+            echo "Run the talos-images build workflow first to import a Talos image into OCI."
+            exit 1
+          fi
+          echo "ocid=${OCID}" >> "$GITHUB_OUTPUT"
+          echo "Talos image OCID: ${OCID}"
+
+      - name: Write OCI credentials
+        run: |
+          mkdir -p ~/.oci
+          printf '%s' "$OCI_API_KEY_PEM" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+          cat > ~/.oci/config <<EOF
+          [syscode-homelab]
+          user=$OCI_USER_OCID
+          fingerprint=$OCI_FINGERPRINT
+          tenancy=$OCI_TENANCY_OCID
+          region=uk-london-1
+          key_file=$HOME/.oci/oci_api_key.pem
+          EOF
+          chmod 600 ~/.oci/config
+        env:
+          OCI_USER_OCID: ${{ secrets.OCI_USER_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_API_KEY_PEM: ${{ secrets.OCI_API_KEY_PEM }}
+
+      - name: Write backend config
+        run: printf '%s' "$TF_BACKEND_CONFIG" > tofu/oci/backend-config.tfvars
+        env:
+          TF_BACKEND_CONFIG: ${{ secrets.TF_BACKEND_CONFIG }}
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v2.0.0
+        with:
+          tofu_version: "1.11.5"
+
+      - name: Tofu Init
+        working-directory: tofu/oci
+        run: tofu init -backend-config=backend-config.tfvars
+
+      - name: Tofu Plan
+        working-directory: tofu/oci
+        run: |
+          tofu plan \
+            -lock=false \
+            -var="tenancy_ocid=$OCI_TENANCY_OCID" \
+            -var="compartment_ocid=$OCI_COMPARTMENT_OCID" \
+            -var="talos_image_ocid=${{ steps.talos_image.outputs.ocid }}" \
+            -var="omni_join_token=$OMNI_JOIN_TOKEN" \
+            -var="tailscale_auth_key=$TAILSCALE_AUTH_KEY" \
+            -var-file=terraform.tfvars \
+            -out=tfplan
+        env:
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
+          OMNI_JOIN_TOKEN: ${{ secrets.OMNI_JOIN_TOKEN }}
+          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          TF_LOG: WARN
+
+      - name: Upload plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: tofu/oci/tfplan
+          retention-days: 1
+
+  apply:
+    name: Tofu Apply
+    runs-on: ubuntu-latest
+    needs: plan
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Write OCI credentials
+        run: |
+          mkdir -p ~/.oci
+          printf '%s' "$OCI_API_KEY_PEM" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+          cat > ~/.oci/config <<EOF
+          [syscode-homelab]
+          user=$OCI_USER_OCID
+          fingerprint=$OCI_FINGERPRINT
+          tenancy=$OCI_TENANCY_OCID
+          region=uk-london-1
+          key_file=$HOME/.oci/oci_api_key.pem
+          EOF
+          chmod 600 ~/.oci/config
+        env:
+          OCI_USER_OCID: ${{ secrets.OCI_USER_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_API_KEY_PEM: ${{ secrets.OCI_API_KEY_PEM }}
+
+      - name: Write backend config
+        run: printf '%s' "$TF_BACKEND_CONFIG" > tofu/oci/backend-config.tfvars
+        env:
+          TF_BACKEND_CONFIG: ${{ secrets.TF_BACKEND_CONFIG }}
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v2.0.0
+        with:
+          tofu_version: "1.11.5"
+
+      - name: Tofu Init
+        working-directory: tofu/oci
+        run: tofu init -backend-config=backend-config.tfvars
+
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: tofu/oci
+
+      - name: Tofu Apply
+        working-directory: tofu/oci
+        run: tofu apply -lock=false -auto-approve tfplan
+        env:
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          TF_LOG: WARN

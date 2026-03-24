@@ -264,17 +264,22 @@ resource "oci_core_instance" "ampere_instance" {
   )
 
   lifecycle {
-    # SAFETY: prevent_destroy blocks tofu from ever destroying an instance.
-    # Instances provisioned by the capacity watcher are imported into state —
-    # destroying and recreating them would lose data and reserved IPs.
-    # To intentionally remove an instance, set this to false in a separate PR.
-    prevent_destroy = true
+    replace_triggered_by = [terraform_data.omni_credentials]
     ignore_changes = [
       source_details[0].source_id, # image OCID changes on new OCI image releases
-      metadata,                    # SSH keys / user_data managed outside tofu
       availability_domain,         # may differ from var if instance was imported
       shape_config,                # OCPUs/memory set at launch; resize via OCI console
     ]
+  }
+}
+
+# Tracks hashes of Omni join token + Tailscale auth key.
+# Any change to either secret triggers replacement of all Ampere instances,
+# ensuring the new credentials are baked into user_data on the next boot.
+resource "terraform_data" "omni_credentials" {
+  input = {
+    join_token_hash = sha256(coalesce(var.omni_join_token, ""))
+    ts_key_hash     = sha256(coalesce(var.tailscale_auth_key, ""))
   }
 }
 
