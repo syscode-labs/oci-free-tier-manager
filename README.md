@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/syscode-labs/oci-free-tier-manager/workflows/CI/badge.svg)](https://github.com/syscode-labs/oci-free-tier-manager/actions/workflows/ci.yml)
-[![OpenTofu](https://img.shields.io/badge/OpenTofu-1.8-844FBA?logo=terraform)](https://opentofu.org/)
+[![OpenTofu](https://img.shields.io/badge/OpenTofu-1.11-844FBA?logo=terraform)](https://opentofu.org/)
 [![OCI Free Tier](https://img.shields.io/badge/OCI-Always%20Free-F80000?logo=oracle)](https://www.oracle.com/cloud/free/)
 
 OpenTofu infrastructure for OCI Always Free tier — provisions 4× Ampere A1.Flex (ARM64) + 1× Micro instance.
@@ -43,10 +43,10 @@ Key variables:
 omni_ready = false
 
 # Talos + Omni enrollment
-omni_ready           = true
-talos_image_ocid     = "ocid1.image.oc1..."   # auto-fetched from oci-talos-gitops-apps in CI
-omni_endpoint        = "https://your-omni.example.com"
-siderolink_join_token = "..."
+omni_ready       = true
+talos_image_ocid = "ocid1.image.oc1..."   # auto-fetched from oci-talos-gitops-apps in CI
+omni_endpoint    = "omni.example.com:8090"
+omni_join_token  = "..."                  # or pass via -var / TF_VAR_omni_join_token
 ```
 
 ### Deploy
@@ -89,10 +89,12 @@ When `omni_ready = true`:
 
 ### "Out of capacity" for Ampere
 
-Normal — Ampere instances are highly contested:
+Normal — Ampere instances are highly contested. The CI deploy workflow retries
+automatically. For manual deployments:
 
-- Run the capacity checker: `python3 scripts/provision_free_tier_retry.py`
-- Try different regions or off-peak hours
+- Re-run `tofu apply` — OCI eventually allocates capacity
+- Try a different availability domain within the same region
+- Try off-peak hours
 
 ### Storage limit exceeded
 
