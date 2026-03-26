@@ -1,6 +1,6 @@
 # OCI Authentication
 # Uses a named profile from ~/.oci/config. Run `oci setup config` to configure.
-oci_config_profile = "syscode-homelab"
+oci_config_profile = "DEFAULT"
 
 # Compartment (required — cannot be auto-detected)
 compartment_ocid = "ocid1.compartment.oc1..aaaaaaaxxxxx"
@@ -57,7 +57,7 @@ budget_alert_email = "your-email@example.com"
 # ---------------------------------------------------------------------------
 omni_ready       = true
 talos_image_ocid = "ocid1.image.oc1.uk-london-1.aaaaaaaa..."
-omni_endpoint    = "omni.wind-bearded.ts.net:8090"
+omni_endpoint    = "omni.example.com:8090"
 # omni_join_token and tailscale_auth_key are passed via CI secrets or -var flags:
 #   tofu apply -var="omni_join_token=$OMNI_JOIN_TOKEN" -var="tailscale_auth_key=$TAILSCALE_AUTH_KEY"
 

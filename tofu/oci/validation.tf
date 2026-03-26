@@ -87,7 +87,7 @@ check "omni_ready_requires_talos_image" {
 check "omni_ready_requires_endpoint" {
   assert {
     condition     = !var.omni_ready || var.omni_endpoint != null
-    error_message = "omni_ready = true requires omni_endpoint (e.g. omni.wind-bearded.ts.net:8090)."
+    error_message = "omni_ready = true requires omni_endpoint (e.g. omni.example.com:8090)."
   }
 }
 
