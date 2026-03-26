@@ -49,11 +49,11 @@ jobs:
           printf '%s' "$OCI_API_KEY_PEM" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem
           cat > ~/.oci/config <<EOF
-          [syscode-homelab]
+          [DEFAULT]
           user=$OCI_USER_OCID
           fingerprint=$OCI_FINGERPRINT
           tenancy=$OCI_TENANCY_OCID
-          region=uk-london-1
+          region=$OCI_REGION
           key_file=$HOME/.oci/oci_api_key.pem
           EOF
           chmod 600 ~/.oci/config
@@ -62,6 +62,7 @@ jobs:
           OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
           OCI_API_KEY_PEM: ${{ secrets.OCI_API_KEY_PEM }}
+          OCI_REGION: ${{ secrets.OCI_REGION }}
 
       - name: Write backend config
         run: printf '%s' "$TF_BACKEND_CONFIG" > tofu/oci/backend-config.tfvars
@@ -151,13 +152,16 @@ jobs:
             -var="compartment_ocid=$OCI_COMPARTMENT_OCID" \
             -var="talos_image_ocid=${{ steps.talos_image.outputs.ocid }}" \
             -var="omni_join_token=$OMNI_JOIN_TOKEN" \
+            -var="omni_endpoint=$OMNI_ENDPOINT" \
             -var="tailscale_auth_key=$TAILSCALE_AUTH_KEY" \
+            -var="oci_config_profile=DEFAULT" \
             -var-file=terraform.tfvars \
             -out=tfplan
         env:
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
           OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
           OMNI_JOIN_TOKEN: ${{ secrets.OMNI_JOIN_TOKEN }}
+          OMNI_ENDPOINT: ${{ secrets.OMNI_ENDPOINT }}
           TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
           TF_LOG: WARN
 
@@ -185,11 +189,11 @@ jobs:
           printf '%s' "$OCI_API_KEY_PEM" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem
           cat > ~/.oci/config <<EOF
-          [syscode-homelab]
+          [DEFAULT]
           user=$OCI_USER_OCID
           fingerprint=$OCI_FINGERPRINT
           tenancy=$OCI_TENANCY_OCID
-          region=uk-london-1
+          region=$OCI_REGION
           key_file=$HOME/.oci/oci_api_key.pem
           EOF
           chmod 600 ~/.oci/config
@@ -198,6 +202,7 @@ jobs:
           OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
           OCI_API_KEY_PEM: ${{ secrets.OCI_API_KEY_PEM }}
+          OCI_REGION: ${{ secrets.OCI_REGION }}
 
       - name: Write backend config
         run: printf '%s' "$TF_BACKEND_CONFIG" > tofu/oci/backend-config.tfvars

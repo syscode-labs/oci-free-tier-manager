@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${OCI_PROFILE:=syscode-homelab}"
+: "${OCI_PROFILE:=DEFAULT}"
 : "${OCI_COMPARTMENT:?OCI_COMPARTMENT is required}"
 : "${OCI_NAMESPACE:?OCI_NAMESPACE is required}"
 : "${OCI_BUCKET:?OCI_BUCKET is required}"
