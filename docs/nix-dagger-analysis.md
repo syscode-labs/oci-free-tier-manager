@@ -1,5 +1,8 @@
 # Nix + Dagger Architecture Analysis
 
+> **Superseded** — This was an exploratory analysis. The project uses mise for dev
+> tooling and GitHub Actions for CI. Nix and Dagger were not adopted.
+
 ## Pure Nix Approach
 
 ### What Nix Would Handle
@@ -81,24 +84,24 @@
             type = "app";
             program = toString (pkgs.writeShellScript "deploy" ''
               set -e
-              
+
               # Phase 1: Build images
               echo "Building images..."
               nix build .#base-image
               nix build .#proxmox-image
-              
+
               # Phase 2: Deploy OCI
               echo "Deploying OCI infrastructure..."
               cd tofu/oci
               ${pkgs.opentofu}/bin/tofu init
               ${pkgs.opentofu}/bin/tofu apply -auto-approve
-              
+
               # Phase 3: Proxmox cluster
               echo "Setting up Proxmox cluster..."
               cd ../proxmox-cluster
               ${pkgs.opentofu}/bin/tofu init
               ${pkgs.opentofu}/bin/tofu apply -auto-approve
-              
+
               # Phase 4: Talos K8s
               echo "Deploying Talos Kubernetes..."
               cd ../talos
@@ -214,10 +217,10 @@ class OciFreetier:
             .with_exec(["packer", "build", "base-hardened.pkr.hcl"])
             .directory("/work/output-qemu")
         )
-    
+
     @function
     async def build_proxmox_image(
-        self, 
+        self,
         base_image: dagger.Directory
     ) -> dagger.Directory:
         """Build Proxmox image from base"""
@@ -234,19 +237,19 @@ class OciFreetier:
             ])
             .directory("/work/output-qemu")
         )
-    
+
     @function
     async def build_all_images(self) -> str:
         """Build both images sequentially"""
         base = await self.build_base_image()
         proxmox = await self.build_proxmox_image(base)
-        
+
         # Export to host
         await base.export("./artifacts/base-hardened")
         await proxmox.export("./artifacts/proxmox-ampere")
-        
+
         return "Images built successfully"
-    
+
     @function
     async def upload_to_oci(
         self,
@@ -397,8 +400,8 @@ nix run .#validate
 
 ## Final Verdict
 
-**If you're comfortable with Nix:** Go **Nix + Dagger**  
-**If Nix feels too heavy:** Go **Task + Dagger**  
+**If you're comfortable with Nix:** Go **Nix + Dagger**
+**If Nix feels too heavy:** Go **Task + Dagger**
 **If you want simplest possible:** Go **Task + bash scripts** (no Dagger)
 
 I'd recommend **Nix + Dagger** since you're already in the Nix ecosystem (devbox), but it depends on your comfort level.
