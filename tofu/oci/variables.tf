@@ -90,7 +90,7 @@ variable "talos_image_ocid" {
 # When omni_ready = true, Ampere instances boot Talos and auto-enroll into
 # your Omni instance via SideroLink over Tailscale. Requires:
 #   talos_image_ocid  — Talos+Tailscale image OCID (import once, store in GitHub vars)
-#   omni_endpoint     — Omni gRPC host:port (e.g. omni.wind-bearded.ts.net:8090)
+#   omni_endpoint     — Omni gRPC host:port (e.g. omni.example.com:8090)
 #   omni_join_token   — Static join token from: omnictl get connections -o yaml
 #   tailscale_auth_key — Reusable/ephemeral auth key from Tailscale admin with tag:oci
 #
@@ -103,7 +103,7 @@ variable "omni_ready" {
 }
 
 variable "omni_endpoint" {
-  description = "Omni gRPC endpoint for SideroLink, e.g. omni.wind-bearded.ts.net:8090. Required when omni_ready = true."
+  description = "Omni gRPC endpoint for SideroLink, e.g. omni.example.com:8090. Required when omni_ready = true."
   type        = string
   default     = null
 }
