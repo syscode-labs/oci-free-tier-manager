@@ -6,9 +6,9 @@ opentofu = "1.11.5"
 TERRAFORM_BINARY_PATH = "tofu"
 
 [tasks.state-setup]
-description = "Bootstrap state backend (single profile, default: syscode-homelab/homelab)"
-run = "task state:setup:homelab TF_PROFILE=${TF_PROFILE:-syscode-homelab} COMPARTMENT_NAME=${COMPARTMENT_NAME:-homelab}"
+description = "Bootstrap state backend (single profile, default: DEFAULT/homelab)"
+run = "task state:setup:homelab TF_PROFILE=${TF_PROFILE:-DEFAULT} COMPARTMENT_NAME=${COMPARTMENT_NAME:-homelab}"
 
 [tasks.adopt-state]
-description = "Adopt existing resources (single profile, default: syscode-homelab/homelab)"
-run = "task adopt:state:homelab TF_PROFILE=${TF_PROFILE:-syscode-homelab} COMPARTMENT_NAME=${COMPARTMENT_NAME:-homelab} STATE_COMPARTMENT_NAME=${STATE_COMPARTMENT_NAME:-homelab} ADOPT_EXISTING=${ADOPT_EXISTING:-true}"
+description = "Adopt existing resources (single profile, default: DEFAULT/homelab)"
+run = "task adopt:state:homelab TF_PROFILE=${TF_PROFILE:-DEFAULT} COMPARTMENT_NAME=${COMPARTMENT_NAME:-homelab} STATE_COMPARTMENT_NAME=${STATE_COMPARTMENT_NAME:-homelab} ADOPT_EXISTING=${ADOPT_EXISTING:-true}"

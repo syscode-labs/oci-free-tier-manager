@@ -89,6 +89,11 @@ flake.lock
 .dagger/
 dagger/__pycache__/
 
+# AI tooling
+.specstory/
+docs/plans/
+.claude/
+
 # Artifacts
 artifacts/
 *.qcow2
