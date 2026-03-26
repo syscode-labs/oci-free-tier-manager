@@ -4,19 +4,24 @@ Complete implementation plan for OCI Free Tier Kubernetes cluster.
 
 ## Current State
 
-✅ **Completed:**
+✅ **Implemented:**
 
-- Layer 1: OCI infrastructure provisioning (`tofu/oci/`) — VCN, 3× Ampere, 1× Micro, reserved IPs
-- Layer 2: Packer golden image — Proxmox ARM64 on OCI builder (`packer/proxmox-ampere.pkr.hcl`)
-- Layer 2: Ansible cluster automation (`ansible/proxmox-cluster/`) — pvecm + Ceph + Tailscale LXC
-- Availability checker script
-- Development environment (devbox + pre-commit)
+- OCI infrastructure provisioning (`tofu/oci/`) — VCN, up to 4× Ampere A1.Flex + optional Micro instances
+- Two deployment modes via `omni_ready` toggle:
+  - **Ubuntu mode** (`omni_ready = false`): plain Ubuntu instances, SSH access
+  - **Talos+Omni mode** (`omni_ready = true`): Talos Linux nodes auto-enrolled into Omni via SideroLink over Tailscale
+- GitHub Actions CI/CD with free-tier capacity pre-flight guard
+- HTTP remote state backend (OCI Object Storage PAR URL)
+- Development environment (mise + pre-commit)
 
-❌ **Missing:**
+> **Note:** The original Proxmox+Ceph roadmap (Packer images, Ansible automation) was
+> abandoned in favour of the Talos+Omni approach. Phases 1–6 below are retained for
+> historical reference but reflect the old direction and have not been implemented.
 
-- Layer 3: Talos Kubernetes automation (`tofu/talos/`)
-- Monitoring integration (Grafana Alloy)
-- End-to-end deployment orchestration
+❌ **Not yet implemented:**
+
+- Monitoring integration (Grafana Alloy / Grafana Cloud)
+- End-to-end deployment orchestration script
 
 ## Implementation Phases
 

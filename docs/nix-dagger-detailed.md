@@ -1,5 +1,8 @@
 # Nix + Dagger Implementation - Detailed Plan
 
+> **Superseded** — This implementation plan was not pursued. The project uses mise for
+> dev tooling and GitHub Actions for CI. Retained for reference only.
+
 ## Architecture Overview
 
 **Separation of Concerns:**
@@ -69,58 +72,58 @@ oci-free-tier-manager/
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        
+
         # Python environment for Dagger
         pythonEnv = pkgs.python312.withPackages (ps: with ps; [
           dagger-io
           requests
           pyyaml
         ]);
-        
+
       in {
         # Development shell (replaces/augments devbox)
         devShells.default = pkgs.mkShell {
           name = "oci-free-tier-dev";
-          
+
           buildInputs = with pkgs; [
             # Infrastructure tools
             opentofu
             kubectl
             helm
             talosctl
-            
+
             # Security tools
             sops
             age
-            
+
             # Image building
             packer
             qemu
-            
+
             # Dagger
             dagger
             pythonEnv
-            
+
             # Utilities
             jq
             yq
             gh
             git
             curl
-            
+
             # OCI CLI
             oci-cli
-            
+
             # Linting/formatting
             terraform-ls
             tflint
             shellcheck
             yamllint
-            
+
             # Pre-commit
             pre-commit
           ];
-          
+
           shellHook = ''
             echo "🚀 OCI Free Tier Manager Development Environment"
             echo ""
@@ -132,7 +135,7 @@ oci-free-tier-manager/
             echo "  nix run .#deploy-all       - Full deployment (all phases)"
             echo "  nix run .#validate         - Run validation checks"
             echo ""
-            
+
             # Initialize pre-commit hooks
             if [ -f .git/hooks/pre-commit ]; then
               echo "✓ Pre-commit hooks installed"
@@ -142,7 +145,7 @@ oci-free-tier-manager/
             fi
           '';
         };
-        
+
         # Nix apps (CLI commands)
         apps = {
           # Build images with Dagger
@@ -156,7 +159,7 @@ oci-free-tier-manager/
                 build-all-images
             '');
           };
-          
+
           # Deploy OCI infrastructure
           deploy-oci = {
             type = "app";
@@ -168,7 +171,7 @@ oci-free-tier-manager/
               ${pkgs.opentofu}/bin/tofu apply
             '');
           };
-          
+
           # Setup Proxmox cluster
           deploy-proxmox = {
             type = "app";
@@ -180,7 +183,7 @@ oci-free-tier-manager/
               ${pkgs.opentofu}/bin/tofu apply
             '');
           };
-          
+
           # Deploy Talos Kubernetes
           deploy-talos = {
             type = "app";
@@ -192,110 +195,110 @@ oci-free-tier-manager/
               ${pkgs.opentofu}/bin/tofu apply
             '');
           };
-          
+
           # Full deployment
           deploy-all = {
             type = "app";
             program = toString (pkgs.writeShellScript "deploy-all" ''
               set -euo pipefail
-              
+
               echo "╔═══════════════════════════════════════════╗"
               echo "║  OCI Free Tier Full Stack Deployment     ║"
               echo "╚═══════════════════════════════════════════╝"
               echo ""
-              
+
               # Phase 1: Build images
               echo "==> Phase 1: Building custom images..."
               nix run .#build-images
               echo ""
-              
+
               # Phase 2: Deploy OCI
               echo "==> Phase 2: Deploying OCI infrastructure..."
               nix run .#deploy-oci
               echo ""
-              
+
               # Phase 3: Setup Proxmox
               echo "==> Phase 3: Setting up Proxmox cluster..."
               nix run .#deploy-proxmox
               echo ""
-              
+
               # Phase 4: Deploy Talos
               echo "==> Phase 4: Deploying Talos Kubernetes..."
               nix run .#deploy-talos
               echo ""
-              
+
               echo "✓ Full deployment complete!"
               echo ""
               echo "Run 'nix run .#validate' to verify the deployment."
             '');
           };
-          
+
           # Validation
           validate = {
             type = "app";
             program = toString (pkgs.writeShellScript "validate" ''
               set -euo pipefail
-              
+
               echo "Running validation checks..."
-              
+
               # Validate images
               if [ -f scripts/validate-phase1.sh ]; then
                 bash scripts/validate-phase1.sh
               fi
-              
+
               # Validate OCI
               if [ -f scripts/validate-phase2.sh ]; then
                 bash scripts/validate-phase2.sh
               fi
-              
+
               # Validate Proxmox
               if [ -f scripts/validate-phase3.sh ]; then
                 bash scripts/validate-phase3.sh
               fi
-              
+
               # Validate Talos
               if [ -f scripts/validate-phase4.sh ]; then
                 bash scripts/validate-phase4.sh
               fi
-              
+
               # Validate cost
               if [ -f scripts/validate-cost.sh ]; then
                 bash scripts/validate-cost.sh
               fi
-              
+
               echo "✓ All validation checks passed!"
             '');
           };
-          
+
           # Destroy everything (for testing)
           destroy-all = {
             type = "app";
             program = toString (pkgs.writeShellScript "destroy-all" ''
               set -euo pipefail
-              
+
               echo "⚠️  WARNING: This will destroy ALL infrastructure!"
               read -p "Are you sure? (type 'yes' to confirm): " confirm
-              
+
               if [ "$confirm" != "yes" ]; then
                 echo "Aborted."
                 exit 1
               fi
-              
+
               # Destroy in reverse order
               echo "Destroying Talos cluster..."
               cd tofu/talos && ${pkgs.opentofu}/bin/tofu destroy -auto-approve
-              
+
               echo "Destroying Proxmox cluster..."
               cd ../proxmox-cluster && ${pkgs.opentofu}/bin/tofu destroy -auto-approve
-              
+
               echo "Destroying OCI infrastructure..."
               cd ../oci && ${pkgs.opentofu}/bin/tofu destroy -auto-approve
-              
+
               echo "✓ All infrastructure destroyed"
             '');
           };
         };
-        
+
         # Packages (for nix build)
         packages = {
           # Could add packages here if needed
@@ -346,7 +349,7 @@ import os
 @object_type
 class Main:
     """Main pipeline for OCI Free Tier infrastructure"""
-    
+
     @function
     async def build_base_image(
         self,
@@ -357,23 +360,23 @@ class Main:
     ) -> dagger.Directory:
         """
         Build base hardened image with Packer
-        
+
         Returns directory with base-hardened.qcow2
         """
         return await (
             dag.container()
             .from_("hashicorp/packer:latest")
-            
+
             # Install dependencies
             .with_exec(["apk", "add", "--no-cache", "qemu-img", "qemu-system-x86_64"])
-            
+
             # Copy Packer configs
             .with_directory("/work", source.directory("packer"))
             .with_workdir("/work")
-            
+
             # Initialize Packer
             .with_exec(["packer", "init", "."])
-            
+
             # Build base image
             .with_exec([
                 "packer", "build",
@@ -381,11 +384,11 @@ class Main:
                 "-var", "headless=true",
                 "base-hardened.pkr.hcl"
             ])
-            
+
             # Return output directory
             .directory("/work/output-qemu")
         )
-    
+
     @function
     async def build_proxmox_image(
         self,
@@ -394,27 +397,27 @@ class Main:
     ) -> dagger.Directory:
         """
         Build Proxmox image from base
-        
+
         Returns directory with proxmox-ampere.qcow2
         """
         return await (
             dag.container()
             .from_("hashicorp/packer:latest")
-            
+
             # Install dependencies
             .with_exec(["apk", "add", "--no-cache", "qemu-img", "qemu-system-x86_64"])
-            
+
             # Copy Packer configs
             .with_directory("/work", source.directory("packer"))
-            
+
             # Copy base image
             .with_directory("/work/base", base_image)
-            
+
             .with_workdir("/work")
-            
+
             # Initialize Packer
             .with_exec(["packer", "init", "."])
-            
+
             # Build Proxmox image
             .with_exec([
                 "packer", "build",
@@ -423,11 +426,11 @@ class Main:
                 "-var", "source_image=/work/base/base-hardened.qcow2",
                 "proxmox-ampere.pkr.hcl"
             ])
-            
+
             # Return output directory
             .directory("/work/output-qemu")
         )
-    
+
     @function
     async def build_all_images(
         self,
@@ -438,28 +441,28 @@ class Main:
     ) -> str:
         """
         Build both images sequentially and export to host
-        
+
         Returns success message with artifact locations
         """
         # Use current directory if not provided
         if source is None:
             source = dag.host().directory(".")
-        
+
         print("Building base image...")
         base = await self.build_base_image(source)
-        
+
         print("Building Proxmox image...")
         proxmox = await self.build_proxmox_image(source, base)
-        
+
         # Export to host
         print("Exporting images to ./artifacts/...")
         await base.export("./artifacts/base-hardened")
         await proxmox.export("./artifacts/proxmox-ampere")
-        
+
         # Get image sizes
         base_files = await base.entries()
         proxmox_files = await proxmox.entries()
-        
+
         return f"""
 ✓ Images built successfully!
 
@@ -471,7 +474,7 @@ Next steps:
   1. Upload to OCI: dagger call upload-to-oci
   2. Deploy infrastructure: nix run .#deploy-oci
 """
-    
+
     @function
     async def upload_to_oci(
         self,
@@ -485,22 +488,22 @@ Next steps:
     ) -> str:
         """
         Upload images to OCI Object Storage and create custom images
-        
+
         Requires OCI CLI authentication (via config file or env vars)
         """
         # Read artifacts from host
         artifacts = dag.host().directory("./artifacts")
-        
+
         container = (
             dag.container()
             .from_("ghcr.io/oracle/oci-cli:latest")
             .with_directory("/artifacts", artifacts)
         )
-        
+
         # Configure OCI CLI if config provided
         if oci_config:
             container = container.with_secret_variable("OCI_CONFIG", oci_config)
-        
+
         # Upload base image
         result = await (
             container
@@ -511,7 +514,7 @@ Next steps:
                 "--name", "base-hardened.qcow2",
                 "--force"
             ])
-            
+
             # Upload Proxmox image
             .with_exec([
                 "oci", "os", "object", "put",
@@ -520,7 +523,7 @@ Next steps:
                 "--name", "proxmox-ampere.qcow2",
                 "--force"
             ])
-            
+
             # Verify total size < 20GB
             .with_exec([
                 "sh", "-c",
@@ -529,7 +532,7 @@ Next steps:
                 "jq 'add' | "
                 "awk '{if ($1 > 21474836480) exit 1}'"
             ])
-            
+
             # Create custom images
             .with_exec([
                 "oci", "compute", "image", "create",
@@ -539,7 +542,7 @@ Next steps:
                 "--object-name", "base-hardened.qcow2",
                 "--region", region
             ])
-            
+
             .with_exec([
                 "oci", "compute", "image", "create",
                 "--compartment-id", compartment_id,
@@ -548,12 +551,12 @@ Next steps:
                 "--object-name", "proxmox-ampere.qcow2",
                 "--region", region
             ])
-            
+
             .stdout()
         )
-        
+
         return f"✓ Images uploaded to OCI Object Storage and custom images created\n{result}"
-    
+
     @function
     async def validate_images(
         self,
@@ -561,11 +564,11 @@ Next steps:
     ) -> str:
         """
         Validate that built images meet size requirements
-        
+
         Returns validation report
         """
         artifacts = dag.host().directory("./artifacts")
-        
+
         result = await (
             dag.container()
             .from_("alpine:latest")
@@ -576,27 +579,27 @@ Next steps:
                 f"""
                 set -e
                 echo "Validating image sizes..."
-                
+
                 BASE_SIZE=$(qemu-img info --output=json /artifacts/base-hardened/*.qcow2 | jq '.["virtual-size"]')
                 PROXMOX_SIZE=$(qemu-img info --output=json /artifacts/proxmox-ampere/*.qcow2 | jq '.["virtual-size"]')
                 TOTAL_SIZE=$((BASE_SIZE + PROXMOX_SIZE))
                 MAX_SIZE=$((21474836480))  # 20GB in bytes
-                
+
                 echo "Base image: $(($BASE_SIZE / 1024 / 1024 / 1024))GB"
                 echo "Proxmox image: $(($PROXMOX_SIZE / 1024 / 1024 / 1024))GB"
                 echo "Total: $(($TOTAL_SIZE / 1024 / 1024 / 1024))GB / 20GB"
-                
+
                 if [ $TOTAL_SIZE -gt $MAX_SIZE ]; then
                     echo "ERROR: Total size exceeds 20GB OCI free tier limit!"
                     exit 1
                 fi
-                
+
                 echo "✓ Images within size limits"
                 """
             ])
             .stdout()
         )
-        
+
         return result
 ```
 
@@ -693,37 +696,37 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: DeterminateSystems/nix-installer-action@v9
       - uses: DeterminateSystems/magic-nix-cache-action@v2
-      
+
       - uses: dagger/dagger-for-github@v5
         with:
           verb: call
           args: build-all-images
-      
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: images
           path: artifacts/
-  
+
   deploy:
     needs: build-images
     runs-on: ubuntu-latest
     environment: production
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: DeterminateSystems/nix-installer-action@v9
-      
+
       - name: Configure OCI CLI
         env:
           OCI_CONFIG: ${{ secrets.OCI_CONFIG }}
         run: |
           mkdir -p ~/.oci
           echo "$OCI_CONFIG" > ~/.oci/config
-      
+
       - name: Deploy infrastructure
         run: nix run .#deploy-all
 ```
