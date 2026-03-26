@@ -24,7 +24,7 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for detailed setup instructions.
 
 We use [Conventional Commits](https://www.conventionalcommits.org/):
 
-```
+```text
 <type>(<scope>): <subject>
 
 <body>
@@ -33,6 +33,7 @@ We use [Conventional Commits](https://www.conventionalcommits.org/):
 ```
 
 **Types:**
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation only
@@ -43,7 +44,8 @@ We use [Conventional Commits](https://www.conventionalcommits.org/):
 - `chore`: Changes to build process or auxiliary tools
 
 **Examples:**
-```
+
+```text
 feat(tofu): add Proxmox provider configuration
 
 docs: update README with devbox instructions
@@ -56,16 +58,19 @@ fix(check_availability): handle OCI API timeout errors
 Before committing, ensure:
 
 1. **Code is formatted:**
+
    ```bash
    devbox run fmt
    ```
 
 2. **Linters pass:**
+
    ```bash
    devbox run lint
    ```
 
 3. **Pre-commit hooks pass:**
+
    ```bash
    pre-commit run --all-files
    ```
@@ -83,7 +88,7 @@ Before committing, ensure:
 - Follow PEP 8 (enforced by Black + Flake8)
 - Add docstrings to functions
 - Use type hints where beneficial
-- Maximum line length: 100 characters
+- Maximum line length: 120 characters
 
 ### Documentation
 
@@ -97,6 +102,7 @@ Before committing, ensure:
 1. **Fork the repository**
 
 2. **Create a feature branch:**
+
    ```bash
    git checkout -b feat/your-feature-name
    ```
@@ -107,18 +113,21 @@ Before committing, ensure:
    - Add/update tests if applicable
 
 4. **Test locally:**
+
    ```bash
    devbox run lint
    devbox run check  # Validate OpenTofu
    ```
 
 5. **Commit with conventional commits:**
+
    ```bash
    git add .
    git commit -m "feat: add new feature"
    ```
 
 6. **Push to your fork:**
+
    ```bash
    git push origin feat/your-feature-name
    ```
@@ -141,6 +150,7 @@ Before committing, ensure:
 ### Larger Contributions
 
 Please open an issue first to discuss:
+
 - New features
 - Architecture changes
 - Breaking changes

@@ -4,8 +4,8 @@ Complete implementation plan for deploying a Kubernetes cluster on OCI free tier
 
 ## Infrastructure Configuration
 
-**Region**: uk-london-1  
-**Account**: PAYG (Pay-As-You-Go) recommended for better Ampere availability  
+**Region**: uk-london-1
+**Account**: PAYG (Pay-As-You-Go) recommended for better Ampere availability
 **Budget Alert**: $0.01 threshold
 
 ### Resource Allocation
@@ -97,15 +97,14 @@ Deploy instances using Terraform.
 
 ### Terraform Configuration
 
-Update terraform.tfvars:
+Update terraform.tfvars (see `tofu/oci/terraform.tfvars.example` for full reference):
 ```hcl
-region                     = "uk-london-1"
-ampere_instance_count      = 3
-ampere_ocpus_per_instance  = 1.33
-ampere_memory_per_instance = 8
-ampere_boot_volume_size    = 50
-micro_instance_count       = 1
-micro_boot_volume_size     = 50
+omni_ready   = false   # or true for Talos+Omni mode
+ampere_nodes = [
+  { name = "app-1", ocpus = 2, memory_gb = 12, boot_vol_gb = 50 },
+  { name = "app-2", ocpus = 2, memory_gb = 12, boot_vol_gb = 50 },
+]
+micro_nodes = [{ name = "bastion" }]
 ```
 
 Add custom images to data.tf or reference OCIDs in main.tf.
@@ -137,9 +136,9 @@ resource "oci_core_public_ip" "ingress" {
 Deploy:
 ```bash
 cd tofu/oci
-terraform init
-terraform plan  # Verify only free tier resources
-terraform apply
+tofu init -backend-config=backend-config.tfvars
+tofu plan   # Verify only free tier resources
+tofu apply
 ```
 
 ### Post-Deployment

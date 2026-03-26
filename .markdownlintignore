@@ -1,0 +1,6 @@
+# Superseded aspirational/exploratory docs with pre-existing violations
+docs/nix-dagger-analysis.md
+docs/nix-dagger-detailed.md
+docs/OCI_AMPERE_BUILD.md
+# Legacy reference plan (Proxmox+Ceph phase, abandoned) — pre-existing violations
+PLAN.md

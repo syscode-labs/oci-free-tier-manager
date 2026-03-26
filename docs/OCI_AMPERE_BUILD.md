@@ -1,5 +1,9 @@
 ## OCI Ampere image builds on free tier (ephemeral)
 
+> **Not yet implemented** — The workflows referenced below
+> (`.github/workflows/packer-oci-ampere.yml`, `.github/workflows/packer-aws-arm.yml`)
+> do not exist. This documents the intended approach when Packer image building is added.
+
 Goal: build packer images on ARM64 without consuming the production free-tier A1 capacity.
 
 ### Approach
