@@ -193,12 +193,26 @@ variable "micro_nodes" {
 # ---------------------------------------------------------------------------
 # Load Balancer
 #
-# OCI provides 1 × 10 Mbps flexible LB at no cost (Always Free marker on both
-# account types). null = no LB created. {} = create with free-tier defaults.
+# OCI provides 1 × flexible LB at 10/10 Mbps at no cost (Always Free).
+# null = no LB created. {} = create with free-tier defaults (10/10 Mbps).
 #
-# To use this LB as the Kubernetes ingress LoadBalancer, annotate your Service:
-#   service.beta.kubernetes.io/oci-load-balancer-shape: "10Mbps"
-# Without that annotation, OCI CCM defaults to a paid flexible shape.
+# If OCI CCM is ever installed and creates LBs from K8s Services, annotate
+# every LoadBalancer Service to stay within the free tier:
+#
+#   service.beta.kubernetes.io/oci-load-balancer-shape: "flexible"
+#   service.beta.kubernetes.io/oci-load-balancer-shape-flex-min: "10"
+#   service.beta.kubernetes.io/oci-load-balancer-shape-flex-max: "10"
+#
+# Alternatively, set these defaults in the CCM cloud-config so all Services
+# inherit them without per-Service annotations:
+#
+#   loadBalancer:
+#     shape: "flexible"
+#     flexShapeMinMbps: 10
+#     flexShapeMaxMbps: 10
+#
+# Without these settings, OCI CCM creates flexible LBs at 10/100 Mbps by
+# default — the 100 Mbps maximum triggers paid billing.
 # ---------------------------------------------------------------------------
 variable "existing_subnet_ocid" {
   description = "If set, skip VCN/networking creation and attach all instances to this existing subnet."
