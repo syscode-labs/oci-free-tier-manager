@@ -123,7 +123,9 @@ differences in how some limits are applied:
 
 ### Public IP Addresses
 
-- **Reserved IPs**: 2 reserved public IPv4 addresses (free)
+- **Reserved IPs**: Free regardless of count on a PAYG tenancy (OCI Always Free docs cite "2"
+  but the PAYG service limit is much higher and all IPs are free whether assigned or not).
+  Verified empirically: 4 reserved IPs running with zero billing impact.
 - **Ephemeral IPs**: Assigned to instances at no cost
 
 ### Data Transfer
@@ -158,7 +160,7 @@ differences in how some limits are applied:
 | Object Storage | **20 GB** |
 | Load Balancer (10 Mbps) | **1** |
 | Network Load Balancer | **1** |
-| Reserved Public IPs | **2** |
+| Reserved Public IPs | **free (unlimited on PAYG)** |
 | VCNs | **2** |
 | Outbound Transfer | **10 TB/month** |
 | Autonomous Databases | **2** (1 OCPU, 20 GB each) |
