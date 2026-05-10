@@ -13,12 +13,14 @@ Verified empirically: a reserved IP was created, attached to a running instance,
 
 | Name | IP | Purpose | State |
 |------|----|---------|-------|
-| `k8s-ingress-ip` | `84.8.144.240` | K8s ingress / OCI CCM LB | Unassigned (pre-provisioned) |
-| `bastion-ip` | `145.241.217.226` | Micro instance fixed address | Assigned to micro-instance-1 |
-| `ampere-instance-1-ip` | `144.21.60.245` | Ampere node 1 | Assigned (replaced lost ephemeral) |
+| `ampere-instance-{1..4}-ip` | varies | One reserved IP per Ampere node | Assigned |
 
-> **Warning:** If you delete an ephemeral public IP from a VNIC, OCI will not auto-reassign one.
-> You must create a reserved IP and assign it manually. Avoid deleting ephemeral IPs outside Terraform.
+> The bastion/micro and k8s-ingress reserved IPs have been removed from the syscode-homelab
+> account. The micro instance was terminated (May 2026) and the k8s-ingress IP was deleted.
+> Only the 4 per-node Ampere IPs remain.
+
+**Warning:** If you delete an ephemeral public IP from a VNIC, OCI will not auto-reassign one.
+You must create a reserved IP and assign it manually. Avoid deleting ephemeral IPs outside Terraform.
 
 ---
 
@@ -43,14 +45,28 @@ kind: Service
 metadata:
   name: ingress-nginx
   annotations:
-    # Free 10 Mbps tier — omit this and OCI creates a paid flexible LB
-    service.beta.kubernetes.io/oci-load-balancer-shape: "10Mbps"
+    # Flexible 10/10 Mbps — stays within the Always Free LB allowance.
+    # All three annotations are required; omitting any one causes the CCM to
+    # create a flexible LB at its default max (100 Mbps), which is paid.
+    service.beta.kubernetes.io/oci-load-balancer-shape: "flexible"
+    service.beta.kubernetes.io/oci-load-balancer-shape-flex-min: "10"
+    service.beta.kubernetes.io/oci-load-balancer-shape-flex-max: "10"
 
     # Pin to the pre-provisioned reserved IP from Terraform output ingress_reserved_ip
     oci.oraclecloud.com/oci-load-balancer-public-ip: "84.8.144.240"
 spec:
   type: LoadBalancer
 ```
+
+> **Alternatively**, set these defaults once in the CCM `cloud-config` so every
+> `LoadBalancer` Service inherits them without per-Service annotations:
+>
+> ```yaml
+> loadBalancer:
+>   shape: "flexible"
+>   flexShapeMinMbps: 10
+>   flexShapeMaxMbps: 10
+> ```
 
 ### OCI CCM requirements
 
@@ -174,13 +190,12 @@ custom script. The pattern above is the standard approach.
 
 ```text
 Terraform manages:
-  ├── ingress_reserved_ip   → pre-provisioned, claimed by OCI CCM at K8s service creation
-  ├── bastion_reserved_ip   → permanently assigned to micro-instance-1 (bastion)
-  └── proxmox_vip_ip        → floating IP, moved by Proxmox HA hook on failover
+  ├── ampere-instance-{1..4}-ip  → one reserved IP per Ampere node
+  └── ingress_reserved_ip        → optional; pre-provisioned for OCI CCM to claim
 
-OCI CCM manages:
-  └── OCI Load Balancer     → created/deleted with K8s Service, uses ingress_reserved_ip
+OCI CCM manages (if installed):
+  └── OCI Load Balancer          → created/deleted with K8s Service, uses ingress_reserved_ip
 
-Proxmox HA manages:
-  └── VM migration + hook   → reassigns proxmox_vip_ip to active node on failover
+Proxmox HA manages (if applicable):
+  └── VM migration + hook        → reassigns a floating reserved IP to active node on failover
 ```
