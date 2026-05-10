@@ -1,6 +1,6 @@
 # OCI Always Free Resources — Complete Reference
 
-> Last verified: March 2026 against OCI service limits documentation and API.
+> Last verified: May 2026 against OCI service limits documentation, API, and empirical billing data.
 > Covers two OCI account types with different Always Free behaviours.
 
 ---
@@ -16,7 +16,7 @@ differences in how some limits are applied:
 | E2.1.Micro (x86 bastion) | ✅ Available (up to 2) | ✅ Available (up to 2) |
 | A1.Flex OCPU granularity | Integer (1, 2, 3…) | Integer (1, 2, 3…) |
 | A1.Flex total allowance | 4 OCPUs / 24 GB RAM | 4 OCPUs / 24 GB RAM |
-| Load Balancer (10 Mbps) | ✅ 1 × Always Free | ✅ 1 × Always Free |
+| Load Balancer (10 Mbps) | ✅ 1 × Always Free | ⚠️ 1 × nominally free — verify billing |
 | Network Load Balancer | ✅ 1 × Always Free | ✅ 1 × Always Free |
 | Block Storage | 200 GB total | 200 GB total |
 | Object Storage | 20 GB | 20 GB |
@@ -69,17 +69,20 @@ differences in how some limits are applied:
 |-------|-------|--------|
 | Total free storage | **200 GB** total per tenancy | `total-free-storage-gb` = "Free Volume Size (GB)" |
 | Free backups | **5** | `free-backup-count` = "Free Backup Counts" |
-| Minimum boot volume | 47 GB per instance | OCI minimum |
+| Minimum boot volume | 50 GB per instance | OCI enforces 50 GB in practice (API docs say 47 GB) |
 
 **Storage planning** (boot volumes count toward the 200 GB total):
 
 | Config | Boot volumes | Remaining for data |
 |--------|-------------|-------------------|
-| 4 × A1.Flex + 2 × Micro | 4×47 + 2×47 = 282 GB | ❌ exceeds 200 GB |
-| 4 × A1.Flex only | 4×47 = 188 GB | 12 GB data |
+| 4 × A1.Flex + 1 × Micro | 4×50 + 50 = 250 GB | ❌ 50 GB over free tier |
+| 4 × A1.Flex only | 4×50 = 200 GB | ✅ exactly at limit |
 | 3 × A1.Flex only | 3×50 = 150 GB | 50 GB data |
-| 2 × A1.Flex + 1 × Micro | 2×47 + 47 = 141 GB | 59 GB data |
+| 2 × A1.Flex + 1 × Micro | 2×50 + 50 = 150 GB | 50 GB data |
 
+> **Real-world note (May 2026):** Running 4×A1.Flex + 1×Micro hit 250 GB total — 50 GB over
+> the free tier. The Micro's 50 GB boot volume was the unavoidable overage (~£0.07/day).
+> The Micro was subsequently terminated, returning storage to exactly 200 GB.
 > Boot volumes are included in the 200 GB total. Plan storage allocations carefully.
 
 ### Object Storage
@@ -101,14 +104,22 @@ differences in how some limits are applied:
 
 | Type | Free? | API identifier | Notes |
 |------|-------|----------------|-------|
-| **Flexible LB (10 Mbps)** | ✅ **Always Free** | `lb-10mbps-micro-count` | 1 instance, L4+L7 |
+| **Flexible LB (10/10 Mbps)** | ⚠️ **Nominally free — verify** | `lb-10mbps-micro-count` | 1 instance, L4+L7 |
 | Flexible LB (>10 Mbps) | ❌ Paid | `lb-flexible-count` | Pay by bandwidth |
 | **Network LB** | ✅ **Always Free** | `max-nlb-flexible-count` | 1 instance, L4 only |
 
-> **Kubernetes (OCI CCM)**: To provision the free 10 Mbps LB instead of a paid
-> flexible LB, annotate your Service with
-> `service.beta.kubernetes.io/oci-load-balancer-shape: "10Mbps"`.
-> Without this annotation the CCM defaults to a paid flexible shape.
+> **Kubernetes (OCI CCM)**: To stay within the free-tier bandwidth, annotate your
+> Service with all three of:
+> `service.beta.kubernetes.io/oci-load-balancer-shape: "flexible"`,
+> `service.beta.kubernetes.io/oci-load-balancer-shape-flex-min: "10"`,
+> `service.beta.kubernetes.io/oci-load-balancer-shape-flex-max: "10"`.
+> Without these, the CCM defaults to a flexible LB with 100 Mbps max, which is paid.
+> Prefer setting `loadBalancer.shape/flexShapeMinMbps/flexShapeMaxMbps` in the CCM
+> `cloud-config` so every Service inherits the defaults.
+>
+> **Billing caveat (May 2026):** A flexible 10/10 Mbps LB on a PAYG tenancy was observed
+> billing ~£0.24/day despite nominally qualifying for the Always Free allowance. Monitor
+> costs for 48–72 hours after creating any LB and delete it if charges appear.
 
 ### Public IP Addresses
 
@@ -166,4 +177,4 @@ differences in how some limits are applied:
 
 ---
 
-**Last verified:** March 2026 — OCI service limits documentation and API
+**Last verified:** May 2026 — OCI service limits documentation, API, and empirical billing data
