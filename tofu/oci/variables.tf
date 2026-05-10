@@ -221,12 +221,12 @@ variable "existing_subnet_ocid" {
 }
 
 variable "load_balancer" {
-  description = "Load balancer configuration. null = no LB created. {} = free-tier 10 Mbps LB. Defaults to the free 10 Mbps LB."
+  description = "Load balancer configuration. null = no LB (default). {} = free-tier 10/10 Mbps flexible LB."
   type = object({
     shape          = optional(string, "flexible")
     bandwidth_mbps = optional(number, 10)
   })
-  default = {}
+  default = null
 }
 
 # ---------------------------------------------------------------------------
