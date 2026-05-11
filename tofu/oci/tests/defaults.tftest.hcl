@@ -186,6 +186,11 @@ run "default_resource_counts" {
     condition     = length(oci_core_instance.micro_instance) == 0
     error_message = "Expected 0 micro instances, got ${length(oci_core_instance.micro_instance)}"
   }
+
+  assert {
+    condition     = length(oci_core_public_ip.ingress) == 0
+    error_message = "Expected 0 ingress reserved IPs by default, got ${length(oci_core_public_ip.ingress)}"
+  }
 }
 
 # --- Micro instance always receives cloud-init user_data ---
