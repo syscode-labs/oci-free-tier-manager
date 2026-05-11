@@ -135,9 +135,9 @@ variable "create_budget" {
 }
 
 variable "create_ingress_ip" {
-  description = "Create a reserved public IP for the Kubernetes ingress controller. Set to false for non-k8s deployments to avoid consuming reserved IP quota."
+  description = "Create a reserved public IP for the Kubernetes ingress controller. Set true only when a Kubernetes ingress reserved IP is required."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "ssh_public_key" {
