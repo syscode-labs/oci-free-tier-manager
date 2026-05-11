@@ -35,7 +35,7 @@ Recommended for Talos/K8s workloads. Terraform holds only the reserved IP; the L
 load_balancer = null   # CCM manages the LB, not Terraform
 ```
 
-The `k8s-ingress-ip` reserved IP remains in Terraform so it survives cluster rebuilds.
+Set `create_ingress_ip = true` to pre-provision `k8s-ingress-ip` in Terraform so it survives cluster rebuilds.
 
 ### K8s Service annotation
 
@@ -77,7 +77,7 @@ spec:
 ### IP lifecycle
 
 ```text
-Terraform apply  →  reserved IP created (84.8.144.240), unassigned
+Terraform apply with create_ingress_ip = true  →  reserved IP created (84.8.144.240), unassigned
 K8s Service created  →  CCM creates OCI LB, claims 84.8.144.240
 K8s Service deleted  →  CCM deletes OCI LB, IP reverts to unassigned (still in TF state)
 terraform destroy  →  reserved IP deleted
