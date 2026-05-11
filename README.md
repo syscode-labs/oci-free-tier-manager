@@ -48,6 +48,9 @@ omni_ready       = true
 talos_image_ocid = "ocid1.image.oc1..."   # auto-fetched from oci-talos-gitops-apps in CI
 omni_endpoint    = "omni.example.com:8090"
 omni_join_token  = "..."                  # or pass via -var / TF_VAR_omni_join_token
+
+# Optional K8s ingress reserved IP (default: disabled)
+create_ingress_ip = true
 ```
 
 ### Deploy
