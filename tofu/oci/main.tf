@@ -278,8 +278,8 @@ resource "oci_core_instance" "ampere_instance" {
 # ensuring the new credentials are baked into user_data on the next boot.
 resource "terraform_data" "omni_credentials" {
   input = {
-    join_token_hash = sha256(coalesce(var.omni_join_token, ""))
-    ts_key_hash     = sha256(coalesce(var.tailscale_auth_key, ""))
+    join_token_hash = sha256(var.omni_join_token != null ? var.omni_join_token : "")
+    ts_key_hash     = sha256(var.tailscale_auth_key != null ? var.tailscale_auth_key : "")
   }
 }
 

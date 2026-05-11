@@ -11,8 +11,8 @@
 # Defaults
 #
 # This module enforces OCI free-tier limits regardless of account type:
-#   3 × A1.Flex (1 OCPU / 8 GB / 50 GB) + 1 × Micro (50 GB)
-#   Total: 3 OCPUs, 24 GB RAM, 200 GB storage
+#   3 x A1.Flex (1 OCPU / 8 GB / 50 GB)
+#   Total: 3 OCPUs, 24 GB RAM, 150 GB storage
 #
 # OCPUs are integer-only (API min=1, step=1).
 # ---------------------------------------------------------------------------
@@ -22,7 +22,6 @@ locals {
     ampere_memory_gb   = 8
     ampere_boot_vol_gb = 50
     ampere_count       = 3
-    micro_count        = 1
     micro_boot_vol_gb  = 50
   }
 }
@@ -56,16 +55,11 @@ locals {
 # ---------------------------------------------------------------------------
 # Resolved Micro node list
 #
-# If micro_nodes is null, generate 1 default micro node.
+# If micro_nodes is null, generate no micro nodes.
 # If micro_nodes is set (including []), use that list as-is.
 # ---------------------------------------------------------------------------
 locals {
-  _default_micro_nodes = [
-    for i in range(local._tier_defaults.micro_count) : {
-      boot_vol_gb = local._tier_defaults.micro_boot_vol_gb
-      name        = "micro-instance-${i + 1}"
-    }
-  ]
+  _default_micro_nodes = []
 
   _micro_nodes = var.micro_nodes != null ? [
     for i, n in var.micro_nodes : {

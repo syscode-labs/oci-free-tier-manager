@@ -17,7 +17,7 @@
  *   > 4  → PAYG account (same free tier, but can exceed limits for a fee)
  *
  * All node/LB fields are optional — omit any field to use defaults:
- *   3 × A1.Flex (1 OCPU / 8 GB / 50 GB) + 1 × Micro (50 GB)
+ *   3 x A1.Flex (1 OCPU / 8 GB / 50 GB); E2.1.Micro is opt-in
  *
  * Override examples:
  *
@@ -176,13 +176,13 @@ variable "ampere_nodes" {
 # E2.1.Micro nodes (x86, AMD)
 #
 # Available on all OCI account types (up to 2 free instances).
-# If null (default), 1 micro node is created automatically.
-# Set to [] to suppress micro nodes entirely.
+# If null (default), no micro nodes are created.
+# Set to a non-empty list to create E2.1.Micro instances explicitly.
 #
 # Each E2.1.Micro instance has: 1/8 OCPU, 1 GB RAM (fixed, not configurable).
 # ---------------------------------------------------------------------------
 variable "micro_nodes" {
-  description = "E2.1.Micro node configurations. null = 1 node (default). [] = no micro nodes."
+  description = "E2.1.Micro node configurations. null or [] = no micro nodes; set a non-empty list to create them."
   type = list(object({
     boot_vol_gb = optional(number)
     name        = optional(string)

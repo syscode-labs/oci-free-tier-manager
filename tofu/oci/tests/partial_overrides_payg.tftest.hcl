@@ -120,7 +120,7 @@ run "payg_two_nodes_2ocpu_12gb" {
       { name = "k8s-cp", ocpus = 2, memory_gb = 12, boot_vol_gb = 100 },
       { name = "k8s-w1", ocpus = 2, memory_gb = 12, boot_vol_gb = 100 },
     ]
-    micro_nodes = [] # suppress default micro to keep storage at 200 GB
+    micro_nodes = [] # no micro nodes; keep storage at 200 GB
   }
 
   assert {
@@ -169,7 +169,7 @@ run "payg_override_boot_vol_only" {
       { boot_vol_gb = 100 },
       { boot_vol_gb = 100 },
     ]
-    micro_nodes = [] # suppress default micro to keep storage at 200 GB
+    micro_nodes = [] # no micro nodes; keep storage at 200 GB
   }
 
   assert {
