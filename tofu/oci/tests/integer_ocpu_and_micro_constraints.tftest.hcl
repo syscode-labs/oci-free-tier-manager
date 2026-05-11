@@ -168,7 +168,7 @@ run "valid_ocpu_combinations" {
       { ocpus = 1, memory_gb = 6 },
       { ocpus = 1, memory_gb = 6 },
     ]
-    micro_nodes = [] # suppress default micro to stay within storage budget
+    micro_nodes = [] # no micro nodes; stay within storage budget
   }
 
   assert {
@@ -232,19 +232,19 @@ run "empty_micro_list_passes" {
   }
 }
 
-# micro_nodes = null (default) → auto-1 → must pass
-run "null_micro_defaults_to_one" {
+# micro_nodes = null (default) -> no micro nodes
+run "null_micro_defaults_to_zero" {
   command = plan
 
   variables {
     ampere_nodes = [
       { ocpus = 1, memory_gb = 6 },
     ]
-    micro_nodes = null # null → tier default (1 micro node)
+    micro_nodes = null # null -> no micro nodes by default
   }
 
   assert {
-    condition     = length(local._micro_nodes) == 1
-    error_message = "Expected micro_nodes to default to 1 on PAYG"
+    condition     = length(local._micro_nodes) == 0
+    error_message = "Expected micro_nodes to default to 0 on PAYG"
   }
 }

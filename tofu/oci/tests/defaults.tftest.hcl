@@ -1,8 +1,8 @@
 # Test: Default configuration
 #
 # Verifies the out-of-the-box defaults when no node variables are set:
-#   3 × A1.Flex (1 OCPU / 8 GB / 50 GB) + 1 × Micro (50 GB)
-#   Total: 3 OCPUs, 24 GB RAM, 200 GB storage
+#   3 x A1.Flex (1 OCPU / 8 GB / 50 GB)
+#   Total: 3 OCPUs, 24 GB RAM, 150 GB storage
 #
 # All budget checks must pass.
 
@@ -83,7 +83,7 @@ variables {
   micro_nodes  = null
 }
 
-# --- Default node counts: 3 Ampere + 1 Micro ---
+# --- Default node counts: 3 Ampere + 0 Micro ---
 run "default_node_counts" {
   command = plan
 
@@ -93,8 +93,8 @@ run "default_node_counts" {
   }
 
   assert {
-    condition     = length(local._micro_nodes) == 1
-    error_message = "Expected 1 Micro node by default, got ${length(local._micro_nodes)}"
+    condition     = length(local._micro_nodes) == 0
+    error_message = "Expected 0 Micro nodes by default, got ${length(local._micro_nodes)}"
   }
 }
 
@@ -138,8 +138,8 @@ run "default_totals" {
   }
 
   assert {
-    condition     = local.total_storage_gb == 200
-    error_message = "Expected total storage of 200 GB (3 × 50 GB + 1 × 50 GB), got ${local.total_storage_gb}"
+    condition     = local.total_storage_gb == 150
+    error_message = "Expected total storage of 150 GB (3 x 50 GB, no default micro), got ${local.total_storage_gb}"
   }
 }
 
@@ -171,14 +171,9 @@ run "default_names" {
     condition     = local._ampere_nodes[0].name == "ampere-instance-1"
     error_message = "Expected name 'ampere-instance-1', got '${local._ampere_nodes[0].name}'"
   }
-
-  assert {
-    condition     = local._micro_nodes[0].name == "micro-instance-1"
-    error_message = "Expected name 'micro-instance-1', got '${local._micro_nodes[0].name}'"
-  }
 }
 
-# --- Resource count: 3 Ampere instances + 1 Micro instance planned ---
+# --- Resource count: 3 Ampere instances + 0 Micro instances planned ---
 run "default_resource_counts" {
   command = plan
 
@@ -188,14 +183,18 @@ run "default_resource_counts" {
   }
 
   assert {
-    condition     = length(oci_core_instance.micro_instance) == 1
-    error_message = "Expected 1 micro instance, got ${length(oci_core_instance.micro_instance)}"
+    condition     = length(oci_core_instance.micro_instance) == 0
+    error_message = "Expected 0 micro instances, got ${length(oci_core_instance.micro_instance)}"
   }
 }
 
 # --- Micro instance always receives cloud-init user_data ---
 run "micro_has_user_data" {
   command = plan
+
+  variables {
+    micro_nodes = [{}]
+  }
 
   assert {
     condition     = oci_core_instance.micro_instance[0].metadata["user_data"] != null
@@ -207,6 +206,10 @@ run "micro_has_user_data" {
 run "micro_user_data_is_base64" {
   command = plan
 
+  variables {
+    micro_nodes = [{}]
+  }
+
   assert {
     condition     = can(base64decode(oci_core_instance.micro_instance[0].metadata["user_data"]))
     error_message = "Micro user_data must be valid base64"
@@ -216,6 +219,10 @@ run "micro_user_data_is_base64" {
 # --- Micro user_data decodes to a cloud-config document ---
 run "micro_user_data_is_cloud_config" {
   command = plan
+
+  variables {
+    micro_nodes = [{}]
+  }
 
   assert {
     condition     = startswith(base64decode(oci_core_instance.micro_instance[0].metadata["user_data"]), "#cloud-config")

@@ -268,7 +268,7 @@ run "storage_budget_exactly_200gb_passes" {
       { ocpus = 1, memory_gb = 6, boot_vol_gb = 50 },
       { ocpus = 1, memory_gb = 6, boot_vol_gb = 50 },
     ]
-    micro_nodes = [] # suppress default micro to keep total at exactly 200 GB
+    micro_nodes = [] # no micro nodes; keep total at exactly 200 GB
   }
 
   assert {

@@ -5,7 +5,8 @@
 [![OpenTofu](https://img.shields.io/badge/OpenTofu-1.11-844FBA?logo=terraform)](https://opentofu.org/)
 [![OCI Free Tier](https://img.shields.io/badge/OCI-Always%20Free-F80000?logo=oracle)](https://www.oracle.com/cloud/free/)
 
-OpenTofu infrastructure for OCI Always Free tier — provisions 4× Ampere A1.Flex (ARM64) + 1× Micro instance.
+OpenTofu infrastructure for OCI Always Free tier - provisions Ampere A1.Flex
+(ARM64) by default, with E2.1.Micro instances opt-in via `micro_nodes`.
 
 Supports two modes via the `omni_ready` toggle:
 
@@ -101,7 +102,8 @@ automatically. For manual deployments:
 200 GB includes all boot volumes. Example allocations:
 
 - 4× Ampere at 47 GB = 188 GB (leaves 12 GB)
-- 3× Ampere + 1× Micro at 50 GB = 200 GB (maxed)
+- 3x Ampere at 50 GB = 150 GB (default)
+- 3x Ampere + 1x Micro at 50 GB = 200 GB (maxed; opt in with `micro_nodes = [{}]`)
 
 ## Related Repositories
 

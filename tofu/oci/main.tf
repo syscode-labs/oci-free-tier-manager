@@ -260,7 +260,7 @@ resource "oci_core_instance" "ampere_instance" {
     # user_data: Talos MachineConfig for omni_ready mode (null = omit for Ubuntu)
     var.omni_ready ? { user_data = base64encode(local._ampere_user_data) } : {},
     # ssh_authorized_keys: Ubuntu cloud-init only (Talos ignores this)
-    !var.omni_ready && var.ssh_public_key != null ? { ssh_authorized_keys = var.ssh_public_key } : {},
+    ! var.omni_ready && var.ssh_public_key != null ? { ssh_authorized_keys = var.ssh_public_key } : {},
   )
 
   lifecycle {
@@ -278,8 +278,8 @@ resource "oci_core_instance" "ampere_instance" {
 # ensuring the new credentials are baked into user_data on the next boot.
 resource "terraform_data" "omni_credentials" {
   input = {
-    join_token_hash = sha256(coalesce(var.omni_join_token, ""))
-    ts_key_hash     = sha256(coalesce(var.tailscale_auth_key, ""))
+    join_token_hash = sha256(var.omni_join_token != null ? var.omni_join_token : "")
+    ts_key_hash     = sha256(var.tailscale_auth_key != null ? var.tailscale_auth_key : "")
   }
 }
 
