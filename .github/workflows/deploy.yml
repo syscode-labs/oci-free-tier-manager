@@ -99,8 +99,12 @@ jobs:
             | awk -F'=' '{s+=int($2)} END {print s+0}')
           REQUESTED_MICRO=$(grep -c 'micro_nodes' tofu/oci/terraform.tfvars || echo 0)
 
-          MAX_AMPERE_OCPUS=4
-          MAX_AMPERE_RAM_GB=24
+          # OCI cut the Always Free Ampere A1 allowance to 2 OCPU / 12 GB (2 instances).
+          # Verified against OCI docs + service limits on 2026-06-14, see
+          # FREE_TIER_RESOURCES.md. Both Always Free and PAYG-with-Always-Free accounts
+          # get the same 2/12 free grant. The old 4/24 figure is retired.
+          MAX_AMPERE_OCPUS=2
+          MAX_AMPERE_RAM_GB=12
           MAX_MICRO_INSTANCES=1
 
           echo "A1 live: ${CURRENT_OCPUS}/${MAX_AMPERE_OCPUS} OCPU, ${CURRENT_RAM}/${MAX_AMPERE_RAM_GB} GB"
