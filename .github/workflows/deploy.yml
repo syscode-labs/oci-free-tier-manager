@@ -171,6 +171,21 @@ jobs:
           NODES_TAILSCALE_AUTHKEY: ${{ secrets.NODES_TAILSCALE_AUTHKEY }}
           TF_LOG: WARN
 
+      - name: Reject destructive plan
+        working-directory: tofu/oci
+        run: |
+          tofu show -json tfplan \
+            | jq -r '.resource_changes[]
+              | select(.change.actions | index("delete"))
+              | "\(.address)\t\(.change.actions | join(","))"' \
+            > destructive-changes.txt
+
+          if [ -s destructive-changes.txt ]; then
+            echo "ERROR: plan contains destructive changes; refusing to upload/apply tfplan."
+            cat destructive-changes.txt
+            exit 1
+          fi
+
       - name: Upload plan
         uses: actions/upload-artifact@v4
         with:
