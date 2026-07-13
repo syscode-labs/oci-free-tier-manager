@@ -6,8 +6,9 @@
  * cause test failures unless the test uses `expect_failures`.
  *
  * Budget limits:
- *   Total Ampere OCPUs  ≤ 4
- *   Total Ampere RAM    ≤ 24 GB
+ *   Total Ampere instances ≤ 2
+ *   Total Ampere OCPUs  ≤ 2
+ *   Total Ampere RAM    ≤ 12 GB
  *   Total boot storage  ≤ 200 GB (ampere + micro combined)
  *
  * OCPU constraint (all account types):
@@ -23,15 +24,22 @@
 
 check "ocpu_budget" {
   assert {
-    condition     = local.total_ocpus <= 4
-    error_message = "Total Ampere OCPUs (${local.total_ocpus}) exceeds free tier limit of 4. Reduce node count or OCPUs per node."
+    condition     = local.total_ocpus <= 2
+    error_message = "Total Ampere OCPUs (${local.total_ocpus}) exceeds free tier limit of 2. Reduce node count or OCPUs per node."
   }
 }
 
 check "ram_budget" {
   assert {
-    condition     = local.total_ram_gb <= 24
-    error_message = "Total Ampere RAM (${local.total_ram_gb} GB) exceeds free tier limit of 24 GB. Reduce node count or memory_gb per node."
+    condition     = local.total_ram_gb <= 12
+    error_message = "Total Ampere RAM (${local.total_ram_gb} GB) exceeds free tier limit of 12 GB. Reduce node count or memory_gb per node."
+  }
+}
+
+check "ampere_instance_budget" {
+  assert {
+    condition     = length(local._ampere_nodes) <= 2
+    error_message = "Ampere instance count (${length(local._ampere_nodes)}) exceeds free tier limit of 2. Reduce ampere_nodes."
   }
 }
 
@@ -101,7 +109,7 @@ check "omni_ready_requires_join_token" {
 check "omni_ready_requires_tailscale_key" {
   assert {
     condition     = !var.omni_ready || var.tailscale_auth_key != null
-    error_message = "omni_ready = true requires tailscale_auth_key with tag:oci applied."
+    error_message = "omni_ready = true requires NODES_TAILSCALE_AUTHKEY with tag:talos applied."
   }
 }
 
