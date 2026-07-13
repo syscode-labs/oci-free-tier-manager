@@ -11,17 +11,17 @@
 # Defaults
 #
 # This module enforces OCI free-tier limits regardless of account type:
-#   3 x A1.Flex (1 OCPU / 8 GB / 50 GB)
-#   Total: 3 OCPUs, 24 GB RAM, 150 GB storage
+#   2 x A1.Flex (1 OCPU / 6 GB / 50 GB)
+#   Total: 2 OCPUs, 12 GB RAM, 100 GB storage
 #
 # OCPUs are integer-only (API min=1, step=1).
 # ---------------------------------------------------------------------------
 locals {
   _tier_defaults = {
     ampere_ocpus       = 1
-    ampere_memory_gb   = 8
+    ampere_memory_gb   = 6
     ampere_boot_vol_gb = 50
-    ampere_count       = 3
+    ampere_count       = 2
     micro_boot_vol_gb  = 50
   }
 }
@@ -116,14 +116,15 @@ locals {
 }
 
 locals {
-  # When omni_ready = true: use the imported Talos+Tailscale image.
-  # When omni_ready = false: use latest Ubuntu 22.04 from the data source.
-  ampere_image_id = var.omni_ready ? var.talos_image_ocid : data.oci_core_images.ampere_images.images[0].id
+  # If talos_image_ocid is set, boot Talos. If omni_ready is also true,
+  # metadata below enrolls the node into Omni. Without talos_image_ocid,
+  # use latest Ubuntu 22.04 from the data source.
+  ampere_image_id = var.talos_image_ocid != null ? var.talos_image_ocid : data.oci_core_images.ampere_images.images[0].id
   micro_image_id  = data.oci_core_images.micro_images.images[0].id
 }
 
 # ---------------------------------------------------------------------------
-# Talos MachineConfig user_data (omni_ready = true only)
+# Talos MachineConfig user_data
 #
 # Multi-document YAML consumed by Talos on first boot:
 #   SideroLinkConfig  — connects node to Omni via WireGuard
@@ -139,20 +140,28 @@ locals {
   _omni_endpoint      = var.omni_endpoint != null ? var.omni_endpoint : ""
   _omni_join_token    = var.omni_join_token != null ? var.omni_join_token : ""
   _tailscale_auth_key = var.tailscale_auth_key != null ? var.tailscale_auth_key : ""
+  _omni_api_url       = can(regex("^[a-z][a-z0-9+.-]*://", local._omni_endpoint)) ? local._omni_endpoint : "grpc://${local._omni_endpoint}"
 
-  _ampere_user_data = var.omni_ready ? join("\n", [
+  _siderolink_user_data = var.omni_ready ? [
     "---",
     "apiVersion: v1alpha1",
     "kind: SideroLinkConfig",
-    "apiUrl: \"grpc://${local._omni_endpoint}?jointoken=${local._omni_join_token}\"",
+    "apiUrl: \"${local._omni_api_url}?jointoken=${local._omni_join_token}\"",
+  ] : []
+
+  _tailscale_user_data = var.tailscale_auth_key != null ? [
     "---",
     "apiVersion: v1alpha1",
     "kind: ExtensionServiceConfig",
     "name: tailscale",
     "environment:",
     "  - TS_AUTHKEY=${local._tailscale_auth_key}",
+  ] : []
+
+  _ampere_user_data_parts = concat(local._siderolink_user_data, local._tailscale_user_data)
+  _ampere_user_data = length(local._ampere_user_data_parts) > 0 ? join("\n", concat(local._ampere_user_data_parts, [
     "",
-  ]) : null
+  ])) : null
 
   # cert-hub bootstrap — Docker install, DNS stub disable, daemon DNS fix.
   # Source of truth: syscode-cert-hub/scripts/cloud-init.yaml (kept in sync manually).

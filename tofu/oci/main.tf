@@ -4,7 +4,7 @@
  * This Terraform configuration provisions resources within Oracle Cloud Infrastructure's
  * Always Free tier limits. It includes:
  * - VCN and networking components
- * - Ampere A1 compute instances (up to 4 OCPUs, 24GB RAM total)
+ * - Ampere A1 compute instances (up to 2 instances, 2 OCPUs, 12GB RAM total)
  * - AMD E2.1.Micro instances (up to 2 instances, Always Free accounts only)
  * - Block storage (up to 200GB total including boot volumes)
  * - Optional 10 Mbps load balancer (free on both account types)
@@ -105,8 +105,11 @@ resource "oci_core_vcn" "free_tier_vcn" {
   count          = var.existing_subnet_ocid == null ? 1 : 0
   compartment_id = local.compartment_id
   display_name   = "free-tier-vcn"
-  cidr_blocks    = ["10.0.0.0/16"]
-  dns_label      = "freetier"
+  # Appending the secondary block is an in-place AddVcnCidr update. The primary
+  # 10.0.0.0/16 stays first and unchanged — never renumber it (recreates the
+  # subnet + Ampere instances). See vpn.tf for the non-destructive contract.
+  cidr_blocks = var.enable_oci_vpn ? ["10.0.0.0/16", var.vpn_vcn_secondary_cidr] : ["10.0.0.0/16"]
+  dns_label   = "freetier"
 }
 
 # Internet Gateway
@@ -257,10 +260,10 @@ resource "oci_core_instance" "ampere_instance" {
   }
 
   metadata = merge(
-    # user_data: Talos MachineConfig for omni_ready mode (null = omit for Ubuntu)
-    var.omni_ready ? { user_data = base64encode(local._ampere_user_data) } : {},
+    # user_data: Talos MachineConfig fragments (null = omit for plain Ubuntu/bare Talos)
+    local._ampere_user_data != null ? { user_data = base64encode(local._ampere_user_data) } : {},
     # ssh_authorized_keys: Ubuntu cloud-init only (Talos ignores this)
-    !var.omni_ready && var.ssh_public_key != null ? { ssh_authorized_keys = var.ssh_public_key } : {},
+    var.talos_image_ocid == null && var.ssh_public_key != null ? { ssh_authorized_keys = var.ssh_public_key } : {},
   )
 
   lifecycle {

@@ -47,8 +47,8 @@ budget_alert_email = "your-email@example.com"
 #      Store as GitHub secret OMNI_JOIN_TOKEN.
 #
 #   3. Create Tailscale auth key at admin.tailscale.com:
-#      - Reusable, tag: tag:oci
-#      Store as GitHub secret TAILSCALE_AUTH_KEY.
+#      - Reusable, tag: tag:talos
+#      Store as GitHub secret NODES_TAILSCALE_AUTHKEY.
 #
 # After provisioning, label nodes in Omni then apply the cluster template:
 #   omnictl machine set-labels <id> role=oci-cp    # x3
@@ -59,7 +59,7 @@ omni_ready       = true
 talos_image_ocid = "ocid1.image.oc1.uk-london-1.aaaaaaaa..."
 omni_endpoint    = "omni.example.com:8090"
 # omni_join_token and tailscale_auth_key are passed via CI secrets or -var flags:
-#   tofu apply -var="omni_join_token=$OMNI_JOIN_TOKEN" -var="tailscale_auth_key=$TAILSCALE_AUTH_KEY"
+#   tofu apply -var="omni_join_token=$OMNI_JOIN_TOKEN" -var="tailscale_auth_key=$NODES_TAILSCALE_AUTHKEY"
 
 ampere_nodes = [
   { name = "oci-talos-cp-1",     ocpus = 1, memory_gb = 6, boot_vol_gb = 50 },

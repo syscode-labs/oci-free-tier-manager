@@ -153,8 +153,10 @@ jobs:
             -var="talos_image_ocid=${{ steps.talos_image.outputs.ocid }}" \
             -var="omni_join_token=$OMNI_JOIN_TOKEN" \
             -var="omni_endpoint=$OMNI_ENDPOINT" \
-            -var="tailscale_auth_key=$TAILSCALE_AUTH_KEY" \
+            -var="tailscale_auth_key=$NODES_TAILSCALE_AUTHKEY" \
             -var="oci_config_profile=DEFAULT" \
+            -var="enable_oci_vpn=true" \
+            -var="openwrt_resolver_ip=10.10.210.1" \
             -var-file=terraform.tfvars \
             -out=tfplan
         env:
@@ -162,7 +164,7 @@ jobs:
           OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
           OMNI_JOIN_TOKEN: ${{ secrets.OMNI_JOIN_TOKEN }}
           OMNI_ENDPOINT: ${{ secrets.OMNI_ENDPOINT }}
-          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          NODES_TAILSCALE_AUTHKEY: ${{ secrets.NODES_TAILSCALE_AUTHKEY }}
           TF_LOG: WARN
 
       - name: Upload plan
