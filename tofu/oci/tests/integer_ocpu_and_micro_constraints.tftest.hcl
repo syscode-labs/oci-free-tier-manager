@@ -91,8 +91,6 @@ run "integer_ocpu_enforced" {
   variables {
     ampere_nodes = [
       { ocpus = 1.33, memory_gb = 8 },
-      { ocpus = 1.33, memory_gb = 8 },
-      { ocpus = 1.33, memory_gb = 8 },
     ]
   }
 
@@ -105,7 +103,6 @@ run "fractional_ocpu_1_5" {
 
   variables {
     ampere_nodes = [
-      { ocpus = 1.5, memory_gb = 6 },
       { ocpus = 1.5, memory_gb = 6 },
     ]
   }
@@ -132,8 +129,8 @@ run "mixed_fractional_ocpus" {
 
   variables {
     ampere_nodes = [
-      { ocpus = 2, memory_gb = 12 },   # integer — ok
-      { ocpus = 1.33, memory_gb = 8 }, # fractional — fails
+      { ocpus = 1, memory_gb = 6 },   # integer — ok
+      { ocpus = 0.5, memory_gb = 6 }, # fractional — fails
     ]
   }
 
@@ -146,8 +143,8 @@ run "integer_ocpus_pass" {
 
   variables {
     ampere_nodes = [
-      { ocpus = 2, memory_gb = 12 },
-      { ocpus = 2, memory_gb = 12 },
+      { ocpus = 1, memory_gb = 6 },
+      { ocpus = 1, memory_gb = 6 },
     ]
   }
 
@@ -157,7 +154,7 @@ run "integer_ocpus_pass" {
   }
 }
 
-# All valid integer values: 1, 2, 3, 4 per node
+# Valid Always Free integer OCPU combination
 run "valid_ocpu_combinations" {
   command = plan
 
@@ -165,15 +162,13 @@ run "valid_ocpu_combinations" {
     ampere_nodes = [
       { ocpus = 1, memory_gb = 6 },
       { ocpus = 1, memory_gb = 6 },
-      { ocpus = 1, memory_gb = 6 },
-      { ocpus = 1, memory_gb = 6 },
     ]
     micro_nodes = [] # no micro nodes; stay within storage budget
   }
 
   assert {
-    condition     = local.total_ocpus == 4
-    error_message = "Expected 4 total OCPUs"
+    condition     = local.total_ocpus == 2
+    error_message = "Expected 2 total OCPUs"
   }
 }
 

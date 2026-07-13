@@ -10,7 +10,7 @@
 **OCI Free Tier Manager** - Production-ready Kubernetes on Oracle Cloud's Always Free tier ($0 cost).
 
 - **Stack**: OpenTofu + Proxmox VE + Talos Linux + Flux CD
-- **Compute**: 3× Ampere A1 (ARM64, 4 OCPUs/24GB total) + 1× E2.1.Micro (x86, bastion)
+- **Compute**: Up to 2× Ampere A1 (ARM64, 2 OCPUs/12GB total) + up to 2× E2.1.Micro
 - **Architecture**: 3-layer OpenTofu (OCI → Proxmox → Talos K8s)
 - **GitOps**: Flux CD with SOPS-encrypted secrets
 - **Networking**: Tailscale mesh, Cilium CNI (kube-proxy-free)
@@ -174,11 +174,11 @@ tofu fmt && tofu validate && tflint && tfsec .
 variable "ampere_instance_count" {
   description = "Number of Ampere A1 instances (ARM64)"
   type        = number
-  default     = 3
-  
+  default     = 2
+
   validation {
-    condition     = var.ampere_instance_count >= 0 && var.ampere_instance_count <= 4
-    error_message = "Must be between 0 and 4 (free tier limit: 4 OCPUs total)."
+    condition     = var.ampere_instance_count >= 0 && var.ampere_instance_count <= 2
+    error_message = "Must be between 0 and 2 (Always Free A1 instance limit)."
   }
 }
 ```
@@ -318,7 +318,7 @@ See `tofu/oci/.tfsec.yml` and `.checkov.yml` for configurations.
 ## Free Tier Limits (NEVER EXCEED)
 
 ### Compute
-- **Ampere A1**: 4 OCPUs + 24GB RAM total (flexible distribution)
+- **Ampere A1**: Up to 2 instances, 2 OCPUs + 12GB RAM total (flexible distribution)
 - **E2.1.Micro**: 2 instances × 1/8 OCPU + 1GB RAM (fixed)
 
 ### Storage
@@ -340,8 +340,9 @@ Before deploying, verify:
 (ampere_count × ampere_boot_size) + (micro_count × micro_boot_size) ≤ 200GB
 
 # Total compute
-ampere_count × ampere_ocpus ≤ 4
-ampere_count × ampere_memory ≤ 24GB
+ampere_count ≤ 2
+ampere_count × ampere_ocpus ≤ 2
+ampere_count × ampere_memory ≤ 12GB
 micro_count ≤ 2
 ```
 

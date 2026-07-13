@@ -1,8 +1,8 @@
 # Test: Default configuration
 #
 # Verifies the out-of-the-box defaults when no node variables are set:
-#   3 x A1.Flex (1 OCPU / 8 GB / 50 GB)
-#   Total: 3 OCPUs, 24 GB RAM, 150 GB storage
+#   2 x A1.Flex (1 OCPU / 6 GB / 50 GB)
+#   Total: 2 OCPUs, 12 GB RAM, 100 GB storage
 #
 # All budget checks must pass.
 
@@ -83,13 +83,13 @@ variables {
   micro_nodes  = null
 }
 
-# --- Default node counts: 3 Ampere + 0 Micro ---
+# --- Default node counts: 2 Ampere + 0 Micro ---
 run "default_node_counts" {
   command = plan
 
   assert {
-    condition     = length(local._ampere_nodes) == 3
-    error_message = "Expected 3 Ampere nodes by default, got ${length(local._ampere_nodes)}"
+    condition     = length(local._ampere_nodes) == 2
+    error_message = "Expected 2 Ampere nodes by default, got ${length(local._ampere_nodes)}"
   }
 
   assert {
@@ -113,33 +113,33 @@ run "default_ocpus" {
   }
 }
 
-# --- Default RAM is 8 GB per node ---
+# --- Default RAM is 6 GB per node ---
 run "default_ram" {
   command = plan
 
   assert {
-    condition     = local._ampere_nodes[0].memory_gb == 8
-    error_message = "Expected 8 GB RAM per node, got ${local._ampere_nodes[0].memory_gb}"
+    condition     = local._ampere_nodes[0].memory_gb == 6
+    error_message = "Expected 6 GB RAM per node, got ${local._ampere_nodes[0].memory_gb}"
   }
 }
 
-# --- Totals: 3 OCPUs, 24 GB RAM, 200 GB storage ---
+# --- Totals: 2 OCPUs, 12 GB RAM, 100 GB storage ---
 run "default_totals" {
   command = plan
 
   assert {
-    condition     = local.total_ocpus == 3
-    error_message = "Expected total OCPUs of 3, got ${local.total_ocpus}"
+    condition     = local.total_ocpus == 2
+    error_message = "Expected total OCPUs of 2, got ${local.total_ocpus}"
   }
 
   assert {
-    condition     = local.total_ram_gb == 24
-    error_message = "Expected total RAM of 24 GB, got ${local.total_ram_gb}"
+    condition     = local.total_ram_gb == 12
+    error_message = "Expected total RAM of 12 GB, got ${local.total_ram_gb}"
   }
 
   assert {
-    condition     = local.total_storage_gb == 150
-    error_message = "Expected total storage of 150 GB (3 x 50 GB, no default micro), got ${local.total_storage_gb}"
+    condition     = local.total_storage_gb == 100
+    error_message = "Expected total storage of 100 GB (2 x 50 GB, no default micro), got ${local.total_storage_gb}"
   }
 }
 
@@ -148,13 +148,13 @@ run "default_within_budget" {
   command = plan
 
   assert {
-    condition     = local.total_ocpus <= 4
-    error_message = "Total OCPUs ${local.total_ocpus} exceeds 4"
+    condition     = local.total_ocpus <= 2
+    error_message = "Total OCPUs ${local.total_ocpus} exceeds 2"
   }
 
   assert {
-    condition     = local.total_ram_gb <= 24
-    error_message = "Total RAM ${local.total_ram_gb} GB exceeds 24 GB"
+    condition     = local.total_ram_gb <= 12
+    error_message = "Total RAM ${local.total_ram_gb} GB exceeds 12 GB"
   }
 
   assert {
@@ -173,13 +173,13 @@ run "default_names" {
   }
 }
 
-# --- Resource count: 3 Ampere instances + 0 Micro instances planned ---
+# --- Resource count: 2 Ampere instances + 0 Micro instances planned ---
 run "default_resource_counts" {
   command = plan
 
   assert {
-    condition     = length(oci_core_instance.ampere_instance) == 3
-    error_message = "Expected 3 Ampere instances, got ${length(oci_core_instance.ampere_instance)}"
+    condition     = length(oci_core_instance.ampere_instance) == 2
+    error_message = "Expected 2 Ampere instances, got ${length(oci_core_instance.ampere_instance)}"
   }
 
   assert {
