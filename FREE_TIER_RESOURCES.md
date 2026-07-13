@@ -1,6 +1,6 @@
 # OCI Always Free Resources — Complete Reference
 
-> Last verified: May 2026 against OCI service limits documentation, API, and empirical billing data.
+> Last verified: June 14, 2026 against OCI Always Free documentation, service limits, API, and empirical billing data.
 > Covers two OCI account types with different Always Free behaviours.
 
 ---
@@ -15,7 +15,7 @@ differences in how some limits are applied:
 | Account type | Dedicated free-tier account | Pay-as-you-go with free allowances |
 | E2.1.Micro (x86 bastion) | ✅ Available (up to 2) | ✅ Available (up to 2) |
 | A1.Flex OCPU granularity | Integer (1, 2, 3…) | Integer (1, 2, 3…) |
-| A1.Flex total allowance | 4 OCPUs / 24 GB RAM | 4 OCPUs / 24 GB RAM |
+| A1.Flex total allowance | 2 instances / 2 OCPUs / 12 GB RAM | 2 instances / 2 OCPUs / 12 GB RAM free |
 | Load Balancer (10 Mbps) | ✅ 1 × Always Free | ⚠️ 1 × nominally free — verify billing |
 | Network Load Balancer | ✅ 1 × Always Free | ✅ 1 × Always Free |
 | Block Storage | 200 GB total | 200 GB total |
@@ -35,20 +35,19 @@ differences in how some limits are applied:
 
 - **Shape**: `VM.Standard.A1.Flex`
 - **Billing type**: `LIMITED_FREE` — reported by OCI shape API
-- **Total allowance**: **4 OCPUs and 24 GB RAM** across all instances in the tenancy
-- **OCPU granularity**: Integer values only (1, 2, 3, 4)
+- **Total allowance**: Up to **2 instances, 2 OCPUs, and 12 GB RAM** across the tenancy
+- **Monthly allowance**: **1,500 OCPU-hours and 9,000 GB-hours**
+- **OCPU granularity**: Integer values only
 - **Architecture**: ARM64 (Ampere Altra)
 
 **Always Free configurations**:
 
 | Instances | OCPUs each | RAM each | Total OCPUs | Total RAM |
 |-----------|-----------|---------|------------|----------|
-| 4 | 1 | 6 GB | 4 | 24 GB ✅ |
-| 3 | 1 | 8 GB | 3 | 24 GB (1 OCPU unused) |
-| 2 | 2 | 12 GB | 4 | 24 GB ✅ |
-| 1 | 4 | 24 GB | 4 | 24 GB ✅ |
+| 2 | 1 | 6 GB | 2 | 12 GB ✅ |
+| 1 | 2 | 12 GB | 2 | 12 GB ✅ |
 
-> To maximise both OCPUs and RAM: **4 × (1 OCPU / 6 GB)**
+> To maximise both OCPUs and RAM: **2 × (1 OCPU / 6 GB)** or **1 × (2 OCPU / 12 GB)**.
 
 ### VM.Standard.E2.1.Micro (x86, AMD)
 
@@ -75,10 +74,9 @@ differences in how some limits are applied:
 
 | Config | Boot volumes | Remaining for data |
 |--------|-------------|-------------------|
-| 4 × A1.Flex + 1 × Micro | 4×50 + 50 = 250 GB | ❌ 50 GB over free tier |
-| 4 × A1.Flex only | 4×50 = 200 GB | ✅ exactly at limit |
-| 3 × A1.Flex only | 3×50 = 150 GB | 50 GB data |
 | 2 × A1.Flex + 1 × Micro | 2×50 + 50 = 150 GB | 50 GB data |
+| 2 × A1.Flex + 2 × Micro | 2×50 + 2×50 = 200 GB | 0 GB data |
+| 1 × A1.Flex + 1 × Micro | 50 + 50 = 100 GB | 100 GB data |
 
 > **Real-world note (May 2026):** Running 4×A1.Flex + 1×Micro hit 250 GB total — 50 GB over
 > the free tier. The Micro's 50 GB boot volume was the unavoidable overage (~£0.07/day).
@@ -152,8 +150,9 @@ differences in how some limits are applied:
 
 | Resource | Always Free Amount |
 |----------|-------------------|
-| A1.Flex OCPUs | **4 total** |
-| A1.Flex RAM | **24 GB total** |
+| A1.Flex instances | **2 total** |
+| A1.Flex OCPUs | **2 total** |
+| A1.Flex RAM | **12 GB total** |
 | E2.1.Micro instances | **2** (both account types) |
 | Block Storage | **200 GB total** |
 | Block Storage Backups | **5** |
