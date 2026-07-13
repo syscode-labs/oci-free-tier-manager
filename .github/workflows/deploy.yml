@@ -97,7 +97,7 @@ jobs:
             | awk -F'=' '{s+=int($2)} END {print s+0}')
           REQUESTED_RAM=$(grep -oE 'memory_gb\s*=\s*[0-9]+' tofu/oci/terraform.tfvars \
             | awk -F'=' '{s+=int($2)} END {print s+0}')
-          REQUESTED_MICRO=$(grep -c 'micro_nodes' tofu/oci/terraform.tfvars || echo 0)
+          REQUESTED_MICRO=$(awk '/micro_nodes/ {count++} END {print count+0}' tofu/oci/terraform.tfvars)
 
           # OCI cut the Always Free Ampere A1 allowance to 2 OCPU / 12 GB (2 instances).
           # Verified against OCI docs + service limits on 2026-06-14, see
