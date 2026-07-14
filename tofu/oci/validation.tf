@@ -99,17 +99,10 @@ check "omni_ready_requires_talos_image" {
   }
 }
 
-check "omni_ready_requires_endpoint" {
+check "omni_ready_requires_machine_config" {
   assert {
-    condition     = !var.omni_ready || var.omni_endpoint != null
-    error_message = "omni_ready = true requires omni_endpoint (e.g. https://omni.example.ts.net)."
-  }
-}
-
-check "omni_ready_requires_join_token" {
-  assert {
-    condition     = !var.omni_ready || var.omni_join_token != null
-    error_message = "omni_ready = true requires omni_join_token. Get from: omnictl jointoken list."
+    condition     = !var.omni_ready || var.omni_machine_config != null
+    error_message = "omni_ready = true requires omni_machine_config. Generate with: omnictl jointoken machine-config."
   }
 }
 

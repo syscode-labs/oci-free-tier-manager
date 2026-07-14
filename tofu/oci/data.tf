@@ -143,17 +143,10 @@ locals {
   # Null-safe wrappers used only inside _ampere_user_data to avoid string
   # interpolation errors when prerequisite variables are null.  The check
   # blocks in validation.tf will catch the missing-value case before apply.
-  _omni_endpoint      = var.omni_endpoint != null ? var.omni_endpoint : ""
-  _omni_join_token    = var.omni_join_token != null ? var.omni_join_token : ""
-  _tailscale_auth_key = var.tailscale_auth_key != null ? var.tailscale_auth_key : ""
-  _omni_api_url       = can(regex("^[a-z][a-z0-9+.-]*://", local._omni_endpoint)) ? local._omni_endpoint : "grpc://${local._omni_endpoint}"
+  _omni_machine_config = var.omni_machine_config != null ? trimspace(var.omni_machine_config) : ""
+  _tailscale_auth_key  = var.tailscale_auth_key != null ? var.tailscale_auth_key : ""
 
-  _siderolink_user_data = var.omni_ready ? [
-    "---",
-    "apiVersion: v1alpha1",
-    "kind: SideroLinkConfig",
-    "apiUrl: \"${local._omni_api_url}?jointoken=${local._omni_join_token}\"",
-  ] : []
+  _siderolink_user_data = var.omni_ready ? [local._omni_machine_config] : []
 
   _tailscale_user_data = var.tailscale_auth_key != null ? [
     "---",
