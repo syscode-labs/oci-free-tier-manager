@@ -10,9 +10,8 @@ ampere_nodes = [
 # The following must be set via TF_VAR_ environment variables or -var flags:
 #
 #   TF_VAR_oci_config_profile   — OCI CLI profile name (local runs); not needed in CI
-#   TF_VAR_omni_endpoint        — Omni SideroLink endpoint, e.g. "https://omni.example.ts.net"
+#   TF_VAR_omni_machine_config — CI secret OMNI_MACHINE_CONFIG from `omnictl jointoken machine-config`
 #   TF_VAR_talos_image_ocid     — fetched from oci-talos-gitops-apps/omni/talos-image.yaml in CI
-#   TF_VAR_omni_join_token      — CI secret OMNI_JOIN_TOKEN
 #   TF_VAR_tailscale_auth_key   — CI secret NODES_TAILSCALE_AUTHKEY
 #   TF_VAR_tenancy_ocid         — CI secret OCI_TENANCY_OCID
 #   TF_VAR_compartment_ocid     — CI secret OCI_COMPARTMENT_OCID

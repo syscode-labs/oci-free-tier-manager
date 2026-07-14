@@ -56,14 +56,26 @@ mock_provider "oci" {
 }
 
 variables {
-  compartment_ocid   = "ocid1.compartment.test"
-  tenancy_ocid       = "ocid1.tenancy.test"
-  budget_alert_email = "test@example.com"
-  omni_ready         = true
-  talos_image_ocid   = "ocid1.image.oc1.uk-london-1.talos-test"
-  omni_endpoint      = "https://omni.example.ts.net"
-  omni_join_token    = "test-join-token"
-  tailscale_auth_key = "tskey-auth-test" # pragma: allowlist secret
+  compartment_ocid    = "ocid1.compartment.test"
+  tenancy_ocid        = "ocid1.tenancy.test"
+  budget_alert_email  = "test@example.com"
+  omni_ready          = true
+  talos_image_ocid    = "ocid1.image.oc1.uk-london-1.talos-test"
+  omni_machine_config = <<-EOT
+    apiVersion: v1alpha1
+    kind: SideroLinkConfig
+    apiUrl: https://omni.example.ts.net:8090/?jointoken=test-join-token
+    ---
+    apiVersion: v1alpha1
+    kind: EventSinkConfig
+    endpoint: '[fdae:41e4:649b:9303::1]:8091'
+    ---
+    apiVersion: v1alpha1
+    kind: KmsgLogConfig
+    name: omni-kmsg
+    url: tcp://[fdae:41e4:649b:9303::1]:8092
+  EOT
+  tailscale_auth_key  = "tskey-auth-test" # pragma: allowlist secret
   ampere_nodes = [
     { name = "oci-talos-cp-1", ocpus = 1, memory_gb = 6, boot_vol_gb = 50 },
     { name = "oci-talos-worker-1", ocpus = 1, memory_gb = 6, boot_vol_gb = 50 },
@@ -101,17 +113,23 @@ run "omni_ready_user_data_is_base64" {
   }
 }
 
-# --- official omnictl endpoint URL shape is preserved ---
-run "omni_ready_accepts_schemeful_endpoint" {
+# --- official omnictl machine-config shape is preserved ---
+run "omni_ready_uses_official_machine_config" {
   command = plan
 
-  variables {
-    omni_endpoint = "https://omni.wind-bearded.ts.net"
+  assert {
+    condition     = strcontains(base64decode(oci_core_instance.ampere_instance[0].metadata["user_data"]), "apiUrl: https://omni.example.ts.net:8090/?jointoken=test-join-token")
+    error_message = "Expected official Omni SideroLinkConfig to be used directly."
   }
 
   assert {
-    condition     = strcontains(base64decode(oci_core_instance.ampere_instance[0].metadata["user_data"]), "apiUrl: \"https://omni.wind-bearded.ts.net?jointoken=test-join-token\"")
-    error_message = "Expected schemeful Omni endpoint to be used directly in SideroLinkConfig."
+    condition     = strcontains(base64decode(oci_core_instance.ampere_instance[0].metadata["user_data"]), "kind: EventSinkConfig")
+    error_message = "Expected official Omni EventSinkConfig to be preserved."
+  }
+
+  assert {
+    condition     = strcontains(base64decode(oci_core_instance.ampere_instance[0].metadata["user_data"]), "kind: KmsgLogConfig")
+    error_message = "Expected official Omni KmsgLogConfig to be preserved."
   }
 }
 
@@ -140,11 +158,10 @@ run "bare_talos_uses_talos_image_without_user_data" {
   command = plan
 
   variables {
-    omni_ready         = false
-    talos_image_ocid   = "ocid1.image.oc1.uk-london-1.talos-test"
-    omni_endpoint      = null
-    omni_join_token    = null
-    tailscale_auth_key = null # pragma: allowlist secret
+    omni_ready          = false
+    talos_image_ocid    = "ocid1.image.oc1.uk-london-1.talos-test"
+    omni_machine_config = null
+    tailscale_auth_key  = null # pragma: allowlist secret
   }
 
   assert {
@@ -163,11 +180,10 @@ run "bare_talos_with_tailscale_sets_extension_only" {
   command = plan
 
   variables {
-    omni_ready         = false
-    talos_image_ocid   = "ocid1.image.oc1.uk-london-1.talos-test"
-    omni_endpoint      = null
-    omni_join_token    = null
-    tailscale_auth_key = "tskey-auth-test" # pragma: allowlist secret
+    omni_ready          = false
+    talos_image_ocid    = "ocid1.image.oc1.uk-london-1.talos-test"
+    omni_machine_config = null
+    tailscale_auth_key  = "tskey-auth-test" # pragma: allowlist secret
   }
 
   assert {
@@ -204,29 +220,16 @@ run "omni_ready_without_image_fails" {
   ]
 }
 
-# --- omni_ready = true without omni_endpoint fails prerequisite check ---
-run "omni_ready_without_endpoint_fails" {
+# --- omni_ready = true without omni_machine_config fails prerequisite check ---
+run "omni_ready_without_machine_config_fails" {
   command = plan
 
   variables {
-    omni_endpoint = null
+    omni_machine_config = null
   }
 
   expect_failures = [
-    check.omni_ready_requires_endpoint,
-  ]
-}
-
-# --- omni_ready = true without omni_join_token fails prerequisite check ---
-run "omni_ready_without_join_token_fails" {
-  command = plan
-
-  variables {
-    omni_join_token = null
-  }
-
-  expect_failures = [
-    check.omni_ready_requires_join_token,
+    check.omni_ready_requires_machine_config,
   ]
 }
 
