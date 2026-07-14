@@ -285,6 +285,12 @@ variable "omni_search_domain" {
   default     = "wind-bearded.ts.net"
 }
 
+variable "enable_oci_vpn_probe" {
+  description = "Create a temporary Ubuntu E2.1.Micro probe in the VPN subnet to verify DNS/API/UDP reachability to Omni. Use targeted apply/destroy only."
+  type        = bool
+  default     = false
+}
+
 variable "load_balancer" {
   description = "Load balancer configuration. null = no LB (default). {} = free-tier 10/10 Mbps flexible LB."
   type = object({
