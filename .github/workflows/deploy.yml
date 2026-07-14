@@ -15,6 +15,14 @@ on:
         description: "Reason for manual deploy"
         required: false
         default: "manual"
+      targets:
+        description: "Space-separated addresses passed as -target (empty = full plan). For one-off additive rollouts."
+        required: false
+        default: ""
+      apply:
+        description: "Apply after plan (true) or plan-only for review (false)."
+        required: false
+        default: "false"
 
 permissions:
   contents: read
@@ -97,7 +105,7 @@ jobs:
             | awk -F'=' '{s+=int($2)} END {print s+0}')
           REQUESTED_RAM=$(grep -oE 'memory_gb\s*=\s*[0-9]+' tofu/oci/terraform.tfvars \
             | awk -F'=' '{s+=int($2)} END {print s+0}')
-          REQUESTED_MICRO=$(grep -c 'micro_nodes' tofu/oci/terraform.tfvars || echo 0)
+          REQUESTED_MICRO=$(awk '/micro_nodes/ {count++} END {print count+0}' tofu/oci/terraform.tfvars)
 
           # OCI cut the Always Free Ampere A1 allowance to 2 OCPU / 12 GB (2 instances).
           # Verified against OCI docs + service limits on 2026-06-14, see
@@ -150,15 +158,21 @@ jobs:
       - name: Tofu Plan
         working-directory: tofu/oci
         run: |
+          TARGET_ARGS=""
+          for t in $TARGETS; do TARGET_ARGS="$TARGET_ARGS -target=$t"; done
+          [ -n "$TARGET_ARGS" ] && echo "Targeted plan:$TARGET_ARGS"
           tofu plan \
             -lock=false \
+            $TARGET_ARGS \
             -var="tenancy_ocid=$OCI_TENANCY_OCID" \
             -var="compartment_ocid=$OCI_COMPARTMENT_OCID" \
             -var="talos_image_ocid=${{ steps.talos_image.outputs.ocid }}" \
             -var="omni_join_token=$OMNI_JOIN_TOKEN" \
             -var="omni_endpoint=$OMNI_ENDPOINT" \
-            -var="tailscale_auth_key=$TAILSCALE_AUTH_KEY" \
+            -var="tailscale_auth_key=$NODES_TAILSCALE_AUTHKEY" \
             -var="oci_config_profile=DEFAULT" \
+            -var="enable_oci_vpn=true" \
+            -var="openwrt_resolver_ip=10.10.210.1" \
             -var-file=terraform.tfvars \
             -out=tfplan
         env:
@@ -166,8 +180,24 @@ jobs:
           OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
           OMNI_JOIN_TOKEN: ${{ secrets.OMNI_JOIN_TOKEN }}
           OMNI_ENDPOINT: ${{ secrets.OMNI_ENDPOINT }}
-          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          NODES_TAILSCALE_AUTHKEY: ${{ secrets.NODES_TAILSCALE_AUTHKEY }}
+          TARGETS: ${{ github.event.inputs.targets }}
           TF_LOG: WARN
+
+      - name: Reject destructive plan
+        working-directory: tofu/oci
+        run: |
+          tofu show -json tfplan \
+            | jq -r '.resource_changes[]
+              | select(.change.actions | index("delete"))
+              | "\(.address)\t\(.change.actions | join(","))"' \
+            > destructive-changes.txt
+
+          if [ -s destructive-changes.txt ]; then
+            echo "ERROR: plan contains destructive changes; refusing to upload/apply tfplan."
+            cat destructive-changes.txt
+            exit 1
+          fi
 
       - name: Upload plan
         uses: actions/upload-artifact@v4
@@ -180,7 +210,7 @@ jobs:
     name: Tofu Apply
     runs-on: ubuntu-latest
     needs: plan
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.apply == 'true')
     environment: production
 
     steps:
