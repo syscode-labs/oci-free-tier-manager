@@ -207,6 +207,11 @@ output "oci_vpn_tunnel_bgp_inside_ips" {
   }]
 }
 
+output "oci_vpn_probe_instance_id" {
+  description = "Temporary OCI VPN data-plane probe instance ID (null unless enable_oci_vpn_probe=true)."
+  value       = length(oci_core_instance.vpn_probe) > 0 ? oci_core_instance.vpn_probe[0].id : null
+}
+
 output "resource_summary" {
   description = "Summary of provisioned free-tier resources"
   value = {
