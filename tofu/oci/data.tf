@@ -39,6 +39,7 @@ locals {
       memory_gb   = local._tier_defaults.ampere_memory_gb
       boot_vol_gb = local._tier_defaults.ampere_boot_vol_gb
       name        = "ampere-instance-${i + 1}"
+      vpn_subnet  = false
     }
   ]
 
@@ -48,6 +49,7 @@ locals {
       memory_gb   = n.memory_gb != null ? n.memory_gb : local._tier_defaults.ampere_memory_gb
       boot_vol_gb = n.boot_vol_gb != null ? n.boot_vol_gb : local._tier_defaults.ampere_boot_vol_gb
       name        = n.name != null ? n.name : "ampere-instance-${i + 1}"
+      vpn_subnet  = n.vpn_subnet != null ? n.vpn_subnet : false
     }
   ] : local._default_ampere_nodes
 }
@@ -113,6 +115,10 @@ data "oci_core_images" "micro_images" {
 
 locals {
   subnet_id = var.existing_subnet_ocid != null ? var.existing_subnet_ocid : oci_core_subnet.free_tier_subnet[0].id
+  ampere_subnet_ids = [
+    for n in local._ampere_nodes :
+    n.vpn_subnet && local.vpn_enabled ? oci_core_subnet.vpn_subnet[0].id : local.subnet_id
+  ]
 }
 
 locals {
