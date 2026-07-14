@@ -60,12 +60,12 @@ variables {
   omni_ready         = false
 }
 
-# --- Empty {} per node uses defaults (1 OCPU / 8 GB) ---
+# --- Empty {} per node uses defaults (1 OCPU / 6 GB) ---
 run "empty_objects_use_defaults" {
   command = plan
 
   variables {
-    ampere_nodes = [{}, {}, {}]
+    ampere_nodes = [{}, {}]
   }
 
   assert {
@@ -74,8 +74,8 @@ run "empty_objects_use_defaults" {
   }
 
   assert {
-    condition     = local._ampere_nodes[0].memory_gb == 8
-    error_message = "Expected default 8 GB RAM for empty node"
+    condition     = local._ampere_nodes[0].memory_gb == 6
+    error_message = "Expected default 6 GB RAM for empty node"
   }
 
   assert {
@@ -106,31 +106,31 @@ run "payg_override_name_keeps_defaults" {
   }
 
   assert {
-    condition     = local._ampere_nodes[0].memory_gb == 8
-    error_message = "Expected default 8 GB RAM when only name overridden"
+    condition     = local._ampere_nodes[0].memory_gb == 6
+    error_message = "Expected default 6 GB RAM when only name overridden"
   }
 }
 
-# --- PAYG: 2 nodes × 2 OCPU / 12 GB — valid custom configuration ---
-run "payg_two_nodes_2ocpu_12gb" {
+# --- PAYG: Always Free allowance remains 2 nodes × 1 OCPU / 6 GB ---
+run "payg_two_nodes_within_always_free" {
   command = plan
 
   variables {
     ampere_nodes = [
-      { name = "k8s-cp", ocpus = 2, memory_gb = 12, boot_vol_gb = 100 },
-      { name = "k8s-w1", ocpus = 2, memory_gb = 12, boot_vol_gb = 100 },
+      { name = "k8s-cp", ocpus = 1, memory_gb = 6, boot_vol_gb = 100 },
+      { name = "k8s-w1", ocpus = 1, memory_gb = 6, boot_vol_gb = 100 },
     ]
     micro_nodes = [] # no micro nodes; keep storage at 200 GB
   }
 
   assert {
-    condition     = local.total_ocpus == 4
-    error_message = "Expected 4 total OCPUs"
+    condition     = local.total_ocpus == 2
+    error_message = "Expected 2 total OCPUs"
   }
 
   assert {
-    condition     = local.total_ram_gb == 24
-    error_message = "Expected 24 GB total RAM"
+    condition     = local.total_ram_gb == 12
+    error_message = "Expected 12 GB total RAM"
   }
 
   assert {
@@ -139,24 +139,24 @@ run "payg_two_nodes_2ocpu_12gb" {
   }
 }
 
-# --- PAYG: 1 node × 4 OCPUs / 24 GB (single beefy node) ---
+# --- PAYG: 1 node × 2 OCPUs / 12 GB (single Always Free node) ---
 run "payg_single_large_node" {
   command = plan
 
   variables {
     ampere_nodes = [
-      { ocpus = 4, memory_gb = 24, boot_vol_gb = 100 },
+      { ocpus = 2, memory_gb = 12, boot_vol_gb = 100 },
     ]
   }
 
   assert {
-    condition     = local.total_ocpus == 4
-    error_message = "Expected 4 OCPUs"
+    condition     = local.total_ocpus == 2
+    error_message = "Expected 2 OCPUs"
   }
 
   assert {
-    condition     = local.total_ram_gb == 24
-    error_message = "Expected 24 GB RAM"
+    condition     = local.total_ram_gb == 12
+    error_message = "Expected 12 GB RAM"
   }
 }
 

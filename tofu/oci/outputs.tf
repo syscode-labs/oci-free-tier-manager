@@ -130,10 +130,10 @@ output "budget_id" {
 # ---------------------------------------------------------------------------
 
 output "ssh_connection_commands" {
-  description = "SSH commands to connect to instances (Ubuntu mode only; Talos nodes managed via Omni)"
-  value = var.omni_ready ? (
+  description = "SSH commands to connect to instances (Ubuntu mode only; Talos nodes use Talos API)"
+  value = var.talos_image_ocid != null ? (
     concat(
-      [for i in range(length(local._ampere_nodes)) : "# ${local._ampere_nodes[i].name} (${oci_core_public_ip.ampere_instance[i].ip_address}) — managed via Omni/SideroLink"],
+      [for i in range(length(local._ampere_nodes)) : "# ${local._ampere_nodes[i].name} (${oci_core_public_ip.ampere_instance[i].ip_address}) — Talos API"],
       [for i in range(length(local._micro_nodes)) : "ssh ubuntu@${oci_core_public_ip.micro_instance[i].ip_address}  # ${local._micro_nodes[i].name}"]
     )
     ) : (
@@ -167,6 +167,44 @@ output "iam_api_key_fingerprint" {
   description = "Fingerprint of the registered API key (null if iam_api_public_key not provided)"
   value       = var.create_compartment && var.iam_api_public_key != null ? oci_identity_api_key.free_tier[0].fingerprint : null
   sensitive   = true
+}
+
+# ---------------------------------------------------------------------------
+# Site-to-Site VPN — handoff interface to the OpenWrt side (plan Task 5→7).
+# Empty when enable_oci_vpn = false.
+# ---------------------------------------------------------------------------
+
+output "oci_vpn_tunnel_public_ips" {
+  description = "OCI-side public IPs of the two IPSec tunnels (remote_addrs for swanctl)."
+  value       = [for t in oci_core_ipsec_connection_tunnel_management.home : t.vpn_ip]
+}
+
+output "oci_vpn_tunnel_shared_secrets" {
+  description = "PSK for each IPSec tunnel (swanctl secrets)."
+  value       = [for t in oci_core_ipsec_connection_tunnel_management.home : t.shared_secret]
+  sensitive   = true
+}
+
+output "oci_vpn_cpe_id" {
+  description = "OCID of the CPE (home OpenWrt) — for OCI console tunnel detail lookups."
+  value       = length(oci_core_cpe.home_cpe) > 0 ? oci_core_cpe.home_cpe[0].id : null
+}
+
+output "oci_vpn_ipsec_id" {
+  description = "OCID of the IPSec connection."
+  value       = length(oci_core_ipsec.home_ipsec) > 0 ? oci_core_ipsec.home_ipsec[0].id : null
+}
+
+# Inside-tunnel IPs are populated only for BGP-routed tunnels. These are STATIC
+# route-based tunnels (OpenWrt scopes via XFRM if_id + firewall), so this is
+# empty by design — no inside addressing is negotiated. Surfaced for parity with
+# the plan's output checklist and in case a tunnel is later switched to BGP.
+output "oci_vpn_tunnel_bgp_inside_ips" {
+  description = "Oracle/customer inside-tunnel IPs (BGP only; empty for STATIC route-based tunnels)."
+  value = [for t in oci_core_ipsec_connection_tunnel_management.home : {
+    oracle   = try(t.bgp_session_info[0].oracle_interface_ip, null)
+    customer = try(t.bgp_session_info[0].customer_interface_ip, null)
+  }]
 }
 
 output "resource_summary" {

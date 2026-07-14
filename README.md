@@ -75,7 +75,7 @@ When `omni_ready = true`:
 
 ### Compute
 
-- **Ampere A1**: 4 OCPUs + 24 GB RAM total (ARM64, flexible — split across up to 4 instances)
+- **Ampere A1**: 2 OCPUs + 12 GB RAM total (ARM64, flexible — split across up to 2 instances)
 - **E2.1.Micro**: 2 instances × 1/8 OCPU + 1 GB RAM (AMD)
 
 ### Storage

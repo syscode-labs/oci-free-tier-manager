@@ -8,35 +8,35 @@ tasks:
   # ============================================================================
   # Setup Tasks
   # ============================================================================
-  
+
   setup:
     desc: Run initial setup (OCI CLI, SSH keys, tfvars)
     cmds:
       - ./scripts/setup.sh
-  
+
   setup:flux:
     desc: Setup Flux repository (Cilium, SOPS, secrets)
     cmds:
       - ./scripts/setup-flux.sh {{.FLUX_REPO}}
-  
+
   # ============================================================================
   # Phase 1: Image Building
   # ============================================================================
-  
+
   build:images:
     desc: Build custom images with Dagger (base + Proxmox)
     cmds:
       - echo "Building custom images with Dagger..."
       - dagger call build-all-images
       - echo "✓ Images built successfully"
-  
+
   build:validate:
     desc: Validate built images meet size requirements
     deps: [build:images]
     cmds:
       - echo "Validating image sizes..."
       - dagger call validate-images
-  
+
   build:upload:
     desc: Upload images to OCI Object Storage
     deps: [build:validate]
@@ -49,8 +49,8 @@ tasks:
             awk -F'=' '/^tenancy/ {print $2}' ~/.oci/config | tr -d ' '
           fi
     cmds:
-      - echo "Uploading images to OCI..."
-      - echo "Using compartment: {{.COMPARTMENT_ID}}"
+      - 'echo "Uploading images to OCI..."'
+      - 'echo "Using compartment: {{.COMPARTMENT_ID}}"'
       - |
         dagger call upload-to-oci \
           --bucket {{.BUCKET | default "oci-images"}} \
@@ -59,34 +59,35 @@ tasks:
     preconditions:
       - sh: 'test -f ~/.oci/config'
         msg: "OCI CLI not configured. Run: task setup"
-  
+
   # ============================================================================
   # State Management
   # ============================================================================
-  
+
   state:setup:
-    desc: Bootstrap OCI Object Storage backend for state
+    desc: Bootstrap OCI Object Storage S3-compatible backend for state
     cmds:
       - ./scripts/bootstrap-state-backend.sh
       - echo ""
-      - echo "Next: Uncomment backend block in tofu/oci/backend.tf"
-      - echo "Then run: task state:migrate"
-  
+      - 'echo "Next: add OCI Customer Secret Key credentials in private backend config"'
+      - 'echo "Then run: task state:migrate BACKEND_CONFIG=/private/path/backend-config.tfvars"'
+
   state:migrate:
-    desc: Migrate local state to OCI Object Storage
+    desc: Migrate local state to OCI Object Storage S3-compatible backend
     dir: tofu/oci
     prompt: "This will migrate state to OCI Object Storage. Continue?"
     cmds:
-      - tofu init -migrate-state
+      - test -n "{{.BACKEND_CONFIG}}" || (echo "BACKEND_CONFIG is required" >&2; exit 1)
+      - tofu init -migrate-state -backend-config="{{.BACKEND_CONFIG}}"
       - echo "✓ State migrated to OCI Object Storage"
-  
+
   state:pull:
     desc: Download current state from OCI backend
     dir: tofu/oci
     cmds:
       - tofu state pull > terraform.tfstate.backup
       - echo "✓ State downloaded to terraform.tfstate.backup"
-  
+
   state:backup:
     desc: Create versioned backup of current state
     dir: tofu/oci
@@ -95,17 +96,17 @@ tasks:
         BACKUP_FILE="state-backup-$(date +%Y%m%d-%H%M%S).tfstate"
         tofu state pull > "$BACKUP_FILE"
         echo "✓ State backed up to $BACKUP_FILE"
-  
+
   state:list:
     desc: List all resources in state
     dir: tofu/oci
     cmds:
       - tofu state list
-  
+
   # ============================================================================
   # Phase 2: OCI Infrastructure
   # ============================================================================
-  
+
   deploy:oci:
     desc: Deploy OCI infrastructure (Layer 1)
     dir: tofu/oci
@@ -116,25 +117,25 @@ tasks:
       - tofu apply tfplan
       - rm -f tfplan
       - echo "✓ OCI infrastructure deployed"
-  
+
   deploy:oci:plan:
     desc: Plan OCI infrastructure changes
     dir: tofu/oci
     cmds:
       - tofu init -upgrade
       - tofu plan
-  
+
   destroy:oci:
     desc: Destroy OCI infrastructure
     dir: tofu/oci
     prompt: "This will destroy OCI infrastructure. Continue?"
     cmds:
       - tofu destroy
-  
+
   # ============================================================================
   # Phase 3: Proxmox Cluster
   # ============================================================================
-  
+
   deploy:proxmox:
     desc: Setup Proxmox cluster (Layer 2)
     deps: [deploy:oci]
@@ -146,25 +147,25 @@ tasks:
       - tofu apply tfplan
       - rm -f tfplan
       - echo "✓ Proxmox cluster configured"
-  
+
   deploy:proxmox:plan:
     desc: Plan Proxmox cluster changes
     dir: tofu/proxmox-cluster
     cmds:
       - tofu init -upgrade
       - tofu plan
-  
+
   destroy:proxmox:
     desc: Destroy Proxmox cluster
     dir: tofu/proxmox-cluster
     prompt: "This will destroy Proxmox cluster. Continue?"
     cmds:
       - tofu destroy
-  
+
   # ============================================================================
   # Phase 4: Talos Kubernetes
   # ============================================================================
-  
+
   deploy:talos:
     desc: Deploy Talos Kubernetes (Layer 3)
     deps: [deploy:proxmox]
@@ -176,25 +177,25 @@ tasks:
       - tofu apply tfplan
       - rm -f tfplan
       - echo "✓ Talos Kubernetes deployed"
-  
+
   deploy:talos:plan:
     desc: Plan Talos Kubernetes changes
     dir: tofu/talos
     cmds:
       - tofu init -upgrade
       - tofu plan
-  
+
   destroy:talos:
     desc: Destroy Talos Kubernetes
     dir: tofu/talos
     prompt: "This will destroy Talos cluster. Continue?"
     cmds:
       - tofu destroy
-  
+
   # ============================================================================
   # All-in-One Deployment
   # ============================================================================
-  
+
   deploy:all:
     desc: Full deployment (all phases)
     cmds:
@@ -208,7 +209,7 @@ tasks:
       - echo "✓ Full deployment complete!"
       - echo ""
       - echo "Run 'task validate' to verify the deployment."
-  
+
   destroy:all:
     desc: Destroy all infrastructure (reverse order)
     prompt: "This will destroy ALL infrastructure. Type 'yes' to confirm"
@@ -218,11 +219,11 @@ tasks:
       - task: destroy:proxmox
       - task: destroy:oci
       - echo "✓ All infrastructure destroyed"
-  
+
   # ============================================================================
   # Validation
   # ============================================================================
-  
+
   validate:
     desc: Run all validation checks
     cmds:
@@ -235,46 +236,46 @@ tasks:
       - task: validate:cost
       - echo ""
       - echo "✓ All validation checks passed!"
-  
+
   validate:images:
     desc: Validate image sizes
     cmds:
       - bash scripts/validate-phase1.sh
     ignore_error: true
-  
+
   validate:oci:
     desc: Validate OCI infrastructure
     cmds:
       - bash scripts/validate-phase2.sh
     ignore_error: true
-  
+
   validate:proxmox:
     desc: Validate Proxmox cluster
     cmds:
       - bash scripts/validate-phase3.sh
     ignore_error: true
-  
+
   validate:talos:
     desc: Validate Talos Kubernetes
     cmds:
       - bash scripts/validate-phase4.sh
     ignore_error: true
-  
+
   validate:cost:
     desc: Verify $0.00 billing
     cmds:
       - bash scripts/validate-cost.sh
     ignore_error: true
-  
+
   # ============================================================================
   # Utilities
   # ============================================================================
-  
+
   check:availability:
     desc: Check OCI capacity availability
     cmds:
       - ./check_availability.py
-  
+
   security:
     desc: Run security scans on all code
     cmds:
@@ -282,7 +283,7 @@ tasks:
       - task: security:terraform
       - task: security:python
       - echo "✓ All security scans passed"
-  
+
   security:terraform:
     desc: Run tfsec and Checkov on Terraform
     dir: tofu/oci
@@ -292,14 +293,14 @@ tasks:
       - echo "Running Checkov..."
       - checkov -d . --framework terraform --compact
     ignore_error: true
-  
+
   security:python:
     desc: Run Bandit security scan on Python
     cmds:
       - echo "Running Bandit..."
       - bandit -r . -ll -f screen
     ignore_error: true
-  
+
   lint:
     desc: Run linters on all code
     cmds:
@@ -309,33 +310,33 @@ tasks:
       - task: lint:yaml
       - task: lint:shell
       - echo "✓ All linters passed"
-  
+
   lint:tofu:
     desc: Lint OpenTofu code
     cmds:
       - cd tofu/oci && tofu fmt -check
       - tflint tofu/oci
     ignore_error: true
-  
+
   lint:python:
     desc: Lint Python code
     cmds:
       - black --check .
       - flake8 .
     ignore_error: true
-  
+
   lint:yaml:
     desc: Lint YAML files
     cmds:
       - yamllint .
     ignore_error: true
-  
+
   lint:shell:
     desc: Lint shell scripts
     cmds:
       - shellcheck scripts/*.sh
     ignore_error: true
-  
+
   fmt:
     desc: Format all code
     cmds:
@@ -343,7 +344,7 @@ tasks:
       - cd tofu/oci && tofu fmt
       - black .
       - echo "✓ Code formatted"
-  
+
   clean:
     desc: Clean build artifacts
     cmds:
@@ -355,11 +356,11 @@ tasks:
       - rm -rf packer_cache
       - rm -rf output-qemu
       - echo "✓ Artifacts cleaned"
-  
+
   # ============================================================================
   # Helper Tasks (internal)
   # ============================================================================
-  
+
   header:
     internal: true
     cmds:

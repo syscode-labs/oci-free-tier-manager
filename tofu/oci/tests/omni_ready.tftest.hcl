@@ -66,8 +66,6 @@ variables {
   tailscale_auth_key = "tskey-auth-test" # pragma: allowlist secret
   ampere_nodes = [
     { name = "oci-talos-cp-1", ocpus = 1, memory_gb = 6, boot_vol_gb = 50 },
-    { name = "oci-talos-cp-2", ocpus = 1, memory_gb = 6, boot_vol_gb = 50 },
-    { name = "oci-talos-cp-3", ocpus = 1, memory_gb = 6, boot_vol_gb = 50 },
     { name = "oci-talos-worker-1", ocpus = 1, memory_gb = 6, boot_vol_gb = 50 },
   ]
   micro_nodes = []
@@ -103,23 +101,93 @@ run "omni_ready_user_data_is_base64" {
   }
 }
 
-# --- Budget checks still pass with 4 Ampere nodes (4 OCPUs / 24 GB) ---
-run "omni_ready_4node_within_budget" {
+# --- official omnictl endpoint URL shape is preserved ---
+run "omni_ready_accepts_schemeful_endpoint" {
+  command = plan
+
+  variables {
+    omni_endpoint = "https://omni.wind-bearded.ts.net"
+  }
+
+  assert {
+    condition     = strcontains(base64decode(oci_core_instance.ampere_instance[0].metadata["user_data"]), "apiUrl: \"https://omni.wind-bearded.ts.net?jointoken=test-join-token\"")
+    error_message = "Expected schemeful Omni endpoint to be used directly in SideroLinkConfig."
+  }
+}
+
+# --- Budget checks pass with 2 Ampere nodes (2 OCPUs / 12 GB) ---
+run "omni_ready_2node_within_budget" {
   command = plan
 
   assert {
-    condition     = local.total_ocpus == 4
-    error_message = "Expected 4 total OCPUs, got ${local.total_ocpus}"
+    condition     = local.total_ocpus == 2
+    error_message = "Expected 2 total OCPUs, got ${local.total_ocpus}"
   }
 
   assert {
-    condition     = local.total_ram_gb == 24
-    error_message = "Expected 24 GB total RAM, got ${local.total_ram_gb}"
+    condition     = local.total_ram_gb == 12
+    error_message = "Expected 12 GB total RAM, got ${local.total_ram_gb}"
   }
 
   assert {
-    condition     = local.total_storage_gb == 200
-    error_message = "Expected 200 GB total storage, got ${local.total_storage_gb}"
+    condition     = local.total_storage_gb == 100
+    error_message = "Expected 100 GB total storage, got ${local.total_storage_gb}"
+  }
+}
+
+# --- bare Talos mode: Talos image, no Omni metadata ---
+run "bare_talos_uses_talos_image_without_user_data" {
+  command = plan
+
+  variables {
+    omni_ready         = false
+    talos_image_ocid   = "ocid1.image.oc1.uk-london-1.talos-test"
+    omni_endpoint      = null
+    omni_join_token    = null
+    tailscale_auth_key = null # pragma: allowlist secret
+  }
+
+  assert {
+    condition     = local.ampere_image_id == "ocid1.image.oc1.uk-london-1.talos-test"
+    error_message = "Expected bare Talos mode to use Talos image OCID, got ${local.ampere_image_id}"
+  }
+
+  assert {
+    condition     = !contains(keys(oci_core_instance.ampere_instance[0].metadata), "user_data")
+    error_message = "Expected bare Talos mode to omit Omni user_data"
+  }
+}
+
+# --- tailnet-only Talos mode: Tailscale config without Omni enrollment ---
+run "bare_talos_with_tailscale_sets_extension_only" {
+  command = plan
+
+  variables {
+    omni_ready         = false
+    talos_image_ocid   = "ocid1.image.oc1.uk-london-1.talos-test"
+    omni_endpoint      = null
+    omni_join_token    = null
+    tailscale_auth_key = "tskey-auth-test" # pragma: allowlist secret
+  }
+
+  assert {
+    condition     = can(base64decode(oci_core_instance.ampere_instance[0].metadata["user_data"]))
+    error_message = "Expected tailnet-only Talos mode to set base64 user_data"
+  }
+
+  assert {
+    condition     = strcontains(base64decode(oci_core_instance.ampere_instance[0].metadata["user_data"]), "kind: ExtensionServiceConfig")
+    error_message = "Expected tailnet-only Talos mode to include Tailscale ExtensionServiceConfig"
+  }
+
+  assert {
+    condition     = strcontains(base64decode(oci_core_instance.ampere_instance[0].metadata["user_data"]), "TS_AUTHKEY=tskey-auth-test")
+    error_message = "Expected tailnet-only Talos mode to pass Tailscale auth key"
+  }
+
+  assert {
+    condition     = !strcontains(base64decode(oci_core_instance.ampere_instance[0].metadata["user_data"]), "kind: SideroLinkConfig")
+    error_message = "Expected tailnet-only Talos mode to omit Omni SideroLinkConfig"
   }
 }
 
