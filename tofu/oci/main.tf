@@ -276,11 +276,12 @@ resource "oci_core_instance" "ampere_instance" {
   }
 }
 
-# Tracks hashes of Omni join token + Tailscale auth key.
-# Any change to either secret triggers replacement of all Ampere instances,
+# Tracks hashes of Omni endpoint + join token + Tailscale auth key.
+# Any change to these bootstrap inputs triggers replacement of all Ampere instances,
 # ensuring the new credentials are baked into user_data on the next boot.
 resource "terraform_data" "omni_credentials" {
   input = {
+    endpoint_hash   = sha256(var.omni_endpoint != null ? var.omni_endpoint : "")
     join_token_hash = sha256(var.omni_join_token != null ? var.omni_join_token : "")
     ts_key_hash     = sha256(var.tailscale_auth_key != null ? var.tailscale_auth_key : "")
   }
