@@ -61,7 +61,7 @@ variables {
   budget_alert_email = "test@example.com"
   omni_ready         = true
   talos_image_ocid   = "ocid1.image.oc1.uk-london-1.talos-test"
-  omni_endpoint      = "omni.example.ts.net:8090"
+  omni_endpoint      = "https://omni.example.ts.net"
   omni_join_token    = "test-join-token"
   tailscale_auth_key = "tskey-auth-test" # pragma: allowlist secret
   ampere_nodes = [
