@@ -88,8 +88,8 @@ variable "talos_image_ocid" {
 # When omni_ready = true, Ampere instances boot Talos and auto-enroll into
 # your Omni instance via SideroLink over Tailscale. Requires:
 #   talos_image_ocid  — Talos+Tailscale image OCID (import once, store in GitHub vars)
-#   omni_endpoint     — Omni gRPC host:port (e.g. omni.example.com:8090)
-#   omni_join_token   — Static join token from: omnictl get connections -o yaml
+#   omni_endpoint     — Omni join endpoint from `omnictl jointoken omni-endpoint`, without the query token
+#   omni_join_token   — Static join token from: omnictl jointoken list
 #   tailscale_auth_key — Reusable Tailscale auth key from NODES_TAILSCALE_AUTHKEY with tag:talos
 #
 # When omni_ready = false (default), Ampere instances use Ubuntu 22.04 unless
@@ -103,7 +103,7 @@ variable "omni_ready" {
 }
 
 variable "omni_endpoint" {
-  description = "Omni endpoint base URL for SideroLink, e.g. https://omni.example.ts.net or omni.example.com:8090. Required when omni_ready = true."
+  description = "Omni endpoint base URL for SideroLink, e.g. https://omni.example.ts.net. Required when omni_ready = true."
   type        = string
   default     = null
 }
@@ -263,9 +263,9 @@ variable "omni_target_ip" {
 }
 
 variable "omni_api_port" {
-  description = "Omni machine API TCP port."
+  description = "Omni join API TCP port. The official omnictl jointoken omni-endpoint URL uses HTTPS default port 443."
   type        = number
-  default     = 8090
+  default     = 443
 }
 
 variable "omni_wireguard_port" {
