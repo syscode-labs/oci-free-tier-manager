@@ -46,9 +46,9 @@ flowchart TB
     Proxmox["Proxmox<br/>Cluster"]
     Talos["Talos<br/>K8s"]
     Apps["Apps<br/>GitOps"]
-    
+
     Setup --> Build --> OCI --> Proxmox --> Talos --> Apps
-    
+
     style Setup fill:#15803d,stroke:#22c55e,stroke-width:3px,color:#fff
     style Build fill:#15803d,stroke:#22c55e,stroke-width:3px,color:#fff
     style OCI fill:#15803d,stroke:#22c55e,stroke-width:3px,color:#fff
@@ -72,13 +72,13 @@ flowchart TB
     GenTF["Generate tfvars"]
     SSH["SSH Keys"]
     Done[("✓")]
-    
+
     Start --> CheckOCI
     CheckOCI -->|Missing| InstallOCI
     CheckOCI -->|Exists| GenTF
     InstallOCI --> GenTF
     GenTF --> SSH --> Done
-    
+
     style Start fill:#0891b2,stroke:#06b6d4,stroke-width:2px,color:#fff
     style CheckOCI fill:#0891b2,stroke:#06b6d4,stroke-width:2px,color:#fff
     style InstallOCI fill:#0891b2,stroke:#06b6d4,stroke-width:2px,color:#fff
@@ -99,12 +99,12 @@ flowchart LR
     Start(["task deploy:oci"])
     Plan["tofu plan/apply"]
     VCN["VCN + Networking"]
-    Compute["3x Ampere + 1x Micro"]
+    Compute["3x Ampere (default)\nMicro opt-in"]
     Mesh["Tailscale Mesh"]
     Done[("✓")]
-    
+
     Start --> Plan --> VCN --> Compute --> Mesh --> Done
-    
+
     style Start fill:#0891b2,stroke:#06b6d4,stroke-width:2px,color:#fff
     style Plan fill:#0891b2,stroke:#06b6d4,stroke-width:2px,color:#fff
     style VCN fill:#0891b2,stroke:#06b6d4,stroke-width:2px,color:#fff
@@ -130,13 +130,13 @@ flowchart LR
     Fail1[("❌")]
     Fail2[("❌")]
     Done[("✓")]
-    
+
     Start --> Cluster --> Check1
     Check1 -->|No| Fail1
     Check1 -->|Yes| Ceph --> Check2
     Check2 -->|No| Fail2
     Check2 -->|Yes| Done
-    
+
     style Start fill:#0891b2,stroke:#06b6d4,stroke-width:2px,color:#fff
     style Cluster fill:#0891b2,stroke:#06b6d4,stroke-width:2px,color:#fff
     style Check1 fill:#0891b2,stroke:#06b6d4,stroke-width:2px,color:#fff
@@ -160,28 +160,28 @@ Complete technology stack from OCI instances to Kubernetes applications.
 graph TB
     subgraph OCI["OCI Infrastructure"]
         Ampere["3x Ampere A1<br/>ARM64"]
-        Bastion["Micro Bastion"]
+        Bastion["Micro Bastion (opt-in)"]
     end
-    
+
     subgraph Proxmox["Proxmox + Ceph"]
         PVE["3-node Cluster"]
     end
-    
+
     subgraph Talos["Talos K8s"]
         CP["3x Control Plane"]
     end
-    
+
     subgraph Apps["Applications"]
         TS["Tailscale"]
         CM["cert-manager"]
     end
-    
+
     Ampere --> PVE
     PVE --> CP
     CP --> TS
     CP --> CM
     Bastion -.SSH.-> PVE
-    
+
     style Ampere fill:#2563eb,stroke:#3b82f6,stroke-width:2px,color:#fff
     style Bastion fill:#2563eb,stroke:#3b82f6,stroke-width:2px,color:#fff
     style PVE fill:#7c3aed,stroke:#a855f7,stroke-width:2px,color:#fff
@@ -209,7 +209,7 @@ flowchart TB
         CreateVMs["Create 3 VMs"]
         BootTalos["Boot Talos"]
     end
-    
+
     subgraph Phase2["Phase 2: Bootstrap"]
         Talos["Talos"]
         FetchCilium["Fetch Cilium"]
@@ -217,25 +217,25 @@ flowchart TB
         FetchFlux["Fetch Flux"]
         DepGitOps["Deploy GitOps"]
     end
-    
+
     subgraph Phase3["Phase 3: Configure"]
         TF2["Terraform"]
         InjectSOPS["Inject SOPS Key"]
     end
-    
+
     subgraph Phase4["Phase 4: Reconcile"]
         Poll["Poll for changes"]
         Decrypt["Decrypt with SOPS"]
         Apply["Apply manifests"]
     end
-    
+
     TF --> CreateVMs --> PVE --> BootTalos --> Talos
     Talos --> FetchCilium --> DepCNI
     Talos --> FetchFlux --> DepGitOps
     DepGitOps --> TF2 --> InjectSOPS
     InjectSOPS --> Poll --> Decrypt --> Apply
     Apply -.loop.-> Poll
-    
+
     style TF fill:#d97706,stroke:#f59e0b,stroke-width:2px,color:#fff
     style PVE fill:#d97706,stroke:#f59e0b,stroke-width:2px,color:#fff
     style CreateVMs fill:#0891b2,stroke:#06b6d4,stroke-width:2px,color:#fff
@@ -273,13 +273,13 @@ flowchart TB
     L2Out["outputs: API"]
     L3["Layer 3: Talos<br/>VMs + K8s"]
     L3Out["outputs: kubeconfig"]
-    
+
     L1 --> L1Out
     L1Out -.remote state.-> L2
     L2 --> L2Out
     L2Out -.remote state.-> L3
     L3 --> L3Out
-    
+
     style L1 fill:#2563eb,stroke:#3b82f6,stroke-width:3px,color:#fff
     style L1Out fill:#2563eb,stroke:#3b82f6,stroke-width:2px,color:#fff
     style L2 fill:#7c3aed,stroke:#a855f7,stroke-width:3px,color:#fff
@@ -309,13 +309,13 @@ graph TB
     TSMesh["Tailscale Mesh<br/>100.x.x.x"]
     K8sPods["K8s Pods<br/>10.244.0.0/16"]
     K8sSvc["K8s Services<br/>10.96.0.0/12"]
-    
+
     Internet --> IGW --> Subnet
     Subnet --> A1 & A2 & A3 & Bastion
     A1 & A2 & A3 & Bastion --> TSMesh
     A1 & A2 & A3 --> K8sPods
     K8sPods --> K8sSvc
-    
+
     style Internet fill:#94a3b8,stroke:#cbd5e1,stroke-width:2px,color:#fff
     style IGW fill:#0891b2,stroke:#06b6d4,stroke-width:2px,color:#fff
     style Subnet fill:#0891b2,stroke:#06b6d4,stroke-width:2px,color:#fff
@@ -346,14 +346,14 @@ flowchart TB
     PostDeploy["Post-Deploy<br/>task validate:cost"]
     Pass["✅ $0.00"]
     Fail["❌ STOP"]
-    
+
     Limits --> TFVal
     TFVal --> PreCheck
     PreCheck --> Runtime
     Runtime --> PostDeploy
     PostDeploy -->|Yes| Pass
     PostDeploy -->|No| Fail
-    
+
     style Limits fill:#94a3b8,stroke:#cbd5e1,stroke-width:2px,color:#fff
     style TFVal fill:#0891b2,stroke:#06b6d4,stroke-width:2px,color:#fff
     style PreCheck fill:#0891b2,stroke:#06b6d4,stroke-width:2px,color:#fff
@@ -393,23 +393,23 @@ sequenceDiagram
     participant T as Talos
     participant GH as GitHub
     participant K8s as Kubernetes
-    
+
     Note over TF,K8s: Phase 1: Provision
     TF->>PVE: Create 3 VMs
     PVE-->>T: Boot Talos
-    
+
     Note over T,GH: Phase 2: Bootstrap
     T->>GH: Fetch Cilium
     GH-->>T: cilium.yaml
     T->>K8s: Deploy CNI
-    
+
     T->>GH: Fetch Flux
     GH-->>T: install.yaml
     T->>K8s: Deploy GitOps
-    
+
     Note over TF,K8s: Phase 3: Configure
     TF->>K8s: Inject SOPS Key
-    
+
     Note over K8s,GH: Phase 4: Reconcile
     loop Every 1 minute
         K8s->>GH: Poll for changes
@@ -445,20 +445,20 @@ sequenceDiagram
     participant Dev as Developer
     participant TF as Terraform
     participant OCI as Oracle Cloud
-    
+
     Note over Dev,OCI: Planning Phase
     Dev->>TF: tofu plan
     TF->>TF: Validate variables
     TF->>OCI: Query existing resources
     OCI-->>TF: Current state
     TF-->>Dev: Show planned changes
-    
+
     Note over Dev,OCI: Apply Phase
     Dev->>TF: tofu apply
     TF->>OCI: Create VCN
     TF->>OCI: Create subnet
     TF->>OCI: Create 3x Ampere instances
-    TF->>OCI: Create 1x Micro bastion
+    TF->>OCI: Create Micro bastion only when micro_nodes is set
     TF->>OCI: Attach reserved IPs
     OCI-->>TF: Instance IPs
     TF-->>Dev: Outputs (IPs, IDs)
@@ -489,19 +489,19 @@ sequenceDiagram
     participant N1 as Node 1 (PVE)
     participant N2 as Node 2 (PVE)
     participant N3 as Node 3 (PVE)
-    
+
     Note over TF,N3: Read OCI State
     TF->>TF: Fetch instance IPs from Layer 1
-    
+
     Note over TF,N3: Proxmox Already Installed
     Note over N1,N3: Images built with Packer<br/>Proxmox + Ceph packages pre-installed
-    
+
     Note over TF,N3: Form Cluster
     TF->>N1: pvecm create cluster
     TF->>N2: pvecm add node1
     TF->>N3: pvecm add node1
     N1-->>TF: Quorum established (3 nodes)
-    
+
     Note over TF,N3: Configure Ceph
     TF->>N1: pveceph init
     TF->>N2: pveceph init
@@ -511,7 +511,7 @@ sequenceDiagram
     TF->>N3: pveceph createosd
     TF->>N1: pveceph pool create
     N1-->>TF: Ceph healthy
-    
+
     Note over TF,N3: Deploy Tailscale
     TF->>N1: Create Tailscale LXC
     TF->>N2: Create Tailscale LXC
@@ -545,11 +545,11 @@ sequenceDiagram
     participant Factory as factory.talos.dev
     participant VM as Talos VMs
     participant K8s as Kubernetes
-    
+
     Note over TF,K8s: Download Image
     TF->>Factory: Download nocloud image
     Factory-->>TF: talos-amd64.raw.xz
-    
+
     Note over TF,K8s: Create VMs
     TF->>TF: Render machine config
     TF->>PVE: Create VM 1 (control plane)
@@ -557,14 +557,14 @@ sequenceDiagram
     TF->>PVE: Create VM 3 (control plane)
     TF->>PVE: Inject cloud-init configs
     PVE-->>VM: Boot VMs
-    
+
     Note over TF,K8s: Bootstrap K8s
     VM->>VM: Fetch Cilium manifest
     VM->>VM: Deploy CNI
     VM->>VM: Fetch Flux manifest
     VM->>VM: Deploy GitOps
     VM-->>K8s: Cluster ready
-    
+
     Note over TF,K8s: Inject Secrets
     TF->>K8s: Create SOPS Age secret
     K8s-->>TF: Secret stored
