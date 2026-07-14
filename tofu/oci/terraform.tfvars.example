@@ -57,7 +57,7 @@ budget_alert_email = "your-email@example.com"
 # ---------------------------------------------------------------------------
 omni_ready       = true
 talos_image_ocid = "ocid1.image.oc1.uk-london-1.aaaaaaaa..."
-omni_endpoint    = "omni.example.com:8090"
+omni_endpoint    = "https://omni.example.com"
 # omni_join_token and tailscale_auth_key are passed via CI secrets or -var flags:
 #   tofu apply -var="omni_join_token=$OMNI_JOIN_TOKEN" -var="tailscale_auth_key=$NODES_TAILSCALE_AUTHKEY"
 
