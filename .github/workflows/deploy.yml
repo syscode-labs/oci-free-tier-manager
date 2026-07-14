@@ -181,6 +181,7 @@ jobs:
             -var="tenancy_ocid=$OCI_TENANCY_OCID" \
             -var="compartment_ocid=$OCI_COMPARTMENT_OCID" \
             -var="talos_image_ocid=${{ steps.talos_image.outputs.ocid }}" \
+            -var="omni_machine_config=$OMNI_MACHINE_CONFIG" \
             -var="omni_join_token=$OMNI_JOIN_TOKEN" \
             -var="omni_endpoint=$OMNI_ENDPOINT" \
             -var="tailscale_auth_key=$NODES_TAILSCALE_AUTHKEY" \
@@ -193,6 +194,7 @@ jobs:
         env:
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
           OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
+          OMNI_MACHINE_CONFIG: ${{ secrets.OMNI_MACHINE_CONFIG }}
           OMNI_JOIN_TOKEN: ${{ secrets.OMNI_JOIN_TOKEN }}
           OMNI_ENDPOINT: ${{ secrets.OMNI_ENDPOINT }}
           NODES_TAILSCALE_AUTHKEY: ${{ secrets.NODES_TAILSCALE_AUTHKEY }}
