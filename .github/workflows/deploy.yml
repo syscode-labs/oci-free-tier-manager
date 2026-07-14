@@ -1,14 +1,6 @@
 name: Deploy
 
 on:
-  push:
-    branches: ["main"]
-    paths:
-      - "tofu/oci/**"
-  pull_request:
-    branches: ["main"]
-    paths:
-      - "tofu/oci/**"
   workflow_dispatch:
     inputs:
       reason:
@@ -21,6 +13,14 @@ on:
         default: ""
       apply:
         description: "Apply after plan (true) or plan-only for review (false)."
+        required: false
+        default: "false"
+      vpn_probe:
+        description: "Create the temporary OCI VPN probe instance (targeted workflow only)."
+        required: false
+        default: "false"
+      destroy:
+        description: "Run targeted destroy. Requires targets and apply=true."
         required: false
         default: "false"
 
@@ -161,9 +161,19 @@ jobs:
           TARGET_ARGS=""
           for t in $TARGETS; do TARGET_ARGS="$TARGET_ARGS -target=$t"; done
           [ -n "$TARGET_ARGS" ] && echo "Targeted plan:$TARGET_ARGS"
+          DESTROY_ARG=""
+          if [ "$DESTROY" = "true" ]; then
+            if [ -z "$TARGETS" ]; then
+              echo "ERROR: destroy=true requires explicit targets"
+              exit 1
+            fi
+            DESTROY_ARG="-destroy"
+            echo "Targeted destroy enabled"
+          fi
           tofu plan \
             -lock=false \
             $TARGET_ARGS \
+            $DESTROY_ARG \
             -var="tenancy_ocid=$OCI_TENANCY_OCID" \
             -var="compartment_ocid=$OCI_COMPARTMENT_OCID" \
             -var="talos_image_ocid=${{ steps.talos_image.outputs.ocid }}" \
@@ -172,6 +182,7 @@ jobs:
             -var="tailscale_auth_key=$NODES_TAILSCALE_AUTHKEY" \
             -var="oci_config_profile=DEFAULT" \
             -var="enable_oci_vpn=true" \
+            -var="enable_oci_vpn_probe=$VPN_PROBE" \
             -var="openwrt_resolver_ip=10.10.210.1" \
             -var-file=terraform.tfvars \
             -out=tfplan
@@ -182,6 +193,8 @@ jobs:
           OMNI_ENDPOINT: ${{ secrets.OMNI_ENDPOINT }}
           NODES_TAILSCALE_AUTHKEY: ${{ secrets.NODES_TAILSCALE_AUTHKEY }}
           TARGETS: ${{ github.event.inputs.targets }}
+          VPN_PROBE: ${{ github.event.inputs.vpn_probe || 'false' }}
+          DESTROY: ${{ github.event.inputs.destroy || 'false' }}
           TF_LOG: WARN
 
       - name: Reject destructive plan
@@ -194,10 +207,33 @@ jobs:
             > destructive-changes.txt
 
           if [ -s destructive-changes.txt ]; then
+            if [ "$DESTROY" = "true" ] && [ -n "$TARGETS" ]; then
+              FAIL=0
+              while IFS="$(printf '\t')" read -r address actions; do
+                MATCH=0
+                for target in $TARGETS; do
+                  if [ "$address" = "$target" ] || [[ "$address" == "$target["* ]]; then
+                    MATCH=1
+                  fi
+                done
+                if [ "$MATCH" -ne 1 ]; then
+                  echo "ERROR: destructive change outside requested targets: $address $actions"
+                  FAIL=1
+                fi
+              done < destructive-changes.txt
+              if [ "$FAIL" -eq 0 ]; then
+                echo "Allowing explicit targeted destroy:"
+                cat destructive-changes.txt
+                exit 0
+              fi
+            fi
             echo "ERROR: plan contains destructive changes; refusing to upload/apply tfplan."
             cat destructive-changes.txt
             exit 1
           fi
+        env:
+          TARGETS: ${{ github.event.inputs.targets }}
+          DESTROY: ${{ github.event.inputs.destroy || 'false' }}
 
       - name: Upload plan
         uses: actions/upload-artifact@v4
@@ -210,7 +246,7 @@ jobs:
     name: Tofu Apply
     runs-on: ubuntu-latest
     needs: plan
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.apply == 'true')
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.apply == 'true'
     environment: production
 
     steps:
