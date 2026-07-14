@@ -242,3 +242,19 @@ run "omni_ready_without_tailscale_key_fails" {
     check.omni_ready_requires_tailscale_key,
   ]
 }
+
+# --- per-node VPN subnet requires OCI VPN resources ---
+run "vpn_subnet_without_oci_vpn_fails" {
+  command = plan
+
+  variables {
+    ampere_nodes = [
+      { name = "oci-talos-cp-1", ocpus = 1, memory_gb = 6, boot_vol_gb = 50, vpn_subnet = true },
+      { name = "oci-talos-worker-1", ocpus = 1, memory_gb = 6, boot_vol_gb = 50 },
+    ]
+  }
+
+  expect_failures = [
+    check.ampere_vpn_subnet_requires_oci_vpn,
+  ]
+}
