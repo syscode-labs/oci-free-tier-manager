@@ -173,12 +173,12 @@ run "micro_custom_boot_vol" {
 
   variables {
     ampere_nodes = [{ ocpus = 1, memory_gb = 8 }]
-    micro_nodes  = [{ name = "bastion", boot_vol_gb = 47 }]
+    micro_nodes  = [{ name = "bastion", boot_vol_gb = 50 }]
   }
 
   assert {
-    condition     = local._micro_nodes[0].boot_vol_gb == 47
-    error_message = "Expected micro boot_vol_gb of 47"
+    condition     = local._micro_nodes[0].boot_vol_gb == 50
+    error_message = "Expected micro boot_vol_gb of 50"
   }
 
   assert {
@@ -227,7 +227,7 @@ run "two_micro_nodes" {
   command = plan
 
   variables {
-    ampere_nodes = [{ ocpus = 1, memory_gb = 8, boot_vol_gb = 47 }]
+    ampere_nodes = [{ ocpus = 1, memory_gb = 8, boot_vol_gb = 50 }]
     micro_nodes  = [{ name = "bastion-1" }, { name = "bastion-2" }]
   }
 

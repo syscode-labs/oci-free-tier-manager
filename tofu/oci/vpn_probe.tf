@@ -64,7 +64,7 @@ resource "oci_core_instance" "vpn_probe" {
   source_details {
     source_type             = "image"
     source_id               = local.micro_image_id
-    boot_volume_size_in_gbs = 47
+    boot_volume_size_in_gbs = 50
   }
 
   create_vnic_details {
