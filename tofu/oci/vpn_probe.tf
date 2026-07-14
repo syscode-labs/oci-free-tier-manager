@@ -33,16 +33,16 @@ locals {
           getent hosts omni.wind-bearded.ts.net
           echo "DNS_STATUS:$?"
 
-          echo "# tcp 8090"
-          timeout 15 bash -c 'cat < /dev/null > /dev/tcp/100.72.134.50/8090'
-          echo "TCP_8090_STATUS:$?"
+          echo "# tcp 443"
+          timeout 15 bash -c 'cat < /dev/null > /dev/tcp/100.72.134.50/443'
+          echo "TCP_443_STATUS:$?"
 
-          echo "# tls 8090"
+          echo "# tls 443"
           timeout 20 openssl s_client \
-            -connect omni.wind-bearded.ts.net:8090 \
+            -connect omni.wind-bearded.ts.net:443 \
             -servername omni.wind-bearded.ts.net \
             -verify_return_error < /dev/null
-          echo "TLS_8090_STATUS:$?"
+          echo "TLS_443_STATUS:$?"
 
           echo "# udp 50180 send"
           timeout 5 bash -c 'printf "oci-vpn-probe" > /dev/udp/100.72.134.50/50180'
