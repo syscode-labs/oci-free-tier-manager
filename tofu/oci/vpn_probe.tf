@@ -33,16 +33,16 @@ locals {
           getent hosts omni.REDACTED_TAILNET_DOMAIN
           echo "DNS_STATUS:$?"
 
-          echo "# tcp 8090"
-          timeout 15 bash -c 'cat < /dev/null > /dev/tcp/REDACTED-OMNI-TARGET-IP/8090'
-          echo "TCP_8090_STATUS:$?"
+          echo "# tcp 443"
+          timeout 15 bash -c 'cat < /dev/null > /dev/tcp/REDACTED-OMNI-TARGET-IP/443'
+          echo "TCP_443_STATUS:$?"
 
-          echo "# tls 8090"
+          echo "# tls 443"
           timeout 20 openssl s_client \
-            -connect omni.REDACTED_TAILNET_DOMAIN:8090 \
+            -connect omni.REDACTED_TAILNET_DOMAIN:443 \
             -servername omni.REDACTED_TAILNET_DOMAIN \
             -verify_return_error < /dev/null
-          echo "TLS_8090_STATUS:$?"
+          echo "TLS_443_STATUS:$?"
 
           echo "# udp 50180 send"
           timeout 5 bash -c 'printf "oci-vpn-probe" > /dev/udp/REDACTED-OMNI-TARGET-IP/50180'
