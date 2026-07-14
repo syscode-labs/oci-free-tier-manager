@@ -15,7 +15,7 @@
  *   OCPUs must be integers (1, 2, 3, or 4) — the OCI API enforces min=1, step=1
  *
  * Minimum sizes:
- *   Each boot volume ≥ 47 GB (OCI minimum)
+ *   Each boot volume ≥ 50 GB (OCI minimum observed from OCI API/provider 2026-07-14)
  */
 
 # ---------------------------------------------------------------------------
@@ -69,15 +69,15 @@ check "integer_ocpus" {
 
 check "ampere_min_boot_vol" {
   assert {
-    condition     = alltrue([for n in local._ampere_nodes : n.boot_vol_gb >= 47])
-    error_message = "All Ampere boot volumes must be at least 47 GB (OCI minimum). Check boot_vol_gb in ampere_nodes."
+    condition     = alltrue([for n in local._ampere_nodes : n.boot_vol_gb >= 50])
+    error_message = "All Ampere boot volumes must be at least 50 GB (OCI minimum). Check boot_vol_gb in ampere_nodes."
   }
 }
 
 check "micro_min_boot_vol" {
   assert {
-    condition     = length(local._micro_nodes) == 0 || alltrue([for n in local._micro_nodes : n.boot_vol_gb >= 47])
-    error_message = "All Micro boot volumes must be at least 47 GB (OCI minimum). Check boot_vol_gb in micro_nodes."
+    condition     = length(local._micro_nodes) == 0 || alltrue([for n in local._micro_nodes : n.boot_vol_gb >= 50])
+    error_message = "All Micro boot volumes must be at least 50 GB (OCI minimum). Check boot_vol_gb in micro_nodes."
   }
 }
 
