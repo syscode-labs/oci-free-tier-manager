@@ -254,7 +254,7 @@ resource "oci_core_instance" "ampere_instance" {
   }
 
   create_vnic_details {
-    subnet_id        = local.subnet_id
+    subnet_id        = local.ampere_subnet_ids[count.index]
     assign_public_ip = false # public IPs are managed explicitly via oci_core_public_ip.ampere_instance[*]
     display_name     = "ampere-vnic-${count.index + 1}"
   }
@@ -400,7 +400,7 @@ data "oci_core_private_ips" "micro_private_ip" {
 
 data "oci_core_private_ips" "ampere_private_ip" {
   count      = length(local._ampere_nodes)
-  subnet_id  = local.subnet_id
+  subnet_id  = local.ampere_subnet_ids[count.index]
   ip_address = oci_core_instance.ampere_instance[count.index].private_ip
 }
 
