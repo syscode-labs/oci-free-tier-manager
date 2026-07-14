@@ -169,6 +169,7 @@ variable "ampere_nodes" {
     memory_gb   = optional(number)
     boot_vol_gb = optional(number)
     name        = optional(string)
+    vpn_subnet  = optional(bool)
   }))
   default = null
 }
