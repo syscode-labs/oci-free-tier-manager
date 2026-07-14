@@ -4,7 +4,7 @@
 #   - Total OCPUs > 4
 #   - Total RAM > 12 GB
 #   - Total storage > 200 GB
-#   - Boot volume < 47 GB (OCI minimum)
+#   - Boot volume < 50 GB (OCI minimum)
 
 mock_provider "oci" {
   mock_data "oci_core_images" {
@@ -273,31 +273,31 @@ run "storage_budget_exactly_200gb_passes" {
 # Boot volume minimum size violations
 # ---------------------------------------------------------------------------
 
-# boot_vol_gb = 46 → below OCI minimum of 47 GB
+# boot_vol_gb = 49 → below OCI minimum of 50 GB
 run "ampere_boot_vol_below_minimum" {
   command = plan
 
   variables {
     ampere_nodes = [
-      { ocpus = 1, memory_gb = 6, boot_vol_gb = 46 },
+      { ocpus = 1, memory_gb = 6, boot_vol_gb = 49 },
     ]
   }
 
   expect_failures = [check.ampere_min_boot_vol]
 }
 
-# boot_vol_gb = 47 → exactly at minimum, must pass
+# boot_vol_gb = 50 → exactly at minimum, must pass
 run "ampere_boot_vol_at_minimum_passes" {
   command = plan
 
   variables {
     ampere_nodes = [
-      { ocpus = 1, memory_gb = 6, boot_vol_gb = 47 },
+      { ocpus = 1, memory_gb = 6, boot_vol_gb = 50 },
     ]
   }
 
   assert {
-    condition     = local._ampere_nodes[0].boot_vol_gb == 47
-    error_message = "Expected boot_vol_gb == 47"
+    condition     = local._ampere_nodes[0].boot_vol_gb == 50
+    error_message = "Expected boot_vol_gb == 50"
   }
 }

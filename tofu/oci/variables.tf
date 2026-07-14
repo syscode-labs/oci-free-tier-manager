@@ -32,7 +32,7 @@
  *   ]
  *
  *   # Explicit bastion (available on all account types)
- *   micro_nodes = [{ name = "bastion", boot_vol_gb = 47 }]
+ *   micro_nodes = [{ name = "bastion", boot_vol_gb = 50 }]
  *
  *   # Free 10 Mbps load balancer
  *   load_balancer = {}
