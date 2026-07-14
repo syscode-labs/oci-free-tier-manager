@@ -23,6 +23,10 @@ on:
         description: "Run targeted destroy. Requires targets and apply=true."
         required: false
         default: "false"
+      allow_replace:
+        description: "Allow delete/create replacement, but only for explicit targets."
+        required: false
+        default: "false"
 
 permissions:
   contents: read
@@ -207,7 +211,7 @@ jobs:
             > destructive-changes.txt
 
           if [ -s destructive-changes.txt ]; then
-            if [ "$DESTROY" = "true" ] && [ -n "$TARGETS" ]; then
+            if { [ "$DESTROY" = "true" ] || [ "$ALLOW_REPLACE" = "true" ]; } && [ -n "$TARGETS" ]; then
               FAIL=0
               while IFS="$(printf '\t')" read -r address actions; do
                 MATCH=0
@@ -222,7 +226,7 @@ jobs:
                 fi
               done < destructive-changes.txt
               if [ "$FAIL" -eq 0 ]; then
-                echo "Allowing explicit targeted destroy:"
+                echo "Allowing explicit targeted destructive changes:"
                 cat destructive-changes.txt
                 exit 0
               fi
@@ -234,6 +238,7 @@ jobs:
         env:
           TARGETS: ${{ github.event.inputs.targets }}
           DESTROY: ${{ github.event.inputs.destroy || 'false' }}
+          ALLOW_REPLACE: ${{ github.event.inputs.allow_replace || 'false' }}
 
       - name: Upload plan
         uses: actions/upload-artifact@v4

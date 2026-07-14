@@ -81,6 +81,13 @@ check "micro_min_boot_vol" {
   }
 }
 
+check "ampere_vpn_subnet_requires_oci_vpn" {
+  assert {
+    condition     = !anytrue([for n in local._ampere_nodes : n.vpn_subnet]) || local.vpn_enabled
+    error_message = "ampere_nodes[*].vpn_subnet requires enable_oci_vpn=true and module-managed networking."
+  }
+}
+
 # ---------------------------------------------------------------------------
 # omni_ready prerequisite checks
 # ---------------------------------------------------------------------------
