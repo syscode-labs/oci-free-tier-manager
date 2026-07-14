@@ -93,6 +93,7 @@ jobs:
 
           oci compute console-history get-content \
             --instance-console-history-id "$HISTORY_ID" \
+            --length 1048576 \
             --file console.raw.log
 
           python3 - <<'PY'
