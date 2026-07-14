@@ -1,0 +1,122 @@
+name: Diagnose Talos Console
+
+on:
+  workflow_dispatch:
+    inputs:
+      instance_name:
+        description: "OCI instance display name to inspect"
+        required: true
+        default: "oci-talos-cp-1"
+      lines:
+        description: "Redacted console lines to print"
+        required: false
+        default: "300"
+
+permissions:
+  contents: read
+
+jobs:
+  console:
+    name: Capture Serial Console
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Write OCI credentials
+        shell: bash
+        run: |
+          mkdir -p ~/.oci
+          printf '%s' "$OCI_API_KEY_PEM" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+          cat > ~/.oci/config <<EOF
+          [DEFAULT]
+          user=$OCI_USER_OCID
+          fingerprint=$OCI_FINGERPRINT
+          tenancy=$OCI_TENANCY_OCID
+          region=$OCI_REGION
+          key_file=$HOME/.oci/oci_api_key.pem
+          EOF
+          chmod 600 ~/.oci/config
+        env:
+          OCI_USER_OCID: ${{ secrets.OCI_USER_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_API_KEY_PEM: ${{ secrets.OCI_API_KEY_PEM }}
+          OCI_REGION: ${{ secrets.OCI_REGION }}
+
+      - name: Install OCI CLI
+        shell: bash
+        run: pip install oci-cli --quiet
+
+      - name: Capture and redact console history
+        shell: bash
+        env:
+          OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
+          INSTANCE_NAME: ${{ github.event.inputs.instance_name }}
+          PRINT_LINES: ${{ github.event.inputs.lines }}
+        run: |
+          set -euo pipefail
+          case "$PRINT_LINES" in
+            ""|*[!0-9]*) PRINT_LINES=300 ;;
+          esac
+
+          INSTANCE_ID="$(oci compute instance list \
+            --compartment-id "$OCI_COMPARTMENT_OCID" \
+            --display-name "$INSTANCE_NAME" \
+            --lifecycle-state RUNNING \
+            --query 'data[0].id' \
+            --raw-output)"
+
+          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ] || [ "$INSTANCE_ID" = "null" ]; then
+            echo "ERROR: no RUNNING instance found for display name: $INSTANCE_NAME"
+            exit 1
+          fi
+
+          echo "Capturing serial console for $INSTANCE_NAME"
+
+          HISTORY_ID="$(oci compute console-history capture \
+            --instance-id "$INSTANCE_ID" \
+            --display-name "github-${GITHUB_RUN_ID}-${INSTANCE_NAME}" \
+            --wait-for-state SUCCEEDED \
+            --max-wait-seconds 180 \
+            --wait-interval-seconds 5 \
+            --query 'data.id' \
+            --raw-output)"
+
+          cleanup() {
+            if [ -n "${HISTORY_ID:-}" ] && [ "$HISTORY_ID" != "None" ] && [ "$HISTORY_ID" != "null" ]; then
+              oci compute console-history delete \
+                --instance-console-history-id "$HISTORY_ID" \
+                --force >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup EXIT
+
+          oci compute console-history get-content \
+            --instance-console-history-id "$HISTORY_ID" \
+            --file console.raw.log
+
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          text = Path("console.raw.log").read_bytes().decode("utf-8", "replace")
+          replacements = [
+              (r"(jointoken=)[^&\s\"'<>]+", r"\1<redacted>"),
+              (r"(TS_AUTHKEY=)[^\s\"'<>]+", r"\1<redacted>"),
+              (r"tskey-[A-Za-z0-9_-]+", r"<redacted-tskey>"),
+              (r"(Authorization:\s*Bearer\s+)[A-Za-z0-9._-]+", r"\1<redacted>"),
+          ]
+          for pattern, repl in replacements:
+              text = re.sub(pattern, repl, text)
+          Path("console.redacted.log").write_text(text, encoding="utf-8")
+          PY
+
+          echo "=== redacted console tail ==="
+          tail -n "$PRINT_LINES" console.redacted.log
+
+      - name: Upload redacted console log
+        uses: actions/upload-artifact@v4
+        with:
+          name: talos-console-redacted
+          path: console.redacted.log
+          retention-days: 1
