@@ -45,7 +45,7 @@ omni_ready = false
 
 # Talos + Omni enrollment
 omni_ready       = true
-talos_image_ocid = "ocid1.image.oc1..."   # auto-fetched from oci-talos-gitops-apps in CI
+talos_image_ocid = "ocid1.image.oc1..."   # auto-fetched from syscode-homelab-gitops-apps in CI
 omni_endpoint    = "omni.example.com:8090"
 omni_join_token  = "..."                  # or pass via -var / TF_VAR_omni_join_token
 
@@ -69,7 +69,7 @@ When `omni_ready = true`:
 1. Nodes boot Talos Linux (custom OCI image from [oci-free-tier-images](https://github.com/syscode-labs/oci-free-tier-images))
 2. `user_data` injects a Talos MachineConfig that joins Omni via SideroLink
 3. Omni detects the nodes and provisions the cluster
-4. Argo CD GitOps is managed by [oci-talos-gitops-apps](https://github.com/syscode-labs/oci-talos-gitops-apps)
+4. Argo CD GitOps is managed by [syscode-homelab-gitops-apps](https://github.com/syscode-labs/syscode-homelab-gitops-apps)
 
 ## OCI Free Tier Resources
 
@@ -112,7 +112,7 @@ automatically. For manual deployments:
 
 - **[oci-free-tier-images](https://github.com/syscode-labs/oci-free-tier-images)** —
   Custom OS images (Talos, Debian) built for OCI import
-- **[oci-talos-gitops-apps](https://github.com/syscode-labs/oci-talos-gitops-apps)** —
+- **[syscode-homelab-gitops-apps](https://github.com/syscode-labs/syscode-homelab-gitops-apps)** —
   Argo CD GitOps apps for the Talos cluster
 
 ## License
