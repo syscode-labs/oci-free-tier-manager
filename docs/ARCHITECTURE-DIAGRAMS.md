@@ -99,7 +99,7 @@ flowchart LR
     Start(["task deploy:oci"])
     Plan["tofu plan/apply"]
     VCN["VCN + Networking"]
-    Compute["3x Ampere (default)\nMicro opt-in"]
+    Compute["2x Ampere (default)\nMicro opt-in"]
     Mesh["Tailscale Mesh"]
     Done[("✓")]
 
@@ -159,7 +159,7 @@ Complete technology stack from OCI instances to Kubernetes applications.
 %%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#0891b2','primaryTextColor':'#fff','primaryBorderColor':'#06b6d4','lineColor':'#3b82f6','textColor':'#fff'}}}%%
 graph TB
     subgraph OCI["OCI Infrastructure"]
-        Ampere["3x Ampere A1<br/>ARM64"]
+        Ampere["2x Ampere A1<br/>ARM64"]
         Bastion["Micro Bastion (opt-in)"]
     end
 
@@ -339,7 +339,7 @@ Multi-stage validation ensuring all resources stay within free tier limits.
 ```mermaid
 %%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#0891b2','primaryTextColor':'#fff','primaryBorderColor':'#06b6d4','lineColor':'#3b82f6','textColor':'#fff'}}}%%
 flowchart TB
-    Limits["Free Tier Limits<br/>4 OCPU, 24GB, 200GB"]
+    Limits["Free Tier Limits<br/>2 A1 OCPU, 12GB, 200GB"]
     TFVal["Terraform Validations<br/>variables.tf"]
     PreCheck["Pre-Deploy Checks<br/>tofu plan"]
     Runtime["Runtime Monitor<br/>Budget Alert $0.01"]
@@ -457,7 +457,7 @@ sequenceDiagram
     Dev->>TF: tofu apply
     TF->>OCI: Create VCN
     TF->>OCI: Create subnet
-    TF->>OCI: Create 3x Ampere instances
+    TF->>OCI: Create 2x Ampere instances
     TF->>OCI: Create Micro bastion only when micro_nodes is set
     TF->>OCI: Attach reserved IPs
     OCI-->>TF: Instance IPs
