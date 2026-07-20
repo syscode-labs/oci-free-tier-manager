@@ -1,9 +1,9 @@
 # Product Requirements Document (PRD)
 ## OCI Free Tier Manager
 
-**Document Version:** 1.0  
-**Last Updated:** 2025-11-18  
-**Status:** Active Development  
+**Document Version:** 1.0
+**Last Updated:** 2026-06-14
+**Status:** Active Development
 **Author:** Engineering Team
 
 ---
@@ -34,7 +34,7 @@ A comprehensive automation toolkit that maximizes Oracle Cloud Infrastructure (O
 
 ### 1.3 Why
 **Problem Statement:**
-OCI provides generous Always Free tier resources (4 ARM cores, 24GB RAM, 200GB storage), but:
+OCI provides Always Free tier resources (2 Ampere A1 OCPUs, 12GB RAM, 200GB storage), but:
 - Ampere A1 instances are frequently unavailable due to high demand
 - Manual monitoring of availability is tedious and inefficient
 - Complex configuration required to stay within free tier limits
@@ -49,7 +49,7 @@ OCI provides generous Always Free tier resources (4 ARM cores, 24GB RAM, 200GB s
 
 ### 1.4 Constraints
 **Technical Constraints:**
-- OCI Always Free limits: 4 OCPU, 24GB RAM, 200GB storage, 2 reserved IPs
+- OCI Always Free limits: up to 2 A1 instances, 2 A1 OCPUs, 12GB A1 RAM, and 200GB storage
 - Ampere A1 availability is unpredictable (requires monitoring)
 - Object Storage: 20GB limit for custom images
 - Network: 10TB/month egress (sufficient for most workloads)
@@ -199,7 +199,7 @@ OCI provides generous Always Free tier resources (4 ARM cores, 24GB RAM, 200GB s
 ```
 Given: User has OCI free tier account, basic CLI knowledge
 When: User follows README quick start guide
-Then: 
+Then:
 - Availability checker runs and detects capacity
 - Terraform deploys infrastructure in 30 minutes
 - User receives SSH access to all instances
@@ -573,7 +573,7 @@ Then: Verify total storage <20GB (within free tier)
 Given: User has configured terraform.tfvars
 When: User runs terraform plan
 Then: Validate all resources are free tier eligible
-  And: Calculate total: 4 OCPU, 24GB RAM, 200GB storage
+  And: Calculate total: 2 OCPU, 12GB RAM, 200GB storage
   And: Show $0 estimated cost
   And: Display resource counts and configurations
 ```
@@ -791,7 +791,7 @@ Then: Grafana Cloud triggers alert within 5 minutes
 ### 8.4 Scalability
 
 **NFR-12: Resource Limits**
-- Hard limits: 4 OCPU, 24GB RAM, 200GB storage (OCI free tier)
+- Hard limits: 2 A1 instances, 2 A1 OCPU, 12GB A1 RAM, 200GB storage (OCI free tier)
 - No horizontal scaling beyond 3 Ampere + 1 Micro
 - Vertical scaling: Not possible (free tier fixed)
 - Workload scaling: Within K8s cluster (pod autoscaling supported)
@@ -1064,7 +1064,7 @@ Then: Grafana Cloud triggers alert within 5 minutes
 **RISK-1: Ampere A1 Unavailability (HIGH)**
 - **Impact:** Users cannot deploy infrastructure
 - **Likelihood:** High (well-known issue)
-- **Mitigation:** 
+- **Mitigation:**
   - Availability checker with automated polling
   - Documentation on best times to check (off-peak hours)
   - Alternative: Deploy with 1 Ampere + 2 Micro (reduced capacity)
@@ -1215,7 +1215,7 @@ Then: Grafana Cloud triggers alert within 5 minutes
 
 **Q1: Should we provide pre-built images?**
 - **Context:** Users may struggle with Packer
-- **Options:** 
+- **Options:**
   - A) Provide pre-built images in public OCI bucket
   - B) Require users to build their own (security, trust)
 - **Dependencies:** Need OCI bucket storage strategy
@@ -1337,6 +1337,6 @@ Then: Grafana Cloud triggers alert within 5 minutes
 
 ---
 
-**Document Status:** ✅ Active Development  
-**Next Review:** 2025-12-01 (Post Phase 1 completion)  
+**Document Status:** ✅ Active Development
+**Next Review:** 2025-12-01 (Post Phase 1 completion)
 **Approval Required From:** Project maintainer
