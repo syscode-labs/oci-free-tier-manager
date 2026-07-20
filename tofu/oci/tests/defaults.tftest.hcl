@@ -189,7 +189,21 @@ run "default_resource_counts" {
 
   assert {
     condition     = length(oci_core_public_ip.ingress) == 0
-    error_message = "Expected 0 ingress reserved IPs by default, got ${length(oci_core_public_ip.ingress)}"
+    error_message = "Expected no ingress reserved IP by default, got ${length(oci_core_public_ip.ingress)}"
+  }
+}
+
+# --- Ingress reserved IP is opt-in ---
+run "ingress_reserved_ip_opt_in" {
+  command = plan
+
+  variables {
+    create_ingress_ip = true
+  }
+
+  assert {
+    condition     = length(oci_core_public_ip.ingress) == 1
+    error_message = "Expected one ingress reserved IP when create_ingress_ip = true, got ${length(oci_core_public_ip.ingress)}"
   }
 }
 

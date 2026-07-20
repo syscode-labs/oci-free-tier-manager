@@ -6,7 +6,7 @@ Complete implementation plan for OCI Free Tier Kubernetes cluster.
 
 ✅ **Implemented:**
 
-- OCI infrastructure provisioning (`tofu/oci/`) — VCN, up to 4× Ampere A1.Flex + optional Micro instances
+- OCI infrastructure provisioning (`tofu/oci/`) — VCN, up to 2× Ampere A1.Flex + optional Micro instances
 - Two deployment modes via `omni_ready` toggle:
   - **Ubuntu mode** (`omni_ready = false`): plain Ubuntu instances, SSH access
   - **Talos+Omni mode** (`omni_ready = true`): Talos Linux nodes auto-enrolled into Omni via SideroLink over Tailscale
