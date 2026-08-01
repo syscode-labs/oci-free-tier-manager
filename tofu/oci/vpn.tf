@@ -128,6 +128,20 @@ resource "oci_core_security_list" "vpn_security_list" {
     protocol = "all"
     source   = var.vpn_subnet_cidr
   }
+
+  # Ingress: temporary SSH from the home network for the VPN probe.
+  dynamic "ingress_security_rules" {
+    for_each = local.vpn_probe_enabled && var.ssh_public_key != null ? [var.vpn_probe_home_cidr] : []
+    content {
+      protocol    = "6" # TCP
+      source      = ingress_security_rules.value
+      description = "Temporary SSH from home network for VPN probe"
+      tcp_options {
+        min = 22
+        max = 22
+      }
+    }
+  }
 }
 
 # ---------------------------------------------------------------------------

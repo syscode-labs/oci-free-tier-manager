@@ -27,6 +27,10 @@ on:
         description: "Allow delete/create replacement, but only for explicit targets."
         required: false
         default: "false"
+      ssh_public_key:
+        description: "SSH public key for the temporary VPN probe (optional, only used when vpn_probe=true)."
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -189,6 +193,7 @@ jobs:
             -var="enable_oci_vpn=true" \
             -var="enable_oci_vpn_probe=$VPN_PROBE" \
             -var="openwrt_resolver_ip=10.10.210.1" \
+            -var="ssh_public_key=$SSH_PUBLIC_KEY" \
             -var-file=terraform.tfvars \
             -out=tfplan
         env:
@@ -201,6 +206,7 @@ jobs:
           TARGETS: ${{ github.event.inputs.targets }}
           VPN_PROBE: ${{ github.event.inputs.vpn_probe || 'false' }}
           DESTROY: ${{ github.event.inputs.destroy || 'false' }}
+          SSH_PUBLIC_KEY: ${{ github.event.inputs.ssh_public_key || '' }}
           TF_LOG: WARN
 
       - name: Reject destructive plan

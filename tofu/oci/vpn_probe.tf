@@ -74,6 +74,7 @@ resource "oci_core_instance" "vpn_probe" {
   }
 
   metadata = {
-    user_data = base64encode(local._vpn_probe_cloud_init)
+    user_data           = base64encode(local._vpn_probe_cloud_init)
+    ssh_authorized_keys = var.ssh_public_key != null ? var.ssh_public_key : ""
   }
 }
