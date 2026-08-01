@@ -298,6 +298,12 @@ variable "enable_oci_vpn_probe" {
   default     = false
 }
 
+variable "vpn_probe_home_cidr" {
+  description = "Home network CIDR allowed temporary SSH access to the VPN probe when enable_oci_vpn_probe and ssh_public_key are set."
+  type        = string
+  default     = "10.0.0.0/8"
+}
+
 variable "load_balancer" {
   description = "Load balancer configuration. null = no LB (default). {} = free-tier 10/10 Mbps flexible LB."
   type = object({
