@@ -61,6 +61,7 @@ build {
       "provision/03-strip.sh",
       "provision/04-monitoring.sh",
     ]
+    use_sudo = true
     environment_vars = [
       "DEBIAN_FRONTEND=noninteractive",
       "ENABLE_MONITORING=${var.enable_monitoring}",
