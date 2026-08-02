@@ -4,15 +4,18 @@ set +e
 echo "===== OCI-DATASOURCE-DIAG START ====="
 python3 - <<'PYEOF' 2>&1 | tee /tmp/diag.txt
 import importlib, traceback
-try:
-    m = importlib.import_module("cloudinit.sources.DataSourceOCI")
-    print("IMPORT_OK DataSourceOCI:", m)
-except Exception as e:
-    print("IMPORT_FAIL (%s):" % type(e).__name__)
-    traceback.print_exc()
+for mod in ("cloudinit.sources.DataSourceOCI", "cloudinit.sources.DataSourceOracle"):
+    try:
+        m = importlib.import_module(mod)
+        print("IMPORT_OK", mod, "->", m)
+    except Exception as e:
+        print("IMPORT_FAIL", mod, "(%s):" % type(e).__name__)
+        traceback.print_exc()
 PYEOF
-echo "===== cloud-init log datasource errors ====="
-grep -rniE "DataSourceOCI|ImportError|ModuleNotFoundError|Could not import" /var/log/cloud-init*.log 2>/dev/null | tail -40
+echo "===== datasource_list configured ====="
+grep -rHiE "datasource_list|datasource:" /etc/cloud/cloud.cfg.d/ 2>/dev/null
+echo "===== cloud-init cloud.cfg datasource ====="
+grep -nE "datasource_list|Oracle|OCI|datasource:" /etc/cloud/cloud.cfg 2>/dev/null | head -20
 echo "===== cloudinit/sources listing ====="
 find /usr/lib/python3/dist-packages/cloudinit/sources/ -maxdepth 1 -printf "%f\n" 2>/dev/null | head -40
 echo "===== pip-freeze candidates relevant to OCI/cloud ====="
