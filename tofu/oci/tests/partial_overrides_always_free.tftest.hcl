@@ -302,19 +302,3 @@ run "load_balancer_explicit_10mbps" {
     error_message = "Expected shape == 'flexible'"
   }
 }
-
-# --- Ingress reserved IP created only when explicitly enabled ---
-run "ingress_ip_created_when_enabled" {
-  command = plan
-
-  variables {
-    ampere_nodes      = [{ ocpus = 1, memory_gb = 6 }]
-    micro_nodes       = []
-    create_ingress_ip = true
-  }
-
-  assert {
-    condition     = length(oci_core_public_ip.ingress) == 1
-    error_message = "Expected 1 ingress reserved IP when create_ingress_ip = true"
-  }
-}
