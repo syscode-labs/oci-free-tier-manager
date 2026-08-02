@@ -97,14 +97,19 @@ jobs:
         if: ${{ github.event.inputs.base_image_ocid == '' }}
         id: base_image
         run: |
-          BASE_OCID=$(oci compute image list \
+          # NB: --shape and --operating-system-version filters would exclude the
+          # Minimal image (its version string is "24.04 Minimal"), so filter by
+          # display-name instead.
+          IMAGES_JSON=$(oci compute image list \
             --compartment-id "${{ github.event.inputs.compartment_ocid }}" \
             --operating-system "Canonical Ubuntu" \
-            --operating-system-version "24.04" \
-            --shape "VM.Standard.E2.1.Micro" \
             --sort-by TIMECREATED --sort-order DESC \
-            --output json \
-            | jq -r '.data[] | select(."display-name" | contains("Minimal")) | .id' | head -1)
+            --output json)
+          BASE_OCID=$(printf '%s' "$IMAGES_JSON" | jq -r '
+            .data[]
+            | select(."display-name" | test("^Canonical-Ubuntu-24.04-Minimal-(?!aarch64)"))
+            | .id
+          ' | head -1)
           if [ -z "$BASE_OCID" ] || [ "$BASE_OCID" = "null" ]; then
             echo "ERROR: Could not find Ubuntu 24.04 Minimal image"
             exit 1
