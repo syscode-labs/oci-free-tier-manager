@@ -151,7 +151,7 @@ jobs:
           exit $FAIL
 
       - name: Setup OpenTofu
-        uses: opentofu/setup-opentofu@v2.0.0
+        uses: opentofu/setup-opentofu@v2.0.2
         with:
           tofu_version: "1.11.5"
 
@@ -287,7 +287,7 @@ jobs:
           TF_BACKEND_CONFIG: ${{ secrets.TF_BACKEND_CONFIG }}
 
       - name: Setup OpenTofu
-        uses: opentofu/setup-opentofu@v2.0.0
+        uses: opentofu/setup-opentofu@v2.0.2
         with:
           tofu_version: "1.11.5"
 
