@@ -16,6 +16,7 @@ apt-get install -y \
   fail2ban \
   auditd \
   iptables-persistent \
+  ufw \
   logrotate \
   unattended-upgrades \
   ca-certificates \
