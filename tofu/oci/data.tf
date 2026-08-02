@@ -10,11 +10,17 @@
 # ---------------------------------------------------------------------------
 # Defaults
 #
-# This module enforces OCI free-tier limits regardless of account type:
-#   2 x A1.Flex (1 OCPU / 6 GB / 50 GB)
-#   Total: 2 OCPUs, 12 GB RAM, 100 GB storage
+# This module enforces OCI Always Free compute/storage limits regardless of
+# account type:
+#   2 x A1.Flex (configurable OCPU/RAM, min 1 OCPU / 6 GB / 50 GB each)
+#   2 x E2.1.Micro (fixed: 1/8 OCPU, 1 GB RAM, 50 GB boot volume each)
+#   Total OCPUs: 2 (Ampere), plus up to 2 Micro instances
+#   Total RAM  : 12 GB (Ampere); Micro add 1 GB each
+#   Total storage: 200 GB block volume, SHARED across Ampere + Micro boot volumes
+#   20 GB object storage, 10 TB egress/month
 #
-# OCPUs are integer-only (API min=1, step=1).
+# OCPUs are CPU-only (API min=1, step=1).
+# Boot volumes are allocated toward the shared 200 GB block-volume budget.
 # ---------------------------------------------------------------------------
 locals {
   _tier_defaults = {

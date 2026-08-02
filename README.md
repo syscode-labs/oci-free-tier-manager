@@ -78,10 +78,18 @@ When `omni_ready = true`:
 - **Ampere A1**: 2 OCPUs + 12 GB RAM total (ARM64, flexible — split across up to 2 instances)
 - **E2.1.Micro**: 2 instances × 1/8 OCPU + 1 GB RAM (AMD)
 
+This module deploys the full Always Free allotment:
+
+- `ampere_nodes`: 2 x A1.Flex (Talos nodes) → uses all 2 OCPUs / 12 GB
+- `micro_nodes`: 1 x E2.1.Micro (`oci-micro-01`) + 1 x E2.1.Micro VPN probe
+  (`enable_oci_vpn_probe=true`) → uses both Always Free Micro slots
+
 ### Storage
 
-- **Block volumes**: 200 GB total (includes all boot volumes)
+- **Block volumes**: 200 GB total (includes all boot volumes — shared across Ampere *and* Micro instances)
 - **Object storage**: 20 GB
+
+Current footprint: 2×50 (Ampere) + 2×50 (Micro) = **200 GB used, at the hard limit**.
 
 ### Networking
 
