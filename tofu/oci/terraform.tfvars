@@ -3,7 +3,7 @@ talos_image_ocid = "ocid1.image.oc1.uk-london-1.aaaaaaaainhjkquyd5le6eo4n3thk6ax
 
 # Layered golden Micro image (packer golden-micro-YYYYMMDD). Probe uses this
 # when enable_oci_vpn_probe=true (workflow input). Update after each image build.
-vpn_probe_golden_image_ocid = "ocid1.image.oc1.uk-london-1.aaaaaaaa2ysgcg37ecjk2xpjsex645dyde7cxdj2rslthjk2zi67fhw6hj4a"
+vpn_probe_golden_image_ocid = "ocid1.image.oc1.uk-london-1.aaaaaaaakee4a7nxepwu25qevbyftw2yjw53xm6qnao7wynv4tvdfnadh44a"
 
 # 2x Ampere nodes: cp-1 early-Tailscale proof + worker (1 OCPU / 6 GB each = 2 OCPU / 12 GB total)
 ampere_nodes = [
