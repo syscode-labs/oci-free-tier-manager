@@ -11,6 +11,14 @@ ampere_nodes = [
   { name = "oci-talos-worker-1", ocpus = 1, memory_gb = 6, boot_vol_gb = 50, vpn_subnet = true },
 ]
 
+# Always Free entitlement is 2x E2.1.Micro total. The VPN probe (enable_oci_vpn_probe)
+# consumes one slot; this block consumes the 2nd/last slot. Storage stays within the
+# shared 200 GB block-volume budget: 2x50 (Ampere) + 2x50 (Micro) = 200 GB.
+# The probe is provisioned separately (vpn_probe.tf), NOT via micro_nodes.
+micro_nodes = [
+  { name = "oci-micro-01", boot_vol_gb = 50 },
+]
+
 # The following must be set via TF_VAR_ environment variables or -var flags:
 #
 #   TF_VAR_oci_config_profile   — OCI CLI profile name (local runs); not needed in CI
