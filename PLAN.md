@@ -10,16 +10,16 @@ Complete implementation plan for deploying a Kubernetes cluster on OCI free tier
 
 ### Resource Allocation
 
-3x Ampere A1 nodes (ARM64):
-- 1.33 OCPU each (3.99 total)
-- 8GB RAM each (24GB total)
-- 50GB storage each (150GB total)
+2x Ampere A1 nodes (ARM64):
+- 1 OCPU each (2 total)
+- 6GB RAM each (12GB total)
+- 50GB storage each (100GB total)
 
 1x E2.1.Micro bastion (x86):
 - 1GB RAM
 - 50GB storage
 
-Total: 4 OCPUs, 24GB RAM, 200GB storage (free tier maxed)
+Total: 2 A1 OCPUs, 12GB A1 RAM, 150GB storage
 
 ### Networking
 
