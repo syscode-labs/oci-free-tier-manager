@@ -5,8 +5,9 @@ export DEBIAN_FRONTEND=noninteractive
 # Layer 2: Common Hardening
 # Installs and configures security packages, sysctl, fail2ban, auditd, UFW, NFS, unattended-upgrades
 
-# Remove unnecessary packages (saves RAM/disk on Micro)
-apt-get purge -y snapd lxd lxd-client popularity-contest command-not-found friendly-recovery || true
+# Remove unnecessary packages (saves RAM/disk on Micro); lxd-client,
+# popularity-contest and command-not-found are gone in 24.04
+apt-get purge -y snapd lxd || true
 apt-get autoremove -y --purge || true
 
 # Install hardening packages
@@ -15,7 +16,6 @@ apt-get install -y \
   nfs-kernel-server \
   fail2ban \
   auditd \
-  iptables-persistent \
   ufw \
   logrotate \
   unattended-upgrades \
