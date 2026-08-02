@@ -60,7 +60,6 @@ build {
       "provision/02-hardened.sh",
       "provision/03-strip.sh",
       "provision/04-monitoring.sh",
-      "provision/05-diag.sh",
     ]
     execute_command = "chmod +x {{ .Path }}; {{ .Vars }} sudo -E -H bash {{ .Path }}"
     environment_vars = [
