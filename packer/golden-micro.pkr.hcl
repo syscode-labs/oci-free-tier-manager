@@ -61,7 +61,7 @@ build {
       "provision/03-strip.sh",
       "provision/04-monitoring.sh",
     ]
-    execute_command = "chmod +x {{ .Script }}; {{ .Vars }} sudo -E -H bash {{ .Script }}"
+    execute_command = "chmod +x {{ .Path }}; {{ .Vars }} sudo -E -H bash {{ .Path }}"
     environment_vars = [
       "DEBIAN_FRONTEND=noninteractive",
       "ENABLE_MONITORING=${var.enable_monitoring}",
