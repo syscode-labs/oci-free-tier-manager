@@ -13,7 +13,7 @@ This is an OCI (Oracle Cloud Infrastructure) Free Tier management toolkit that m
 **Account Type:** This project works with both:
 - **Always Free tier**: No credit card required, but Ampere instances often unavailable
 - **PAYG (Pay-As-You-Go)**: Requires credit card, but Always Free resources remain free forever
-  - Same free tier limits apply (4 OCPU Ampere, 2 Micro, 200GB storage, etc.)
+  - Same free tier limits apply (2 A1 instances, 2 A1 OCPUs, 12GB A1 RAM, 2 Micro, 200GB storage, etc.)
   - Better Ampere A1 instance availability (much easier to provision)
   - Budget alerts ($0.01 threshold) protect against accidental charges
   - Recommended if you can't get Always Free tier capacity
@@ -101,7 +101,7 @@ brew install opentofu
 **Forms Proxmox VE cluster and configures Ceph:**
 - `providers.tf` - SSH provider for Proxmox configuration
 - `main.tf` - Cluster formation (pvecm), Ceph configuration (pveceph)
-- `variables.tf` - cluster name, Ceph pool settings  
+- `variables.tf` - cluster name, Ceph pool settings
 - `outputs.tf` - Proxmox API endpoints, credentials
 
 **Important:** Proxmox VE is pre-installed via Packer images (`proxmox-ampere.qcow2`). Layer 2 only configures the cluster and Ceph, it does NOT install Proxmox.
@@ -168,7 +168,7 @@ tofu apply  # Creates VMs, injects configs, auto-bootstraps
 4. **Budget layer** - budget alerts at $0.01 threshold to detect any charges
 
 **Free tier limits enforced:**
-- Ampere: max 4 OCPUs, 24GB RAM total (distributed across instances)
+- Ampere: max 2 instances, 2 OCPUs, 12GB RAM total
 - Micro: max 2 instances, fixed shape (1/8 OCPU, 1GB RAM each)
 - Storage: 200GB total including all boot volumes and block volumes
 
@@ -245,7 +245,7 @@ micro_boot_volume_size     = 47
 ```hcl
 ampere_instance_count      = 3
 ampere_ocpus_per_instance  = 1.33  # Total: 3.99 OCPUs (maxed)
-ampere_memory_per_instance = 8     # Total: 24GB RAM (maxed)
+ampere_memory_per_instance = 6     # Total: 12GB RAM across 2 instances
 micro_instance_count       = 1
 ampere_boot_volume_size    = 50    # Total: 200GB storage (maxed)
 micro_boot_volume_size     = 50
@@ -258,8 +258,8 @@ micro_boot_volume_size     = 50
   - Proxmox cluster configured for quorum (3 nodes minimum)
   - Talos Linux VMs deployed on Proxmox after cluster setup (K8s etcd quorum separate concern)
   - Tailscale runs as LXC container in each Proxmox host for mesh networking
-  - 1.33 OCPUs per node = ~4 OCPUs total (maxed free tier)
-  - 8GB RAM per node = 24GB total (maxed free tier)
+  - 1 OCPU per node = 2 OCPUs total (maxed free tier)
+  - 6GB RAM per node = 12GB total (maxed free tier)
   - 50GB storage per node = 200GB total with bastion (maxed free tier)
 - **1 Micro bastion**: Hardened minimal Linux distro for SSH access and management
   - Not part of K8s cluster (1GB RAM insufficient for K8s)
@@ -313,7 +313,7 @@ tofu output ssh_connection_commands
 ### Free Tier Limits (Never Exceed These)
 
 1. **Compute:**
-   - Ampere A1: 4 OCPUs + 24GB RAM total (flexible)
+   - Ampere A1: up to 2 instances, 2 OCPUs + 12GB RAM total
    - E2.1.Micro: 2 instances max (fixed: 1/8 OCPU, 1GB RAM each)
 
 2. **Storage:**
@@ -338,8 +338,9 @@ tofu output ssh_connection_commands
 **Before deploying:**
 - Verify OpenTofu plan shows only Always Free resources
 - Check total storage: `(ampere_count × ampere_boot_size) + (micro_count × micro_boot_size) ≤ 200GB`
-- Check total OCPUs: `ampere_count × ampere_ocpus ≤ 4`
-- Check total RAM: `ampere_count × ampere_memory ≤ 24GB`
+- Check instance count: `ampere_count ≤ 2`
+- Check total OCPUs: `ampere_count × ampere_ocpus ≤ 2`
+- Check total RAM: `ampere_count × ampere_memory ≤ 12GB`
 
 **After Packer builds:**
 - Verify Object Storage usage: `base-hardened.qcow2 + proxmox-ampere.qcow2 ≤ 20GB`
@@ -552,16 +553,16 @@ cluster:
       name: none  # Disable default CNI
   proxy:
     disabled: true  # Cilium replaces kube-proxy
-  
+
   externalCloudProvider:
     enabled: true
     manifests:
       # 1. Cilium CNI (must be first - provides networking)
       - https://raw.githubusercontent.com/your-user/oci-free-tier-flux/main/bootstrap/cilium.yaml
-      
+
       # 2. Flux installation (GitOps controller)
       - https://github.com/fluxcd/flux2/releases/download/v2.4.0/install.yaml
-      
+
       # 3. Flux sync config (watches Git repo for changes)
       - https://raw.githubusercontent.com/your-user/oci-free-tier-flux/main/bootstrap/flux-sync.yaml
 ```
@@ -789,19 +790,19 @@ The infrastructure is deployed in sequential phases:
    # tofu/talos/talos-vms.tf
    resource "proxmox_virtual_environment_vm" "talos_controlplane" {
      count = 3
-     
+
      initialization {
        user_data_file_id = proxmox_virtual_environment_file.talos_config[count.index].id
      }
    }
-   
+
    resource "proxmox_virtual_environment_file" "talos_config" {
      count = 3
-     
+
      content_type = "snippets"
      datastore_id = "local"
      node_name    = "pve1"
-     
+
      source_raw {
        data = templatefile("${path.module}/talos-config.yaml.tpl", {
          hostname       = "talos-cp-${count.index}"
@@ -844,11 +845,11 @@ The infrastructure is deployed in sequential phases:
        name      = "sops-age"
        namespace = "flux-system"
      }
-     
+
      data = {
        "age.agekey" = file("${path.module}/../../secrets/age-key.txt")
      }
-     
+
      depends_on = [null_resource.wait_for_flux]
    }
    ```
