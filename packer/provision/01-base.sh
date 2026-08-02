@@ -5,12 +5,15 @@ export DEBIAN_FRONTEND=noninteractive
 # Layer 1: Base OS Configuration
 # Ubuntu 24.04 Minimal with Oracle Cloud Infrastructure datasource
 
-# Ensure Oracle datasource only (prevent cloud-init from trying other datasources)
+# Ensure Oracle datasource only (prevent cloud-init from trying other datasources).
+# cloud-init >=24 on Ubuntu uses DataSourceOracle.py (module name = datasource
+# name camelified); the datasource name "OCI" camelifies to "DataSourceOCI",
+# which does not exist. Use the datasource name that resolves to DataSourceOracle.
 mkdir -p /etc/cloud/cloud.cfg.d
 cat > /etc/cloud/cloud.cfg.d/99-oci-datasource.cfg <<'EOF'
-datasource_list: [OCI]
+datasource_list: [Oracle]
 datasource:
-  OCI:
+  Oracle:
     configure_secondary_nics: false
 EOF
 
