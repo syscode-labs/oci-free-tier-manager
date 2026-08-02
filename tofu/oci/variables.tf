@@ -304,6 +304,12 @@ variable "vpn_probe_home_cidr" {
   default     = "10.0.0.0/8"
 }
 
+variable "vpn_probe_golden_image_ocid" {
+  description = "OCID of pre-baked golden image for VPN probe Micro. If null, falls back to cloud-init only (Ubuntu 24.04 Minimal)."
+  type        = string
+  default     = null
+}
+
 variable "load_balancer" {
   description = "Load balancer configuration. null = no LB (default). {} = free-tier 10/10 Mbps flexible LB."
   type = object({

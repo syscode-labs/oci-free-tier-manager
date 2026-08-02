@@ -1,0 +1,242 @@
+name: Build Golden Micro Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_name:
+        description: "Golden image display name (empty = auto 'golden-micro-YYYYMMDD')"
+        required: false
+        default: ""
+      base_image_ocid:
+        description: "Base Ubuntu 24.04 Minimal OCID (leave empty to auto-resolve latest)"
+        required: false
+        default: ""
+      compartment_ocid:
+        description: "Compartment OCID where the image will be created"
+        required: true
+      availability_domain:
+        description: "Availability domain with Micro quota (leave empty to auto-detect)"
+        required: false
+        default: ""
+      subnet_ocid:
+        description: "Subnet OCID for the builder instance (must allow public IP for Packer SSH)"
+        required: true
+      enable_monitoring:
+        description: "Enable Layer 4 monitoring (Grafana Alloy)"
+        required: false
+        type: boolean
+        default: false
+      grafana_host:
+        description: "Grafana host for Alloy (if monitoring enabled)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Packer
+        uses: hashicorp/setup-packer@v2
+
+      - name: Configure OCI CLI
+        run: |
+          mkdir -p ~/.oci
+          printf '%s' "$OCI_API_KEY_PEM" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+          cat > ~/.oci/config <<EOF
+          [DEFAULT]
+          user=$OCI_USER_OCID
+          fingerprint=$OCI_FINGERPRINT
+          tenancy=$OCI_TENANCY_OCID
+          region=$OCI_REGION
+          key_file=$HOME/.oci/oci_api_key.pem
+          EOF
+        env:
+          OCI_USER_OCID: ${{ secrets.OCI_USER_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_REGION: ${{ secrets.OCI_REGION }}
+          OCI_API_KEY_PEM: ${{ secrets.OCI_API_KEY_PEM }}
+
+      - name: Auto-detect availability domain with Micro quota
+        if: ${{ github.event.inputs.availability_domain == '' }}
+        id: ad
+        run: |
+          # Limits are per-tenancy: query against the root (tenancy) compartment.
+          # Query Micro quota per AD and pick one with available capacity.
+          AD=$(oci limits value list \
+            --all \
+            --service-name compute \
+            --compartment-id "$OCI_TENANCY_OCID" \
+            --output json 2>/dev/null \
+            | jq -r '
+              .data
+              | map(select(.name=="vm-standard-e2-1-micro-count" and (.value // 0) > 0))
+              | sort_by(.value)
+              | reverse
+              | .[0]."availability-domain" // empty
+            ')
+          if [ -z "$AD" ]; then
+            echo "ERROR: No AD with Micro quota found"
+            exit 1
+          fi
+          echo "availability_domain=$AD" >> "$GITHUB_OUTPUT"
+          echo "Auto-detected AD with Micro quota: $AD"
+        env:
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+
+      - name: Resolve base image OCID (Ubuntu 24.04 Minimal)
+        if: ${{ github.event.inputs.base_image_ocid == '' }}
+        id: base_image
+        run: |
+          BASE_OCID=$(oci compute image list \
+            --compartment-id "${{ github.event.inputs.compartment_ocid }}" \
+            --operating-system "Canonical Ubuntu" \
+            --operating-system-version "24.04" \
+            --shape "VM.Standard.E2.1.Micro" \
+            --sort-by TIMECREATED --sort-order DESC \
+            --output json \
+            | jq -r '.data[] | select(."display-name" | contains("Minimal")) | .id' | head -1)
+          if [ -z "$BASE_OCID" ] || [ "$BASE_OCID" = "null" ]; then
+            echo "ERROR: Could not find Ubuntu 24.04 Minimal image"
+            exit 1
+          fi
+          echo "ocid=$BASE_OCID" >> "$GITHUB_OUTPUT"
+          echo "Resolved base image: $BASE_OCID"
+
+      - name: Check custom image quota (leave 1 slot headroom)
+        id: quota
+        run: |
+          LIMIT=$(oci limits value list \
+            --all \
+            --service-name compute \
+            --compartment-id "$OCI_TENANCY_OCID" \
+            --output json 2>/dev/null \
+            | jq -r '.data | map(select(.name=="custom-image-count")) | .[0].value // 20')
+
+          CURRENT=$(oci compute image list \
+            --all \
+            --compartment-id "${{ github.event.inputs.compartment_ocid }}" \
+            --output json \
+            | jq '.data | map(select(."lifecycle-state"=="AVAILABLE")) | length')
+
+          echo "Custom image quota: $CURRENT / $LIMIT"
+
+          # Leave 1 slot headroom
+          if [ $CURRENT -ge $((LIMIT - 1)) ]; then
+            echo "ERROR: Custom image quota nearly full ($CURRENT/$LIMIT). Need at least 1 slot free."
+            echo "Consider pruning old images or requesting quota increase."
+            exit 1
+          fi
+
+          echo "headroom=$((LIMIT - CURRENT))" >> "$GITHUB_OUTPUT"
+          echo "Quota check passed: $CURRENT/$LIMIT (headroom: $((LIMIT - CURRENT)))"
+        env:
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+
+      - name: Prune old prefixed images if quota tight
+        if: ${{ steps.quota.outputs.headroom < 3 }}
+        run: |
+          PREFIX="golden-micro-"
+          IMAGES=$(oci compute image list \
+            --all \
+            --compartment-id "${{ github.event.inputs.compartment_ocid }}" \
+            --output json \
+            | jq -r --arg prefix "$PREFIX" '
+              .data
+              | map(select(."display-name" | startswith($prefix) and ."lifecycle-state"=="AVAILABLE"))
+              | sort_by(."time-created")
+              | .[0].id // empty
+            ')
+
+          if [ -n "$IMAGES" ] && [ "$IMAGES" != "null" ]; then
+            echo "Pruning oldest prefixed image: $IMAGES"
+            oci compute image delete --image-id "$IMAGES" --force
+          fi
+
+      - name: Resolve final parameters
+        id: params
+        run: |
+          AD="${{ github.event.inputs.availability_domain }}"
+          if [ -z "$AD" ]; then
+            AD="${{ steps.ad.outputs.availability_domain }}"
+          fi
+
+          BASE="${{ github.event.inputs.base_image_ocid }}"
+          if [ -z "$BASE" ]; then
+            BASE="${{ steps.base_image.outputs.ocid }}"
+          fi
+
+          IMAGE_NAME="${{ github.event.inputs.image_name }}"
+          if [ -z "$IMAGE_NAME" ]; then
+            IMAGE_NAME="golden-micro-$(date -u +%Y%m%d)"
+          fi
+
+          echo "availability_domain=$AD" >> "$GITHUB_OUTPUT"
+          echo "base_image_ocid=$BASE" >> "$GITHUB_OUTPUT"
+          echo "image_name=$IMAGE_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Build Golden Image with Packer
+        working-directory: packer
+        env:
+          GRAFANA_HOST: ${{ github.event.inputs.grafana_host }}
+          ALLOY_PASSWORD: ${{ secrets.ALLOY_PASSWORD }}
+          ENABLE_MONITORING: ${{ github.event.inputs.enable_monitoring }}
+        run: |
+          packer init .
+          packer build \
+            -var "compartment_ocid=${{ github.event.inputs.compartment_ocid }}" \
+            -var "availability_domain=${{ steps.params.outputs.availability_domain }}" \
+            -var "subnet_ocid=${{ github.event.inputs.subnet_ocid }}" \
+            -var "base_image_ocid=${{ steps.params.outputs.base_image_ocid }}" \
+            -var "image_name=${{ steps.params.outputs.image_name }}" \
+            -var "shape=VM.Standard.E2.1.Micro" \
+            -var "ssh_username=ubuntu" \
+            -var "access_cfg_file=$HOME/.oci/config" \
+            -var "enable_monitoring=${{ github.event.inputs.enable_monitoring }}" \
+            golden-micro.pkr.hcl
+
+      - name: Output Golden Image OCID
+        id: output
+        run: |
+          IMAGE_OCID=$(oci compute image list \
+            --compartment-id "${{ github.event.inputs.compartment_ocid }}" \
+            --display-name "${{ steps.params.outputs.image_name }}" \
+            --output json \
+            | jq -r '.data[0].id // empty')
+
+          if [ -z "$IMAGE_OCID" ]; then
+            echo "ERROR: Could not find created image"
+            exit 1
+          fi
+
+          echo "Golden Image OCID: $IMAGE_OCID"
+          echo "image_ocid=$IMAGE_OCID" >> "$GITHUB_OUTPUT"
+
+          # Also output for manual terraform update
+          echo "## Golden Image Built"
+          echo ""
+          echo "| Parameter | Value |"
+          echo "|-----------|-------|"
+          echo "| Image OCID | \`$IMAGE_OCID\` |"
+          echo "| Image Name | \`${{ steps.params.outputs.image_name }}\` |"
+          echo "| Base Image | \`${{ steps.params.outputs.base_image_ocid }}\` |"
+          echo "| AD | \`${{ steps.params.outputs.availability_domain }}\` |"
+          echo "| Date | $(date -u +%Y-%m-%d) |"
+
+      - name: Comment on workflow run with image OCID
+        if: always()
+        run: |
+          echo "Golden image build complete!"
+          echo "Image OCID: ${{ steps.output.outputs.image_ocid }}"
+          echo ""
+          echo "To use in terraform, add to terraform.tfvars or set as variable:"
+          echo 'vpn_probe_golden_image_ocid = "${{ steps.output.outputs.image_ocid }}"'
