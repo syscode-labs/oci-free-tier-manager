@@ -46,6 +46,9 @@ jobs:
       - name: Setup Packer
         uses: hashicorp/setup-packer@v2
 
+      - name: Install OCI CLI
+        run: pip install oci-cli --quiet
+
       - name: Configure OCI CLI
         run: |
           mkdir -p ~/.oci
