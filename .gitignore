@@ -6,6 +6,8 @@ tofu/**/terraform.tfstate.backup
 tofu/**/terraform.tfvars  # force-add with git add -f when committing omni_ready config (no secrets in this file)
 tofu/**/backend-config.tfvars
 tofu/**/*.tfplan
+tofu/**/tfplan*
+tofu/**/*.auto.tfvars
 tofu/**/crash.log
 tofu/**/state-backup-*.tfstate
 *.tfstate
