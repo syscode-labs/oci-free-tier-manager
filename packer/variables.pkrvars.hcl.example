@@ -1,0 +1,30 @@
+# Packer variables for golden Micro image
+# Copy to variables.auto.pkrvars.hcl and customize, or pass via -var
+
+# OCI compartment where the image will be created
+# compartment_ocid = "ocid1.compartment.oc1..aaaaaaaa..."
+
+# Availability domain with Micro quota (e.g., "EGzq:UK-LONDON-1-AD-3")
+# availability_domain = ""
+
+# Subnet OCID for the builder instance (must allow public IP for Packer SSH)
+# subnet_ocid = ""
+
+# Base image OCID (Ubuntu 24.04 Minimal for E2.1.Micro)
+# Leave empty to auto-resolve latest Ubuntu 24.04 Minimal in workflow
+# base_image_ocid = ""
+
+# Name for the golden image (e.g., "golden-micro-20260802")
+# image_name = ""
+
+# Instance shape (E2.1.Micro only for free tier)
+shape = "VM.Standard.E2.1.Micro"
+
+# SSH username for the base image (ubuntu for Ubuntu)
+ssh_username = "ubuntu"
+
+# Path to OCI CLI config file (used by Packer oracle-oci builder)
+# access_cfg_file = "~/.oci/config"
+
+# Layer 4 monitoring (Grafana Alloy). Defaults to false.
+# enable_monitoring = false
