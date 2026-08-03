@@ -258,3 +258,4 @@ jobs:
           echo ""
           echo "To use in terraform, add to terraform.tfvars or set as variable:"
           echo 'vpn_probe_golden_image_ocid = "${{ steps.output.outputs.image_ocid }}"'
+          echo 'micro_golden_image_ocid      = "${{ steps.output.outputs.image_ocid }}"'

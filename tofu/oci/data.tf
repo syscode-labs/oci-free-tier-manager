@@ -132,7 +132,9 @@ locals {
   # metadata below enrolls the node into Omni. Without talos_image_ocid,
   # use latest Ubuntu 22.04 from the data source.
   ampere_image_id = var.talos_image_ocid != null ? var.talos_image_ocid : data.oci_core_images.ampere_images.images[0].id
-  micro_image_id  = data.oci_core_images.micro_images.images[0].id
+  # Prefer the pre-baked golden Micro image (base OS + hardening); falls back to
+  # latest Ubuntu 24.04 marketplace image if not set.
+  micro_image_id = var.micro_golden_image_ocid != null ? var.micro_golden_image_ocid : data.oci_core_images.micro_images.images[0].id
 }
 
 # ---------------------------------------------------------------------------

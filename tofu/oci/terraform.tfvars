@@ -5,6 +5,9 @@ talos_image_ocid = "ocid1.image.oc1.uk-london-1.aaaaaaaainhjkquyd5le6eo4n3thk6ax
 # when enable_oci_vpn_probe=true (workflow input). Update after each image build.
 vpn_probe_golden_image_ocid = "ocid1.image.oc1.uk-london-1.aaaaaaaarmuojswk5xbmcbnqpgvbrvutc22pb3lwbnptugtdveerez2wicvq"
 
+# Micro nodes (oci-micro-01) also boot the hardened golden image, not marketplace.
+micro_golden_image_ocid = "ocid1.image.oc1.uk-london-1.aaaaaaaarmuojswk5xbmcbnqpgvbrvutc22pb3lwbnptugtdveerez2wicvq"
+
 # 2x Ampere nodes: cp-1 early-Tailscale proof + worker (1 OCPU / 6 GB each = 2 OCPU / 12 GB total)
 ampere_nodes = [
   { name = "oci-talos-cp-1", ocpus = 1, memory_gb = 6, boot_vol_gb = 50, vpn_subnet = true },
