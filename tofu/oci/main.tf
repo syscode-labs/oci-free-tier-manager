@@ -310,10 +310,11 @@ resource "oci_core_instance" "micro_instance" {
   metadata = merge(
     var.ssh_public_key != null ? { ssh_authorized_keys = var.ssh_public_key } : {},
     { user_data = local._micro_user_data },
+    var.tailscale_auth_key != null ? { tailscale_auth_key = var.tailscale_auth_key } : {},
   )
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false # TEMP: lifted to recreate oci-micro-01 with Tailscale; restored after
     ignore_changes = [
       source_details[0].source_id,
       metadata,
