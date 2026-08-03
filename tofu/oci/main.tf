@@ -328,7 +328,7 @@ resource "oci_core_instance" "micro_instance" {
     prevent_destroy = false # TEMP: lifted to recreate oci-micro-01 with operator key + working NAT egress; restored after
     ignore_changes = [
       source_details[0].source_id,
-      metadata,
+      # TEMP: metadata removed so ssh_authorized_keys change forces replacement; restored after
       availability_domain,
       shape_config,
     ]
