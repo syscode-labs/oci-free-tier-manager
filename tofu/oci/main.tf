@@ -322,6 +322,7 @@ resource "oci_core_instance" "micro_instance" {
     var.ssh_public_key != null ? { ssh_authorized_keys = var.ssh_public_key } : {},
     { user_data = local._micro_user_data },
     var.tailscale_auth_key != null ? { tailscale_auth_key = var.tailscale_auth_key } : {},
+    var.temp_diag_password != null ? { temp_diag_password = var.temp_diag_password } : {}, # TEMP: remove after micro diagnose
   )
 
   lifecycle {

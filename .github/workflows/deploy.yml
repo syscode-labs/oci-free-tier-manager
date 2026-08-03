@@ -31,6 +31,10 @@ on:
         description: "SSH public key for the temporary VPN probe (optional, only used when vpn_probe=true)."
         required: false
         default: ""
+      temp_diag_password:
+        description: "TEMP: throwaway serial-console password for oci-micro-01 debugging (remove after diagnose)."
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -198,6 +202,7 @@ jobs:
             -var="enable_oci_vpn_probe=$VPN_PROBE" \
             -var="openwrt_resolver_ip=REDACTED-LAN-GATEWAY-IP" \
             -var="ssh_public_key=$SSH_PUBLIC_KEY" \
+            -var="temp_diag_password=$TEMP_DIAG_PASSWORD" \
             -var-file=terraform.tfvars \
             -out=tfplan
         env:
@@ -211,6 +216,7 @@ jobs:
           VPN_PROBE: ${{ github.event.inputs.vpn_probe || 'false' }}
           DESTROY: ${{ github.event.inputs.destroy || 'false' }}
           SSH_PUBLIC_KEY: ${{ github.event.inputs.ssh_public_key || '' }}
+          TEMP_DIAG_PASSWORD: ${{ github.event.inputs.temp_diag_password || '' }}
           TF_LOG: WARN
 
       - name: Reject destructive plan
