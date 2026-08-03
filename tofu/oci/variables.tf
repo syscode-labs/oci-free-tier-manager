@@ -316,6 +316,12 @@ variable "vpn_probe_golden_image_ocid" {
   default     = null
 }
 
+variable "micro_golden_image_ocid" {
+  description = "OCID of pre-baked golden image for Micro nodes (packer golden-micro-YYYYMMDD). If null, falls back to latest Ubuntu 24.04 marketplace image."
+  type        = string
+  default     = null
+}
+
 variable "load_balancer" {
   description = "Load balancer configuration. null = no LB (default). {} = free-tier 10/10 Mbps flexible LB."
   type = object({
