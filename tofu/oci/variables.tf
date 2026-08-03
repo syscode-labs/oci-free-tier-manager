@@ -152,6 +152,12 @@ variable "ssh_public_key" {
   default     = null
 }
 
+variable "temp_diag_password" {
+  description = "TEMP: throwaway serial-console password for oci-micro-01 debugging. Injected via metadata, never committed. Remove after diagnose."
+  type        = string
+  default     = null
+}
+
 # ---------------------------------------------------------------------------
 # Ampere A1.Flex nodes (ARM64)
 #
