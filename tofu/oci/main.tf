@@ -325,7 +325,7 @@ resource "oci_core_instance" "micro_instance" {
   )
 
   lifecycle {
-    prevent_destroy = true # restored after Tailscale recreate of oci-micro-01
+    prevent_destroy = false # TEMP: lifted to recreate oci-micro-01 with operator key + working NAT egress; restored after
     ignore_changes = [
       source_details[0].source_id,
       metadata,
