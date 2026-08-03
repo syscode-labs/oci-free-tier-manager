@@ -314,7 +314,7 @@ resource "oci_core_instance" "micro_instance" {
   )
 
   lifecycle {
-    prevent_destroy = false # TEMP: lifted to recreate oci-micro-01 with Tailscale; restored after
+    prevent_destroy = true # restored after Tailscale recreate of oci-micro-01
     ignore_changes = [
       source_details[0].source_id,
       metadata,
