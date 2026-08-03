@@ -121,6 +121,17 @@ resource "oci_core_internet_gateway" "free_tier_igw" {
   enabled        = true
 }
 
+# NAT Gateway — gives private-IP instances (E2.1.Micro) outbound internet
+# access (e.g. Tailscale, apt). OCI's IGW only routes egress for instances
+# WITH a public IP; private instances need a NAT gateway.
+resource "oci_core_nat_gateway" "free_tier_nat" {
+  count          = var.existing_subnet_ocid == null ? 1 : 0
+  compartment_id = local.compartment_id
+  vcn_id         = oci_core_vcn.free_tier_vcn[0].id
+  display_name   = "free-tier-nat"
+  block_traffic  = false
+}
+
 # Route Table
 resource "oci_core_route_table" "free_tier_route_table" {
   count          = var.existing_subnet_ocid == null ? 1 : 0
@@ -129,7 +140,7 @@ resource "oci_core_route_table" "free_tier_route_table" {
   display_name   = "free-tier-route-table"
 
   route_rules {
-    network_entity_id = oci_core_internet_gateway.free_tier_igw[0].id
+    network_entity_id = oci_core_nat_gateway.free_tier_nat[0].id
     destination       = "0.0.0.0/0"
     destination_type  = "CIDR_BLOCK"
   }
