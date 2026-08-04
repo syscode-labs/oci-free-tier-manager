@@ -41,20 +41,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Fetch Talos image OCID from oci-talos-gitops-apps
-        id: talos_image
-        run: |
-          OCID=$(curl -fsSL \
-            "https://raw.githubusercontent.com/syscode-labs/oci-talos-gitops-apps/main/omni/talos-image.yaml" \
-            | grep '^oci_image_ocid:' | awk '{print $2}')
-          if [ -z "$OCID" ] || [ "$OCID" = '""' ] || [ "$OCID" = "null" ]; then
-            echo "ERROR: oci_image_ocid is empty in oci-talos-gitops-apps/omni/talos-image.yaml"
-            echo "Run the talos-images build workflow first to import a Talos image into OCI."
-            exit 1
-          fi
-          echo "ocid=${OCID}" >> "$GITHUB_OUTPUT"
-          echo "Talos image OCID: ${OCID}"
-
       - name: Write OCI credentials
         run: |
           mkdir -p ~/.oci
@@ -83,6 +69,56 @@ jobs:
 
       - name: Install OCI CLI
         run: pip install oci-cli --quiet
+
+      # Resolve the image from oci-lab's OWN pinned Talos version, by querying
+      # OCI directly. The build ledger carries a single oci_image_ocid — whatever
+      # was built last — but with per-cluster pins the OCI image is a per-cluster
+      # concern and only oci-lab consumes it. Taking that single OCID would have
+      # provisioned oci-lab nodes from a Talos 1.14 beta image while oci-lab's
+      # cluster template targets v1.13.7.
+      #
+      # Querying OCI beats reading a record of it: the ledger can claim an image
+      # that was never built (it did, until 2026-08-04) whereas this cannot.
+      - name: Resolve Talos image for oci-lab's pinned version
+        id: talos_image
+        env:
+          OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
+          VERSIONS_YAML_URL: >-
+            https://raw.githubusercontent.com/syscode-labs/syscode-homelab-gitops-apps/main/omni/versions.yaml
+        run: |
+          pip install pyyaml --quiet
+          curl -fsSL "$VERSIONS_YAML_URL" -o /tmp/versions.yaml
+          VER=$(python3 -c "
+          import yaml
+          d = yaml.safe_load(open('/tmp/versions.yaml')) or {}
+          c = (d.get('clusters') or {}).get('oci-lab') or {}
+          print(c.get('talos') or d.get('talos') or '')
+          ")
+          if [ -z "$VER" ]; then
+            echo "ERROR: could not resolve oci-lab's Talos pin from ${VERSIONS_YAML_URL}" >&2
+            exit 1
+          fi
+          NAME="talos-${VER}-oracle-arm64"
+          echo "oci-lab pins Talos ${VER}; looking for image ${NAME}"
+
+          ERR="$(mktemp)"
+          if ! JSON="$(oci compute image list --all \
+                --compartment-id "$OCI_COMPARTMENT_OCID" --output json 2>"$ERR")"; then
+            echo "ERROR: could not list OCI images:" >&2; cat "$ERR" >&2; exit 1
+          fi
+          # Newest AVAILABLE match wins — re-imports can leave duplicate names.
+          OCID=$(printf '%s' "$JSON" | jq -r --arg n "$NAME" '
+            [.data[] | select(."compartment-id" != null)
+                     | select(."display-name" == $n)
+                     | select(."lifecycle-state" == "AVAILABLE")]
+            | sort_by(."time-created") | last | .id // empty')
+          if [ -z "$OCID" ]; then
+            echo "ERROR: no AVAILABLE image named ${NAME} in the compartment." >&2
+            echo "       Dispatch the talos-images build workflow for ${VER} first." >&2
+            exit 1
+          fi
+          echo "ocid=${OCID}" >> "$GITHUB_OUTPUT"
+          echo "Talos image: ${NAME} -> ${OCID}"
 
       - name: Check free tier capacity
         env:
