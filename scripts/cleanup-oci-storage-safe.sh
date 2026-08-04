@@ -11,13 +11,25 @@ set -euo pipefail
 : "${OCI_TIMEOUT_SEC:=60}"
 : "${OCI_RETRIES:=5}"
 : "${TALOS_VERSIONS_URL:=https://raw.githubusercontent.com/syscode-labs/syscode-homelab-gitops-apps/main/omni/versions.yaml}"
+: "${TALOS_LEDGER_URL:=https://raw.githubusercontent.com/syscode-labs/syscode-homelab-gitops-apps/main/omni/talos-image.yaml}"
+TALOS_KEEP_ALL_FORCED=false
 
 log() {
   printf '%s\n' "$*"
 }
 
 to_epoch() {
-  date -d "$1" +%s
+  # GNU and BSD date disagree; a wrong answer here silently disables the
+  # age floor, so fail loudly rather than returning an empty string.
+  local ts="$1" out=""
+  if out=$(date -d "$ts" +%s 2>/dev/null); then
+    printf '%s\n' "$out"; return 0
+  fi
+  if out=$(date -j -f "%Y-%m-%dT%H:%M:%S" "${ts:0:19}" +%s 2>/dev/null); then
+    printf '%s\n' "$out"; return 0
+  fi
+  log "ERROR: cannot parse timestamp ${ts} with either GNU or BSD date" >&2
+  return 1
 }
 
 age_days() {
@@ -108,7 +120,7 @@ family_for_image() {
     oci-base-hardened-arm64-*) echo "hardened" ;;
     Debian-12-bookworm-genericcloud-aarch64) echo "debian-genericcloud" ;;
     Debian-12-bookworm-aarch64) echo "debian-nocloud" ;;
-    talos-*-oracle-arm64) echo "talos" ;;
+    talos-*) echo "talos" ;;
     *) echo "other" ;;
   esac
 }
@@ -134,6 +146,23 @@ ACTIVE_IMAGE_IDS=$(echo "$INST_JSON" | jq -r '.data[] | select(."lifecycle-state
 log "Active instances: $(printf '%s\n' "$ACTIVE_INSTANCE_IDS" | sed '/^$/d' | wc -l | tr -d ' ')"
 log "Active image references: $(printf '%s\n' "$ACTIVE_IMAGE_IDS" | sed '/^$/d' | wc -l | tr -d ' ')"
 
+# An image can be referenced by Terraform without any instance running from it
+# — terraform.tfvars takes TF_VAR_talos_image_ocid from the build ledger. The
+# running-instance check above cannot see that, and the ledger's OCID is not
+# guaranteed to belong to a pinned version (as of 2026-08-03 it pointed at a
+# v1.13.6 image while the ledger claimed v1.14.0-beta.1). Deleting it would
+# leave Terraform referencing a dead OCID, so protect it explicitly.
+LEDGER_IMAGE_ID=""
+if ledger_yaml=$(curl_retry "${TALOS_LEDGER_URL}"); then
+  LEDGER_IMAGE_ID=$(printf '%s' "$ledger_yaml" \
+    | grep '^oci_image_ocid:' | awk '{print $2}' | head -n1)
+  [[ -n "$LEDGER_IMAGE_ID" ]] && log "Ledger image reference: ${LEDGER_IMAGE_ID}"
+else
+  log "WARNING: could not fetch ${TALOS_LEDGER_URL}; cannot protect the ledger's"
+  log "         image reference. Failing closed on the talos family."
+  TALOS_KEEP_ALL_FORCED=true
+fi
+
 log "Step 1/3: prune terminated boot volumes"
 BV_JSON=$(oci_retry_json bv boot-volume list --all --compartment-id "$OCI_COMPARTMENT")
 while IFS=$'\t' read -r id name state created; do
@@ -149,12 +178,24 @@ done < <(echo "$BV_JSON" | jq -r '.data[] | [.id, ."display-name", ."lifecycle-s
 
 log "Step 2/3: prune old custom images not in use"
 IMG_JSON=$(oci_retry_json compute image list --all --compartment-id "$OCI_COMPARTMENT")
+# Custom vs platform image: OCI has no `created-by` field on Image at all, so
+# the old `select(."created-by" != null)` matched nothing and this whole step
+# has always been a no-op — which is how 12 custom images accumulated against
+# a 10-image limit. Platform images (Oracle Linux, CentOS, Windows) come back
+# with a null compartment-id because they are global; anything imported or
+# captured into this tenancy carries one.
 CANDIDATE_IMAGES=$(echo "$IMG_JSON" | jq -r '.data[]
-  | select(."created-by" != null)
+  | select(."compartment-id" != null)
   | [.id, ."display-name", ."lifecycle-state", ."time-created"]
   | @tsv')
 
-TALOS_KEEP_ALL=false
+if [[ -z "$CANDIDATE_IMAGES" ]]; then
+  log "WARNING: no custom images matched. If this compartment does have custom"
+  log "         images, the discriminator above is wrong again — do not assume"
+  log "         'nothing to prune' means 'nothing is there'."
+fi
+
+TALOS_KEEP_ALL="$TALOS_KEEP_ALL_FORCED"
 TALOS_VERSIONS=""
 if TALOS_VERSIONS=$(fetch_pinned_talos_versions); then
   if [[ -z "$TALOS_VERSIONS" ]]; then
@@ -172,12 +213,12 @@ KEEP_IDS=""
 for fam in proxmox debian-base base hardened debian-genericcloud debian-nocloud talos; do
   if [[ "$fam" == "talos" ]]; then
     if [[ "$TALOS_KEEP_ALL" == "true" ]]; then
-      ids=$(echo "$CANDIDATE_IMAGES" | awk -F'\t' '$2 ~ /^talos-.*-oracle-arm64$/ {print $1}')
+      ids=$(echo "$CANDIDATE_IMAGES" | awk -F'\t' '$2 ~ /^talos-/ {print $1}')
     else
       ids=""
       while IFS= read -r ver; do
         [[ -z "$ver" ]] && continue
-        found=$(echo "$CANDIDATE_IMAGES" | awk -F'\t' -v n="talos-${ver}-oracle-arm64" '$2==n {print $1}')
+        found=$(echo "$CANDIDATE_IMAGES" | awk -F'\t' -v p="talos-${ver}-" 'index($2,p)==1 {print $1}')
         [[ -n "$found" ]] && ids+="$found"$'\n'
       done <<< "$TALOS_VERSIONS"
     fi
@@ -192,7 +233,7 @@ for fam in proxmox debian-base base hardened debian-genericcloud debian-nocloud 
       if (n ~ /^oci-base-hardened-arm64-/) return "hardened"
       if (n == "Debian-12-bookworm-genericcloud-aarch64") return "debian-genericcloud"
       if (n == "Debian-12-bookworm-aarch64") return "debian-nocloud"
-      if (n ~ /^talos-.*-oracle-arm64$/) return "talos"
+      if (n ~ /^talos-/) return "talos"
       return "other"
     }
     fam_of($2)==f {print $0}
@@ -207,6 +248,10 @@ while IFS=$'\t' read -r id name state created; do
   fam=$(family_for_image "$name")
   [[ "$fam" == "other" ]] && continue
 
+  if [[ -n "$LEDGER_IMAGE_ID" && "$id" == "$LEDGER_IMAGE_ID" ]]; then
+    log "skip image (referenced by the build ledger / Terraform): ${name} ${id}"
+    continue
+  fi
   if printf '%s\n' "$ACTIVE_IMAGE_IDS" | grep -q "^${id}$"; then
     log "skip image (in use): ${name} ${id}"
     continue
