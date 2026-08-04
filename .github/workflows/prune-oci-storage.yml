@@ -1,0 +1,83 @@
+name: Prune OCI storage
+
+# The free tier allows 10 custom images. Pruning is what keeps a Talos build
+# from failing at import because the compartment is full.
+#
+# This lives here rather than being called from talos-images/build.yml (as
+# originally planned) because the script lives here, and this repo already
+# holds the OCI credentials. Invoking it cross-repo would mean piping a script
+# from raw.githubusercontent into a shell.
+#
+# Safety, in the order the script applies it:
+#   1. images referenced by a non-TERMINATED instance are skipped
+#   2. the image OCID referenced by the build ledger is skipped
+#   3. every Talos version pinned in versions.yaml is kept
+#   4. anything younger than KEEP_DAYS is skipped
+# and if versions.yaml cannot be fetched or parses empty, the script fails
+# closed and keeps every Talos image rather than deleting one a cluster needs.
+
+on:
+  schedule:
+    - cron: "0 3 * * 1" # Mondays 03:00 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Report what would be deleted without deleting it"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  prune:
+    name: Prune unused images and objects
+    runs-on: ubuntu-latest
+    env:
+      OCI_BUCKET: talos-images-import
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Write OCI credentials
+        env:
+          OCI_API_KEY_PEM: ${{ secrets.OCI_API_KEY_PEM }}
+          OCI_USER_OCID: ${{ secrets.OCI_USER_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_REGION: ${{ secrets.OCI_REGION }}
+        run: |
+          mkdir -p ~/.oci
+          printf '%s' "$OCI_API_KEY_PEM" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+          printf '[DEFAULT]\nuser=%s\nfingerprint=%s\ntenancy=%s\nregion=%s\nkey_file=%s/.oci/oci_api_key.pem\n' \
+            "$OCI_USER_OCID" "$OCI_FINGERPRINT" "$OCI_TENANCY_OCID" "$OCI_REGION" "$HOME" \
+            > ~/.oci/config
+          chmod 600 ~/.oci/config
+
+      - name: Install OCI CLI
+        run: pip install oci-cli --quiet
+
+      - name: Prune
+        env:
+          OCI_PROFILE: DEFAULT
+          OCI_COMPARTMENT: ${{ secrets.OCI_COMPARTMENT_OCID }}
+          # A scheduled run prunes for real; that is the point. A manual run
+          # defaults to a dry run so it is safe to use for inspection.
+          DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || inputs.dry_run }}
+        run: |
+          OCI_NAMESPACE=$(oci os ns get --query 'data' --raw-output)
+          export OCI_NAMESPACE
+          echo "namespace=${OCI_NAMESPACE} bucket=${OCI_BUCKET} dry_run=${DRY_RUN}"
+          ./scripts/cleanup-oci-storage-safe.sh
+
+      - name: Report remaining custom images
+        if: always()
+        env:
+          OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
+        run: |
+          oci compute image list --all --compartment-id "$OCI_COMPARTMENT_OCID" --output json \
+            | jq -r '[.data[] | select(."compartment-id" != null)]
+                     | "custom images: \(length) of 10",
+                       (sort_by(."time-created")[] | "  \(."display-name")  \(."time-created"[0:10])")'
