@@ -14,7 +14,7 @@ cat > /etc/cloud/cloud.cfg.d/99-oci-datasource.cfg <<'EOF'
 datasource_list: [Oracle]
 datasource:
   Oracle:
-    configure_secondary_nics: false
+    configure_secondary_nics: true
 EOF
 
 # Network: systemd-networkd DHCP on all en* interfaces

@@ -147,9 +147,51 @@ variable "create_ingress_ip" {
 }
 
 variable "ssh_public_key" {
-  description = "SSH public key injected via metadata for all instances in Ubuntu mode. Talos ignores SSH keys."
+  description = "Primary SSH public key injected via metadata for all Ubuntu instances. Talos ignores SSH keys."
   type        = string
   default     = null
+}
+
+variable "ssh_extra_public_keys" {
+  description = "Additional SSH public keys (e.g. personal + syscode) authorized on Ubuntu instances. Concatenated with ssh_public_key."
+  type        = list(string)
+  default     = []
+}
+
+variable "create_bastion" {
+  description = "Create a self-managed E2.1.Micro bastion host with port-knock SSH in the main subnet."
+  type        = bool
+  default     = true
+}
+
+variable "write_packer_vars" {
+  description = "Write packer/variables.auto.pkrvars.hcl from live Terraform values. Disable in CI if Packer is not used."
+  type        = bool
+  default     = true
+}
+
+variable "bastion_name" {
+  description = "Display name for the self-managed bastion host."
+  type        = string
+  default     = "oci-bastion-01"
+}
+
+variable "bastion_boot_vol_gb" {
+  description = "Boot volume size in GB for the bastion host."
+  type        = number
+  default     = 50
+}
+
+variable "bastion_knock_ports" {
+  description = "TCP port sequence for knockd to open SSH on the bastion."
+  type        = list(number)
+  default     = [7000, 8000, 9000, 1234]
+}
+
+variable "bastion_knock_timeout" {
+  description = "Seconds within which the full knock sequence must be completed."
+  type        = number
+  default     = 60
 }
 
 variable "temp_diag_password" {

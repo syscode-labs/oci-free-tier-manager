@@ -1,15 +1,21 @@
 #cloud-config
-# cert-hub host bootstrap — mirrors syscode-cert-hub/scripts/cloud-init.yaml exactly.
-# Source of truth: syscode-cert-hub repo. Keep in sync when updating bootstrap steps.
-# NOTE (ogc): Tailscale bootstrap below is module-local (not in cert-hub) so each
-# E2.1.Micro registers on the tailnet for operator access.
+# Micro workload host bootstrap — cert-hub mirror (Docker, Tailscale, DNS).
+# SSH is restricted to the bastion's private IP only.
+
+ssh_pwauth: false
+
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+%{ for k in extra_ssh_keys ~}
+      - ${k}
+%{ endfor ~}
 
 package_update: true
-
-# TEMP: allow serial-console (getty) password login for oci-micro-01 debugging.
-# Password comes from instance metadata key temp_diag_password (var.temp_diag_password).
-# Remove ssh_pwauth + password runcmd after diagnose.
-ssh_pwauth: true
 
 packages:
   - ca-certificates
@@ -36,12 +42,6 @@ write_files:
       {"dns": ["8.8.8.8", "1.1.1.1"]}
 
 runcmd:
-  # ── TEMP: set ubuntu serial-console password from metadata (diag) ─────────
-  - >-
-    PW=$(curl -sf -H "Authorization: Bearer Oracle"
-    http://169.254.169.254/opc/v2/instance/metadata/temp_diag_password) &&
-    [ -n "$PW" ] && echo "ubuntu:$PW" | chpasswd || true
-
   # ── Docker: official apt repo ──────────────────────────────────────────────
   - install -m 0755 -d /etc/apt/keyrings
   - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
@@ -64,9 +64,6 @@ runcmd:
   - systemctl restart docker
 
   # ── Tailscale: join tailnet so the Micro is operator-reachable ────────────
-  # Auth key is injected per-instance via OCI metadata (var.tailscale_auth_key)
-  # so no secret is baked into user-data or the image. Endpoint per OCI IMDSv2:
-  # http://169.254.169.254/opc/v2/instance/metadata/tailscale_auth_key
   - >-
     curl --retry 3 --retry-delay 2 -fsSL
     https://pkgs.tailscale.com/stable/ubuntu/noble.gpg
@@ -78,11 +75,10 @@ runcmd:
     > /etc/apt/sources.list.d/tailscale.list
   - apt-get update -qq
   - apt-get install -y tailscale
-  # ── TEMP: retry loop + logging so a transient failure is not swallowed ────
   - >-
     TS_KEY=$(curl -sf -H "Authorization: Bearer Oracle"
     http://169.254.169.254/opc/v2/instance/metadata/tailscale_auth_key);
-    echo "[boot] TS_KEY_len=${#TS_KEY}" >> /var/log/tailscale-boot.log;
+    echo "[boot] TS_KEY_len=$${#TS_KEY}" >> /var/log/tailscale-boot.log;
     for i in 1 2 3 4 5; do
       if [ -n "$TS_KEY" ] && tailscale up --auth-key="$TS_KEY" --hostname="$(hostname)"; then
         echo "[boot] tailscale up OK on attempt $i" >> /var/log/tailscale-boot.log;
@@ -93,3 +89,12 @@ runcmd:
     done;
     tailscale status >> /var/log/tailscale-boot.log 2>&1 || true;
     echo "[boot] hostname=$(hostname) cloudinit=$(cloud-init status 2>&1)" >> /var/log/tailscale-boot.log
+
+  # ── Firewall: restrict SSH to the bastion only ────────────────────────────
+  - [ ufw, allow, from, ${bastion_ip}, to, any, port, 22, proto, tcp ]
+  - [ ufw, reload ]
+
+final_message: |
+  Micro workload host configured.
+  SSH is restricted to the bastion (${bastion_ip}).
+  Tailscale logs at /var/log/tailscale-boot.log.

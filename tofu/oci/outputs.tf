@@ -63,8 +63,8 @@ output "micro_instance_names" {
 }
 
 output "micro_instance_public_ips" {
-  description = "Public IP addresses of E2.1.Micro instances (explicit reserved IP resources)"
-  value       = [for i in range(length(local._micro_nodes)) : oci_core_public_ip.micro_instance[i].ip_address]
+  description = "Public IP addresses of E2.1.Micro workload instances (empty; access via bastion only)"
+  value       = []
 }
 
 output "micro_private_ips" {
@@ -88,8 +88,18 @@ output "micro_shapes" {
 # ---------------------------------------------------------------------------
 
 output "bastion_reserved_ip" {
-  description = "Reserved public IP for the bastion host (null if no micro instances)"
-  value       = length(oci_core_public_ip.micro_instance) > 0 ? oci_core_public_ip.micro_instance[0].ip_address : null
+  description = "Reserved public IP for the self-managed bastion host"
+  value       = length(oci_core_public_ip.bastion) > 0 ? oci_core_public_ip.bastion[0].ip_address : null
+}
+
+output "bastion_private_ip" {
+  description = "Private IP of the self-managed bastion host"
+  value       = length(oci_core_instance.bastion) > 0 ? oci_core_instance.bastion[0].private_ip : null
+}
+
+output "bastion_vpn_vnic_private_ip" {
+  description = "Private IP of the bastion's secondary VNIC in the VPN subnet (null unless VPN probe enabled)"
+  value       = length(data.oci_core_private_ips.bastion_vpn_private_ip) > 0 ? data.oci_core_private_ips.bastion_vpn_private_ip[0].private_ips[0].ip_address : null
 }
 
 output "ampere_ssh_reserved_ip" {
@@ -131,16 +141,13 @@ output "budget_id" {
 
 output "ssh_connection_commands" {
   description = "SSH commands to connect to instances (Ubuntu mode only; Talos nodes use Talos API)"
-  value = var.talos_image_ocid != null ? (
-    concat(
-      [for i in range(length(local._ampere_nodes)) : "# ${local._ampere_nodes[i].name} (${oci_core_public_ip.ampere_instance[i].ip_address}) — Talos API"],
-      [for i in range(length(local._micro_nodes)) : "ssh ubuntu@${oci_core_public_ip.micro_instance[i].ip_address}  # ${local._micro_nodes[i].name}"]
-    )
-    ) : (
-    concat(
-      [for i in range(length(local._ampere_nodes)) : "ssh ubuntu@${oci_core_public_ip.ampere_instance[i].ip_address}  # ${local._ampere_nodes[i].name}"],
-      [for i in range(length(local._micro_nodes)) : "ssh ubuntu@${oci_core_public_ip.micro_instance[i].ip_address}  # ${local._micro_nodes[i].name}"]
-    )
+  value = concat(
+    [for i in range(length(local._ampere_nodes)) : "ssh ubuntu@${oci_core_public_ip.ampere_instance[i].ip_address}  # ${local._ampere_nodes[i].name}"],
+    length(oci_core_public_ip.bastion) > 0 ? [
+      "# Knock sequence: ${join(", ", [for p in var.bastion_knock_ports : "${p}/tcp"])}",
+      "ssh ubuntu@${oci_core_public_ip.bastion[0].ip_address}  # ${var.bastion_name}",
+    ] : [],
+    [for i in range(length(local._micro_nodes)) : "ssh ubuntu@${oci_core_instance.micro_instance[i].private_ip}  # ${local._micro_nodes[i].name} (via bastion)"]
   )
 }
 
@@ -208,8 +215,8 @@ output "oci_vpn_tunnel_bgp_inside_ips" {
 }
 
 output "oci_vpn_probe_instance_id" {
-  description = "Temporary OCI VPN data-plane probe instance ID (null unless enable_oci_vpn_probe=true)."
-  value       = length(oci_core_instance.vpn_probe) > 0 ? oci_core_instance.vpn_probe[0].id : null
+  description = "OCID of the host running VPN probe tests (now the bastion; null unless enable_oci_vpn_probe=true)."
+  value       = length(oci_core_instance.bastion) > 0 && local.vpn_probe_enabled ? oci_core_instance.bastion[0].id : null
 }
 
 output "resource_summary" {
@@ -217,6 +224,7 @@ output "resource_summary" {
   value = {
     ampere_nodes     = length(local._ampere_nodes)
     micro_nodes      = length(local._micro_nodes)
+    bastion          = var.create_bastion
     total_ocpus      = local.total_ocpus
     total_ram_gb     = local.total_ram_gb
     total_storage_gb = local.total_storage_gb
