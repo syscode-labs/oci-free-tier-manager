@@ -22,6 +22,10 @@ terraform {
       source  = "oracle/oci"
       version = "~> 8.4"
     }
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.5"
+    }
   }
 }
 
@@ -132,7 +136,9 @@ resource "oci_core_nat_gateway" "free_tier_nat" {
   block_traffic  = false
 }
 
-# Route Table
+# Private Route Table — used by the main workload subnet (private-IP Micros +
+# Ampere nodes). Outbound internet goes through the NAT gateway so instances
+# without a public IP can reach apt, Tailscale, etc.
 resource "oci_core_route_table" "free_tier_route_table" {
   count          = var.existing_subnet_ocid == null ? 1 : 0
   compartment_id = local.compartment_id
@@ -141,6 +147,22 @@ resource "oci_core_route_table" "free_tier_route_table" {
 
   route_rules {
     network_entity_id = oci_core_nat_gateway.free_tier_nat[0].id
+    destination       = "0.0.0.0/0"
+    destination_type  = "CIDR_BLOCK"
+  }
+}
+
+# Public Route Table — used by the public bastion subnet. Inbound traffic to a
+# reserved public IP reaches the bastion, and outbound return traffic leaves via
+# the Internet Gateway so the public IP is preserved (required for SSH).
+resource "oci_core_route_table" "free_tier_public_route_table" {
+  count          = var.existing_subnet_ocid == null ? 1 : 0
+  compartment_id = local.compartment_id
+  vcn_id         = oci_core_vcn.free_tier_vcn[0].id
+  display_name   = "free-tier-public-route-table"
+
+  route_rules {
+    network_entity_id = oci_core_internet_gateway.free_tier_igw[0].id
     destination       = "0.0.0.0/0"
     destination_type  = "CIDR_BLOCK"
   }
@@ -159,13 +181,28 @@ resource "oci_core_security_list" "free_tier_security_list" {
     destination = "0.0.0.0/0"
   }
 
-  # Ingress: SSH
+  # Ingress: SSH (required by the self-managed bastion; UFW + knockd restrict
+  # access on the instance. Workload Micros block SSH via UFW.)
   ingress_security_rules {
     protocol = "6" # TCP
     source   = "0.0.0.0/0"
     tcp_options {
       min = 22
       max = 22
+    }
+  }
+
+  # Ingress: Bastion knockd ports. SSH stays closed until the sequence is
+  # completed; these ports only wake up knockd, not any listening service.
+  dynamic "ingress_security_rules" {
+    for_each = var.create_bastion ? var.bastion_knock_ports : []
+    content {
+      protocol = "6" # TCP
+      source   = "0.0.0.0/0"
+      tcp_options {
+        min = ingress_security_rules.value
+        max = ingress_security_rules.value
+      }
     }
   }
 
@@ -244,6 +281,20 @@ resource "oci_core_subnet" "free_tier_subnet" {
   security_list_ids = [oci_core_security_list.free_tier_security_list[0].id]
 }
 
+# Public subnet for the self-managed bastion and Packer golden-image builds.
+# A public IP + IGW route table is required for inbound SSH; workload Micros
+# stay in the private NAT-routed subnet.
+resource "oci_core_subnet" "free_tier_public_subnet" {
+  count             = var.existing_subnet_ocid == null ? 1 : 0
+  compartment_id    = local.compartment_id
+  vcn_id            = oci_core_vcn.free_tier_vcn[0].id
+  cidr_block        = "10.0.2.0/24"
+  display_name      = "free-tier-public-subnet"
+  dns_label         = "public"
+  route_table_id    = oci_core_route_table.free_tier_public_route_table[0].id
+  security_list_ids = [oci_core_security_list.free_tier_security_list[0].id]
+}
+
 # Ampere A1 Instances (ARM-based, free tier)
 # Node configuration is resolved in data.tf from var.ampere_nodes + tier defaults.
 resource "oci_core_instance" "ampere_instance" {
@@ -278,7 +329,8 @@ resource "oci_core_instance" "ampere_instance" {
   )
 
   lifecycle {
-    replace_triggered_by = [terraform_data.omni_credentials]
+    create_before_destroy = true
+    replace_triggered_by  = [terraform_data.omni_credentials]
     ignore_changes = [
       source_details[0].source_id, # image OCID changes on new OCI image releases
       availability_domain,         # may differ from var if instance was imported
@@ -319,14 +371,14 @@ resource "oci_core_instance" "micro_instance" {
   }
 
   metadata = merge(
-    var.ssh_public_key != null ? { ssh_authorized_keys = var.ssh_public_key } : {},
+    length(local._ssh_authorized_keys) > 0 ? { ssh_authorized_keys = join("\n", local._ssh_authorized_keys) } : {},
     { user_data = local._micro_user_data },
     var.tailscale_auth_key != null ? { tailscale_auth_key = var.tailscale_auth_key } : {},
-    var.temp_diag_password != null ? { temp_diag_password = var.temp_diag_password } : {}, # TEMP: remove after micro diagnose
   )
 
   lifecycle {
-    prevent_destroy = false # TEMP: lifted to recreate oci-micro-01 with operator key + working NAT egress; restored after
+    create_before_destroy = true
+    prevent_destroy       = false # TEMP: lifted to recreate oci-micro-01 with operator key + working NAT egress; restored after
     ignore_changes = [
       # source_id intentionally NOT ignored so micro_golden_image_ocid bumps roll out (matches vpn_probe)
       availability_domain,
@@ -387,15 +439,6 @@ resource "oci_core_public_ip" "ampere_instance" {
   private_ip_id  = data.oci_core_private_ips.ampere_private_ip[count.index].private_ips[0].id
 }
 
-# Reserved IPs for all Micro nodes — stable and explicitly managed.
-resource "oci_core_public_ip" "micro_instance" {
-  count          = length(local._micro_nodes)
-  compartment_id = local.compartment_id
-  lifetime       = "RESERVED"
-  display_name   = "${local._micro_nodes[count.index].name}-ip"
-  private_ip_id  = data.oci_core_private_ips.micro_private_ip[count.index].private_ips[0].id
-}
-
 # Reserved IP for K8s ingress controller — stable external endpoint
 resource "oci_core_public_ip" "ingress" {
   count          = var.create_ingress_ip ? 1 : 0
@@ -404,21 +447,64 @@ resource "oci_core_public_ip" "ingress" {
   display_name   = "k8s-ingress-ip"
 }
 
-data "oci_core_private_ips" "micro_private_ip" {
-  count      = length(local._micro_nodes)
-  subnet_id  = local.subnet_id
-  ip_address = oci_core_instance.micro_instance[count.index].private_ip
+# Resolved by instance ID (via its VNIC), not subnet+address — a subnet+address
+# match goes ambiguous under create_before_destroy, where the old (deposed) and
+# new instance briefly share the same subnet.
+data "oci_core_vnic_attachments" "ampere_instance" {
+  count          = length(local._ampere_nodes)
+  compartment_id = local.compartment_id
+  instance_id    = oci_core_instance.ampere_instance[count.index].id
 }
 
 data "oci_core_private_ips" "ampere_private_ip" {
-  count      = length(local._ampere_nodes)
-  subnet_id  = local.ampere_subnet_ids[count.index]
-  ip_address = oci_core_instance.ampere_instance[count.index].private_ip
+  count   = length(local._ampere_nodes)
+  vnic_id = data.oci_core_vnic_attachments.ampere_instance[count.index].vnic_attachments[0].vnic_id
+}
+
+# ---------------------------------------------------------------------------
+# Packer integration — auto-generate the Packer variable file from live
+# Terraform values so the golden image build is always wired to the current
+# network, compartment, and base image.
+# ---------------------------------------------------------------------------
+
+resource "terraform_data" "packer_vars_inputs" {
+  count = var.write_packer_vars ? 1 : 0
+
+  input = {
+    compartment_ocid    = local.compartment_id
+    availability_domain = var.micro_availability_domain
+    subnet_ocid         = local.public_subnet_id
+    base_image_ocid     = data.oci_core_images.micro_images.images[0].id
+    access_cfg_file     = var.oci_config_profile
+  }
+}
+
+resource "local_file" "packer_vars" {
+  count = var.write_packer_vars ? 1 : 0
+
+  filename = "${path.module}/../../packer/variables.auto.pkrvars.hcl"
+  content = templatefile("${path.module}/templates/packer-vars.tmpl", {
+    compartment_ocid    = local.compartment_id
+    availability_domain = var.micro_availability_domain
+    subnet_ocid         = local.public_subnet_id
+    base_image_ocid     = data.oci_core_images.micro_images.images[0].id
+    image_name          = "golden-micro"
+    access_cfg_file     = var.oci_config_profile
+    shape               = "VM.Standard.E2.1.Micro"
+    ssh_username        = "ubuntu"
+    enable_monitoring   = false
+  })
+
+  lifecycle {
+    replace_triggered_by = [
+      terraform_data.packer_vars_inputs[0],
+    ]
+  }
 }
 
 moved {
-  from = oci_core_public_ip.bastion[0]
-  to   = oci_core_public_ip.micro_instance[0]
+  from = oci_core_public_ip.micro_instance[0]
+  to   = oci_core_public_ip.bastion[0]
 }
 
 moved {

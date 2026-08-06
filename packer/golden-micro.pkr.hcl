@@ -40,14 +40,15 @@ variable "enable_monitoring" {
 }
 
 source "oracle-oci" "golden" {
-  availability_domain = var.availability_domain
-  access_cfg_file     = var.access_cfg_file
-  base_image_ocid     = var.base_image_ocid
-  compartment_ocid    = var.compartment_ocid
-  image_name          = var.image_name
-  shape               = var.shape
-  ssh_username        = var.ssh_username
-  subnet_ocid         = var.subnet_ocid
+  availability_domain     = var.availability_domain
+  access_cfg_file         = "~/.oci/config"
+  access_cfg_file_account = var.access_cfg_file
+  base_image_ocid         = var.base_image_ocid
+  compartment_ocid        = var.compartment_ocid
+  image_name              = var.image_name
+  shape                   = var.shape
+  ssh_username            = var.ssh_username
+  subnet_ocid             = var.subnet_ocid
 }
 
 build {
@@ -58,6 +59,7 @@ build {
     scripts = [
       "provision/01-base.sh",
       "provision/02-hardened.sh",
+      "provision/05-bastion.sh",
       "provision/03-strip.sh",
       "provision/04-monitoring.sh",
     ]
@@ -66,5 +68,10 @@ build {
       "DEBIAN_FRONTEND=noninteractive",
       "ENABLE_MONITORING=${var.enable_monitoring}",
     ]
+  }
+
+  post-processor "manifest" {
+    output     = "packer-manifest.json"
+    strip_path = true
   }
 }

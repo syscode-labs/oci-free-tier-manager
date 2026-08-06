@@ -91,7 +91,8 @@ locals {
 
   total_storage_gb = (
     (length(local._ampere_nodes) > 0 ? sum([for n in local._ampere_nodes : n.boot_vol_gb]) : 0) +
-    (length(local._micro_nodes) > 0 ? sum([for n in local._micro_nodes : n.boot_vol_gb]) : 0)
+    (length(local._micro_nodes) > 0 ? sum([for n in local._micro_nodes : n.boot_vol_gb]) : 0) +
+    (var.create_bastion ? var.bastion_boot_vol_gb : 0)
   )
 }
 
@@ -120,7 +121,8 @@ data "oci_core_images" "micro_images" {
 }
 
 locals {
-  subnet_id = var.existing_subnet_ocid != null ? var.existing_subnet_ocid : oci_core_subnet.free_tier_subnet[0].id
+  subnet_id        = var.existing_subnet_ocid != null ? var.existing_subnet_ocid : oci_core_subnet.free_tier_subnet[0].id
+  public_subnet_id = var.existing_subnet_ocid != null ? var.existing_subnet_ocid : oci_core_subnet.free_tier_public_subnet[0].id
   ampere_subnet_ids = [
     for n in local._ampere_nodes :
     n.vpn_subnet && local.vpn_enabled ? oci_core_subnet.vpn_subnet[0].id : local.subnet_id
@@ -170,7 +172,30 @@ locals {
     "",
   ])) : null
 
-  # cert-hub bootstrap — Docker install, DNS stub disable, daemon DNS fix.
-  # Source of truth: syscode-cert-hub/scripts/cloud-init.yaml (kept in sync manually).
-  _micro_user_data = filebase64("${path.module}/files/cloud-init.yaml")
+  # Combine the primary key with any extras (personal + syscode, etc.)
+  _ssh_authorized_keys = compact(distinct(concat(
+    var.ssh_public_key != null ? [var.ssh_public_key] : [],
+    var.ssh_extra_public_keys,
+  )))
+
+  # Knock sequence as a comma-separated string for knockd.conf.
+  _bastion_knock_sequence = join(",", [for p in var.bastion_knock_ports : "${p}:tcp"])
+
+  # Bastion cloud-init: knockd + optional VPN probe runner.
+  _bastion_user_data = base64encode(templatefile("${path.module}/files/cloud-init-bastion.yaml.tmpl", {
+    ssh_public_key   = length(local._ssh_authorized_keys) > 0 ? local._ssh_authorized_keys[0] : ""
+    extra_ssh_keys   = length(local._ssh_authorized_keys) > 1 ? slice(local._ssh_authorized_keys, 1, length(local._ssh_authorized_keys)) : []
+    primary_nic      = "ens3"
+    knock_sequence   = local._bastion_knock_sequence
+    knock_timeout    = var.bastion_knock_timeout
+    knock_ports      = var.bastion_knock_ports
+    enable_vpn_probe = local.vpn_enabled && var.enable_oci_vpn_probe
+  }))
+
+  # Workload Micro cloud-init: Docker/Tailscale + SSH restricted to bastion.
+  _micro_user_data = base64encode(templatefile("${path.module}/files/cloud-init-micro.yaml.tmpl", {
+    ssh_public_key = length(local._ssh_authorized_keys) > 0 ? local._ssh_authorized_keys[0] : ""
+    extra_ssh_keys = length(local._ssh_authorized_keys) > 1 ? slice(local._ssh_authorized_keys, 1, length(local._ssh_authorized_keys)) : []
+    bastion_ip     = var.create_bastion ? oci_core_instance.bastion[0].private_ip : "0.0.0.0/0"
+  }))
 }

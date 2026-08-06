@@ -1,0 +1,122 @@
+#cloud-config
+# Bastion host bootstrap — self-managed jump host + optional VPN probe runner.
+# Provisioned from the golden Micro image (base OS + hardening + knockd).
+
+ssh_pwauth: false
+
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+%{ for k in extra_ssh_keys ~}
+      - ${k}
+%{ endfor ~}
+
+write_files:
+  # knockd configuration: 3 ports, 5s pause, 1 port, within 60s.
+  - path: /etc/knockd.conf
+    permissions: "0600"
+    owner: root:root
+    content: |
+      [options]
+        logfile = /var/log/knockd.log
+        interface = ${primary_nic}
+
+      [openSSH]
+        sequence    = ${knock_sequence}
+        seq_timeout = ${knock_timeout}
+        tcpflags    = syn
+        start_command = /sbin/ufw allow from %IP% to any port 22 proto tcp
+        cmd_timeout   = 60
+        stop_command  = /sbin/ufw delete allow from %IP% to any port 22 proto tcp
+
+  # Detect-primary-interface helper used by knockd and runcmd.
+  - path: /usr/local/bin/bastion-primary-nic
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      ip route show default | awk '/default/ {print $5; exit}'
+
+%{ if enable_vpn_probe ~}
+  # VPN probe scripts (reused from the old vpn_probe.tf cloud-init)
+  - path: /usr/local/bin/oci-vpn-probe.sh
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set +e
+      exec > >(tee -a /var/log/oci-vpn-probe.log /dev/console) 2>&1
+
+      echo "OCI_VPN_PROBE_START $(date -Is)"
+      echo "# addresses"
+      ip -4 addr show
+      echo "# routes"
+      ip route
+      echo "# resolv.conf"
+      cat /etc/resolv.conf
+
+      echo "# dns"
+      getent hosts omni.wind-bearded.ts.net
+      echo "DNS_STATUS:$?"
+
+      echo "# tcp 8090"
+      timeout 15 bash -c 'cat < /dev/null > /dev/tcp/100.72.134.50/8090'
+      echo "TCP_8090_STATUS:$?"
+
+      echo "# tls 8090"
+      timeout 20 openssl s_client \
+        -connect omni.wind-bearded.ts.net:8090 \
+        -servername omni.wind-bearded.ts.net \
+        -verify_return_error < /dev/null
+      echo "TLS_8090_STATUS:$?"
+
+      echo "# udp 50180 send"
+      timeout 5 bash -c 'printf "oci-vpn-probe" > /dev/udp/100.72.134.50/50180'
+      echo "UDP_50180_SEND_STATUS:$?"
+
+      echo "OCI_VPN_PROBE_END $(date -Is)"
+%{ endif ~}
+
+runcmd:
+  # Detect the primary NIC name and rewrite knockd config/interface.
+  - >-
+    NIC=$(/usr/local/bin/bastion-primary-nic);
+    sed -i "s/interface = .*/interface = $NIC/" /etc/knockd.conf;
+    printf 'START_KNOCKD=1\nKNOCKD_OPTS="-i %s"\n' "$NIC" > /etc/default/knockd
+
+  # UFW defaults are baked into the image; add bastion-specific rules.
+  # Allow the knock ports through the instance firewall so knockd can see them.
+  # Default deny incoming already blocks SSH; do NOT add an explicit deny 22
+  # rule, because UFW evaluates rules in order and a deny rule would prevent
+  # knockd's dynamically-added allow rule from matching.
+%{ for p in knock_ports ~}
+  - [ ufw, allow, "${p}/tcp" ]
+%{ endfor ~}
+
+  - [ ufw, reload ]
+  - [ systemctl, daemon-reload ]
+  - [ systemctl, enable, --now, knockd ]
+  - [ systemctl, restart, knockd ]
+
+%{ if enable_vpn_probe ~}
+  # Run the VPN probe test once at boot from the secondary VPN-subnet VNIC.
+  - [ /usr/local/bin/oci-vpn-probe.sh ]
+  - [ bash, -c, 'echo "BASTION_VPN_PROBE_COMPLETE $(date -Is)" >> /var/log/oci-vpn-probe.log' ]
+%{ endif ~}
+
+  # Log knockd startup state for diagnostics.
+  - [ bash, -c, 'echo "[bastion] knockd status: $(systemctl is-active knockd 2>&1 || true)" >> /var/log/bastion-boot.log' ]
+  - [ bash, -c, 'echo "[bastion] ufw status: $(ufw status numbered 2>&1 || true)" >> /var/log/bastion-boot.log' ]
+
+final_message: |
+  Bastion host configured.
+  SSH is closed by default; use the knock sequence to open it.
+  Knockd logs at /var/log/knockd.log.
+%{ if enable_vpn_probe ~}
+  VPN probe results in /var/log/oci-vpn-probe.log.
+%{ endif ~}

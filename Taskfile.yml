@@ -60,6 +60,62 @@ tasks:
       - sh: 'test -f ~/.oci/config'
         msg: "OCI CLI not configured. Run: task setup"
 
+  build:packer:
+    desc: Build the golden Micro image from Terraform-managed resources
+    deps: [build:packer:vars]
+    dir: packer
+    vars:
+      TFVARS_FILE: ./tofu/oci/terraform.tfvars
+    cmds:
+      - echo "Building golden Micro image..."
+      - packer build golden-micro.pkr.hcl
+      - echo "Extracting image OCID..."
+      - |
+        IMAGE_OCID=$(jq -r '.builds[-1].artifact_id' packer-manifest.json)
+        if [ -z "$IMAGE_OCID" ] || [ "$IMAGE_OCID" = "null" ]; then
+          echo "ERROR: Could not extract image OCID from packer-manifest.json" >&2
+          exit 1
+        fi
+        echo "Image OCID: $IMAGE_OCID"
+      - |
+        IMAGE_OCID=$(jq -r '.builds[-1].artifact_id' packer-manifest.json)
+        if grep -q '^micro_golden_image_ocid' "{{.TFVARS_FILE}}"; then
+          sed -i.bak "s|^micro_golden_image_ocid = .*|micro_golden_image_ocid = \"$IMAGE_OCID\"|" "{{.TFVARS_FILE}}"
+        else
+          echo "micro_golden_image_ocid = \"$IMAGE_OCID\"" >> "{{.TFVARS_FILE}}"
+        fi
+        echo "Updated {{.TFVARS_FILE}} with image OCID"
+    preconditions:
+      - sh: 'test -f ~/.oci/config'
+        msg: "OCI CLI not configured. Run: task setup"
+
+  build:packer:vars:
+    desc: Generate packer/variables.auto.pkrvars.hcl from Terraform-managed resources
+    dir: tofu/oci
+    vars:
+      BACKEND_CONFIG:
+        sh: |
+          if [ -n "{{.BACKEND_CONFIG}}" ]; then
+            echo "{{.BACKEND_CONFIG}}"
+          elif [ -f /Users/giovanni/syscode/git/syscode-infra-private/oci/syscode-backend-s3.tfvars ]; then
+            echo /Users/giovanni/syscode/git/syscode-infra-private/oci/syscode-backend-s3.tfvars
+          else
+            echo ""
+          fi
+    cmds:
+      - echo "Refreshing Packer variables from Terraform state..."
+      - |
+        if [ -n "{{.BACKEND_CONFIG}}" ]; then
+          tofu init -reconfigure -backend-config="{{.BACKEND_CONFIG}}"
+        else
+          tofu init -backend=false
+        fi
+      - tofu apply -target=local_file.packer_vars -auto-approve
+      - echo "✓ Packer variables written"
+    preconditions:
+      - sh: 'test -f ~/.oci/config'
+        msg: "OCI CLI not configured. Run: task setup"
+
   # ============================================================================
   # State Management
   # ============================================================================
@@ -110,9 +166,24 @@ tasks:
   deploy:oci:
     desc: Deploy OCI infrastructure (Layer 1)
     dir: tofu/oci
+    vars:
+      BACKEND_CONFIG:
+        sh: |
+          if [ -n "{{.BACKEND_CONFIG}}" ]; then
+            echo "{{.BACKEND_CONFIG}}"
+          elif [ -f /Users/giovanni/syscode/git/syscode-infra-private/oci/syscode-backend-s3.tfvars ]; then
+            echo /Users/giovanni/syscode/git/syscode-infra-private/oci/syscode-backend-s3.tfvars
+          else
+            echo ""
+          fi
     cmds:
       - echo "Deploying OCI infrastructure..."
-      - tofu init -upgrade
+      - |
+        if [ -n "{{.BACKEND_CONFIG}}" ]; then
+          tofu init -upgrade -backend-config="{{.BACKEND_CONFIG}}"
+        else
+          tofu init -upgrade
+        fi
       - tofu plan -out=tfplan
       - tofu apply tfplan
       - rm -f tfplan
@@ -121,15 +192,46 @@ tasks:
   deploy:oci:plan:
     desc: Plan OCI infrastructure changes
     dir: tofu/oci
+    vars:
+      BACKEND_CONFIG:
+        sh: |
+          if [ -n "{{.BACKEND_CONFIG}}" ]; then
+            echo "{{.BACKEND_CONFIG}}"
+          elif [ -f /Users/giovanni/syscode/git/syscode-infra-private/oci/syscode-backend-s3.tfvars ]; then
+            echo /Users/giovanni/syscode/git/syscode-infra-private/oci/syscode-backend-s3.tfvars
+          else
+            echo ""
+          fi
     cmds:
-      - tofu init -upgrade
+      - |
+        if [ -n "{{.BACKEND_CONFIG}}" ]; then
+          tofu init -upgrade -backend-config="{{.BACKEND_CONFIG}}"
+        else
+          tofu init -upgrade
+        fi
       - tofu plan
 
   destroy:oci:
     desc: Destroy OCI infrastructure
     dir: tofu/oci
     prompt: "This will destroy OCI infrastructure. Continue?"
+    vars:
+      BACKEND_CONFIG:
+        sh: |
+          if [ -n "{{.BACKEND_CONFIG}}" ]; then
+            echo "{{.BACKEND_CONFIG}}"
+          elif [ -f /Users/giovanni/syscode/git/syscode-infra-private/oci/syscode-backend-s3.tfvars ]; then
+            echo /Users/giovanni/syscode/git/syscode-infra-private/oci/syscode-backend-s3.tfvars
+          else
+            echo ""
+          fi
     cmds:
+      - |
+        if [ -n "{{.BACKEND_CONFIG}}" ]; then
+          tofu init -backend-config="{{.BACKEND_CONFIG}}"
+        else
+          tofu init
+        fi
       - tofu destroy
 
   # ============================================================================
