@@ -38,7 +38,6 @@ resource "oci_core_instance" "bastion" {
   }
 
   lifecycle {
-    create_before_destroy = true
     ignore_changes = [
       availability_domain,
       shape_config,

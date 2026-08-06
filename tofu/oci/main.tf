@@ -377,8 +377,7 @@ resource "oci_core_instance" "micro_instance" {
   )
 
   lifecycle {
-    create_before_destroy = true
-    prevent_destroy       = false # TEMP: lifted to recreate oci-micro-01 with operator key + working NAT egress; restored after
+    prevent_destroy = false # TEMP: lifted to recreate oci-micro-01 with operator key + working NAT egress; restored after
     ignore_changes = [
       # source_id intentionally NOT ignored so micro_golden_image_ocid bumps roll out (matches vpn_probe)
       availability_domain,
