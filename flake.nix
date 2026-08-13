@@ -27,6 +27,11 @@
         });
 
       in {
+        checks.oci-cli-object-storage = pkgs.runCommand "check-oci-cli-object-storage" { } ''
+          ${ociCli}/bin/oci os ns get --generate-full-command-json-input > /dev/null
+          touch $out
+        '';
+
         # Development shell
         devShells.default = pkgs.mkShell {
           name = "oci-free-tier-dev";
