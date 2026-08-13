@@ -301,7 +301,7 @@ variable "vpn_subnet_cidr" {
 variable "home_cpe_public_ip" {
   description = "Public egress IP of the home OpenWrt router (the CPE)."
   type        = string
-  default     = "45.148.13.185"
+  default     = "REDACTED-HOME-PUBLIC-IP"
 }
 
 variable "cpe_local_identifier" {
