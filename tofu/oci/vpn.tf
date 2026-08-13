@@ -184,11 +184,22 @@ resource "oci_core_drg_attachment" "vpn_vcn_attach" {
 }
 
 # Customer Premises Equipment = the home OpenWrt public egress IP.
+#
+# ip_address is intentionally ignored post-bootstrap: it's immutable via the
+# API (any change forces delete+recreate, cascading to a new IPSec connection
+# and brand new tunnel PSKs/public IPs — see the 2026-08-13/14 incident), and
+# ownership of keeping it current moves to the OCI Function in
+# openspec/changes/oci-cpe-auto-recreate once that lands. Terraform still
+# provisions it once; it just stops fighting the Function over drift.
 resource "oci_core_cpe" "home_cpe" {
   count          = local.vpn_enabled ? 1 : 0
   compartment_id = local.compartment_id
   ip_address     = var.home_cpe_public_ip
   display_name   = "home-openwrt-cpe"
+
+  lifecycle {
+    ignore_changes = [ip_address]
+  }
 }
 
 # IPSec connection — OCI auto-creates two redundant tunnels.
