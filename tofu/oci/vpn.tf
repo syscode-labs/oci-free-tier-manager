@@ -236,15 +236,15 @@ resource "oci_core_ipsec_connection_tunnel_management" "home" {
   # the router offered with NO_PROPOSAL_CHOSEN.
   phase_one_details {
     is_custom_phase_one_config      = true
-    custom_encryption_algorithm     = "AES256-CBC"
-    custom_authentication_algorithm = "SHA2-384"
+    custom_encryption_algorithm     = "AES_256_CBC"
+    custom_authentication_algorithm = "SHA2_384"
     custom_dh_group                 = "GROUP14"
   }
 
   phase_two_details {
     is_custom_phase_two_config      = true
-    custom_encryption_algorithm     = "AES256-CBC"
-    custom_authentication_algorithm = "HMAC-SHA2-256-128"
+    custom_encryption_algorithm     = "AES_256_CBC"
+    custom_authentication_algorithm = "HMAC_SHA2_256_128"
     dh_group                        = "GROUP5"
     is_pfs_enabled                  = true
   }
