@@ -20,6 +20,12 @@
           pyyaml
         ]);
 
+        # nixpkgs' oci-cli is missing urllib3 in propagatedBuildInputs, which breaks
+        # `oci os ...` (Object Storage) commands: ModuleNotFoundError: No module named 'urllib3'.
+        ociCli = pkgs.oci-cli.overridePythonAttrs (old: {
+          propagatedBuildInputs = (old.propagatedBuildInputs or [ ]) ++ [ pkgs.python3Packages.urllib3 ];
+        });
+
       in {
         # Development shell
         devShells.default = pkgs.mkShell {
@@ -52,7 +58,7 @@
             curl
 
             # OCI CLI
-            oci-cli
+            ociCli
 
             # Linting/formatting
             terraform-ls

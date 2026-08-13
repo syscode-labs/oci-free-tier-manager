@@ -27,6 +27,10 @@ on:
         description: "Allow delete/create replacement, but only for explicit targets."
         required: false
         default: "false"
+      replace:
+        description: "Space-separated -replace addresses to force recreation past ignore_changes."
+        required: false
+        default: ""
       ssh_public_key:
         description: "SSH public key for the temporary VPN probe (optional, only used when vpn_probe=true)."
         required: false
@@ -186,10 +190,20 @@ jobs:
             DESTROY_ARG="-destroy"
             echo "Targeted destroy enabled"
           fi
+          REPLACE_ARGS=""
+          if [ -n "$REPLACE" ]; then
+            if [ "$ALLOW_REPLACE" != "true" ]; then
+              echo "ERROR: replace requires allow_replace=true"
+              exit 1
+            fi
+            for r in $REPLACE; do REPLACE_ARGS="$REPLACE_ARGS -replace=$r"; done
+            echo "Forced replace:$REPLACE_ARGS"
+          fi
           tofu plan \
             -lock=false \
             $TARGET_ARGS \
             $DESTROY_ARG \
+            $REPLACE_ARGS \
             -var="tenancy_ocid=$OCI_TENANCY_OCID" \
             -var="compartment_ocid=$OCI_COMPARTMENT_OCID" \
             -var="talos_image_ocid=${{ steps.talos_image.outputs.ocid }}" \
@@ -215,6 +229,8 @@ jobs:
           TARGETS: ${{ github.event.inputs.targets }}
           VPN_PROBE: ${{ github.event.inputs.vpn_probe || 'false' }}
           DESTROY: ${{ github.event.inputs.destroy || 'false' }}
+          REPLACE: ${{ github.event.inputs.replace || '' }}
+          ALLOW_REPLACE: ${{ github.event.inputs.allow_replace || 'false' }}
           SSH_PUBLIC_KEY: ${{ github.event.inputs.ssh_public_key || '' }}
           TEMP_DIAG_PASSWORD: ${{ github.event.inputs.temp_diag_password || '' }}
           TF_LOG: WARN
