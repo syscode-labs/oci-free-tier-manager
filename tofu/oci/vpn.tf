@@ -224,4 +224,28 @@ resource "oci_core_ipsec_connection_tunnel_management" "home" {
   routing      = "STATIC"
   ike_version  = "V2"
   display_name = "home-tunnel-${count.index + 1}"
+
+  # OCI's non-customized default policy prefers AES-256-GCM + ECP384, which
+  # this OpenWrt router's strongSwan build cannot offer (no ecp/curve25519 or
+  # AEAD plugin loaded — swanctl --list-algs shows classical MODP DH groups
+  # and AES-CBC only). Pin to what the router can actually produce instead of
+  # relying on whatever OCI's default happens to be, which is what broke this
+  # tunnel on 2026-08-13 when it was recreated after a CPE IP update: the old
+  # tunnel had negotiated AES256-CBC/SHA256/modp2048 for months, but the new
+  # one came up requiring ECP384/GCM and rejected every classical proposal
+  # the router offered with NO_PROPOSAL_CHOSEN.
+  phase_one_details {
+    is_custom_phase_one_config      = true
+    custom_encryption_algorithm     = "AES256-CBC"
+    custom_authentication_algorithm = "SHA2-384"
+    custom_dh_group                 = "GROUP14"
+  }
+
+  phase_two_details {
+    is_custom_phase_two_config      = true
+    custom_encryption_algorithm     = "AES256-CBC"
+    custom_authentication_algorithm = "HMAC-SHA2-256-128"
+    dh_group                        = "GROUP5"
+    is_pfs_enabled                  = true
+  }
 }
