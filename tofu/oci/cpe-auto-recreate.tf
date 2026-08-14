@@ -134,14 +134,17 @@ resource "oci_functions_function" "cpe_recreate" {
   }
 }
 
-# action = "START" invokes the target Function on each firing (OCI Resource
-# Scheduler's documented mechanism for periodic Function invocation).
+# action = "START_RESOURCE" invokes the target Function on each firing.
+# Confirmed against the live API, not docs -- ValidateResourceTypeConfig
+# accepted the wrong value "START" at plan time; only the real
+# ApplyResourceChange call rejected it: "unsupported enum value for Action:
+# START. Supported values are: START_RESOURCE,STOP_RESOURCE,BACKUP_RESOURCE."
 resource "oci_resource_scheduler_schedule" "cpe_recreate" {
   count              = local.vpn_enabled ? 1 : 0
   compartment_id     = local.compartment_id
   display_name       = "cpe-auto-recreate-schedule"
   description        = "Every 15 min: check REDACTED-DDNS-HOSTNAME against the CPE's registered IP, recreate on drift"
-  action             = "START"
+  action             = "START_RESOURCE"
   recurrence_type    = "CRON"
   recurrence_details = "0/15 * * * *"
 
