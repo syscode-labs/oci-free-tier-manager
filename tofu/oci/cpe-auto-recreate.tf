@@ -149,3 +149,14 @@ resource "oci_resource_scheduler_schedule" "cpe_recreate" {
     id = oci_functions_function.cpe_recreate[0].id
   }
 }
+
+# OCIR push auth. Docker-API-compatible registries authenticate with an OCI
+# Auth Token, not the API signing key used elsewhere in this repo. The token
+# value is only ever returned once, at creation -- captured into state here
+# and surfaced via the sensitive output below, then piped straight into
+# Bitwarden Secrets Manager (never printed/logged in plain text).
+resource "oci_identity_auth_token" "cpe_recreate_fn_push" {
+  count       = local.vpn_enabled ? 1 : 0
+  user_id     = var.cpe_recreate_fn_push_user_ocid
+  description = "OCIR push for functions/cpe-auto-recreate — see openspec/changes/oci-cpe-auto-recreate"
+}

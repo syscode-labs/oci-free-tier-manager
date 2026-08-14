@@ -231,3 +231,11 @@ output "resource_summary" {
     load_balancer    = var.load_balancer != null
   }
 }
+
+# One-time-visible OCIR push credential for functions/cpe-auto-recreate.
+# Never printed in plan/apply output; pipe straight into Bitwarden Secrets
+# Manager, don't `tofu output` this to a terminal.
+output "cpe_recreate_fn_push_auth_token" {
+  value     = local.vpn_enabled ? oci_identity_auth_token.cpe_recreate_fn_push[0].token : null
+  sensitive = true
+}

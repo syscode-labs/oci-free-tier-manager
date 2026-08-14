@@ -409,6 +409,12 @@ variable "cpe_recreate_fn_image" {
   default     = null
 }
 
+variable "cpe_recreate_fn_push_user_ocid" {
+  description = "OCI user OCID the OCIR push auth token (functions/cpe-auto-recreate) belongs to. Null by default so routine deploy.yml runs aren't blocked by a one-off, targeted-apply-only resource."
+  type        = string
+  default     = null
+}
+
 variable "cpe_recreate_fn_image_digest" {
   description = "sha256 digest of the pushed cpe-auto-recreate Function image (from `docker push` / `oci artifacts container image list`). Null until the image has actually been pushed."
   type        = string
