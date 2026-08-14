@@ -1,5 +1,5 @@
 /*
- * Auto-recreate the home VPN CPE/tunnels when REDACTED-ROUTER-HOSTNAME's public IP drifts.
+ * Auto-recreate the home VPN CPE/tunnels when the home router's public IP drifts.
  * See: syscode-ai-internal-plans/projects/oci-free-tier-manager/openspec/
  *      changes/oci-cpe-auto-recreate/
  *
@@ -8,7 +8,7 @@
 
 # ---------------------------------------------------------------------------
 # Vault + key + secret. The Function writes new tunnel PSKs/public IPs here
-# after a recreate; REDACTED-ROUTER-HOSTNAME reads it (read-only, separately-scoped token)
+# after a recreate; the home router reads it (read-only, separately-scoped token)
 # to re-sync swanctl.conf. Bootstrapped with a placeholder so the Function's
 # read-if-present-else-create logic has something to read on first run.
 # ---------------------------------------------------------------------------
@@ -127,6 +127,7 @@ resource "oci_functions_function" "cpe_recreate" {
   # payload (Resource Scheduler fires a bare invoke with no body).
   config = {
     COMPARTMENT_ID          = local.compartment_id
+    DDNS_HOSTNAME           = var.ddns_hostname
     CPE_LOCAL_IDENTIFIER    = var.cpe_local_identifier
     DRG_ID                  = oci_core_drg.vpn_drg[0].id
     STATIC_ROUTE_CIDRS_JSON = jsonencode(local.vpn_static_route_cidrs)
@@ -143,7 +144,7 @@ resource "oci_resource_scheduler_schedule" "cpe_recreate" {
   count          = local.vpn_enabled ? 1 : 0
   compartment_id = local.compartment_id
   display_name   = "cpe-auto-recreate-schedule"
-  description    = "Hourly: check REDACTED-DDNS-HOSTNAME against the CPE's registered IP, recreate on drift"
+  description    = "Hourly: check var.ddns_hostname against the CPE's registered IP, recreate on drift"
   action         = "START_RESOURCE"
   # Confirmed against the live API: 400-InvalidParameter, "Invalid
   # recurrenceDetails. Frequency cannot be higher than HOURLY" -- Resource

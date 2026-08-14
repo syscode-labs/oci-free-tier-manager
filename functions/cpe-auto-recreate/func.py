@@ -1,23 +1,23 @@
 """
-Auto-recreate the home VPN CPE/tunnels when REDACTED-ROUTER-HOSTNAME's public IP drifts.
+Auto-recreate the home VPN CPE/tunnels when the home router's public IP drifts.
 
 Trigger: OCI Resource Scheduler, on a cron (see tofu/oci/cpe-auto-recreate.tf).
 Auth: Resource Principal (no embedded API key -- the Function's own identity,
 scoped via the dynamic group + policy in the same Terraform file).
 
 Logic:
-  1. Resolve REDACTED-DDNS-HOSTNAME (DDNS, kept current by REDACTED-ROUTER-HOSTNAME's own
-     ddns-scripts-cloudflare, independent of this Function).
+  1. Resolve the DDNS hostname (env var DDNS_HOSTNAME -- kept current by the
+     router's own ddns-scripts-cloudflare, independent of this Function).
   2. Compare against the registered CPE's ip_address.
   3. If they match: no-op.
   4. If they differ: delete + recreate the CPE, IPSec connection, and both
      tunnel-management resources -- ip_address is immutable via the API, so
      there is no in-place update path. Phase-1/phase-2 policy is pinned to
-     the exact values already proven working against REDACTED-ROUTER-HOSTNAME's strongSwan
+     the exact values already proven working against the router's strongSwan
      build (see tofu/oci/vpn.tf and the 2026-08-13/14 incident notes): no
      AEAD, no ECP/curve25519 groups available on the router.
   5. Write the new tunnel PSKs + public IPs to the cpe-tunnel-details Vault
-     secret. REDACTED-ROUTER-HOSTNAME polls this (read-only, separately-scoped token) to
+     secret. The router polls this (read-only, separately-scoped token) to
      re-sync swanctl.conf -- that local delivery leg is a separate, not-yet-
      built piece (see openspec/changes/oci-cpe-auto-recreate, Out of Scope).
 
@@ -28,14 +28,13 @@ for the full design and phase plan this implements.
 import base64
 import json
 import logging
+import os
 import socket
 import time
 
 import oci
 
 logger = logging.getLogger(__name__)
-
-DDNS_HOSTNAME = "REDACTED-DDNS-HOSTNAME"
 
 # Same values as tofu/oci/cpe-auto-recreate's phase_one_details/phase_two_details
 # pin -- must stay in sync. The router's strongSwan build has neither an AEAD
@@ -200,16 +199,20 @@ def handler(ctx, data: bytes = None):
     net_client = oci.core.VirtualNetworkClient(config={}, signer=signer)
     vaults_client = oci.vault.VaultsClient(config={}, signer=signer)
 
-    # Static, invocation-independent config only -- never a CPE/IPSec OCID
-    # (see _find_by_display_name).
-    cfg = json.loads(data) if data else {}
-    compartment_id = cfg["compartment_id"]
-    cpe_display_name = cfg.get("cpe_display_name", "home-openwrt-cpe")
-    ipsec_display_name = cfg.get("ipsec_display_name", "home-openwrt-ipsec")
-    cpe_local_identifier = cfg["cpe_local_identifier"]
-    drg_id = cfg["drg_id"]
-    static_route_cidrs = cfg["static_route_cidrs"]
-    secret_id = cfg["secret_id"]
+    # Static, invocation-independent config comes from the Function's own
+    # `config` map (tofu/oci/cpe-auto-recreate.tf), which OCI Functions
+    # exposes as environment variables -- NOT from the invocation payload.
+    # Resource Scheduler fires a bare invoke with no body, so anything read
+    # from `data` here would just be empty on every real trigger. Never a
+    # CPE/IPSec OCID either way (see _find_by_display_name).
+    compartment_id = os.environ["COMPARTMENT_ID"]
+    ddns_hostname = os.environ["DDNS_HOSTNAME"]
+    cpe_display_name = os.environ.get("CPE_DISPLAY_NAME", "home-openwrt-cpe")
+    ipsec_display_name = os.environ.get("IPSEC_DISPLAY_NAME", "home-openwrt-ipsec")
+    cpe_local_identifier = os.environ["CPE_LOCAL_IDENTIFIER"]
+    drg_id = os.environ["DRG_ID"]
+    static_route_cidrs = json.loads(os.environ["STATIC_ROUTE_CIDRS_JSON"])
+    secret_id = os.environ["SECRET_ID"]
 
     cpe = _find_by_display_name(net_client.list_cpes, compartment_id, cpe_display_name)
     ipsec = _find_by_display_name(
@@ -218,7 +221,7 @@ def handler(ctx, data: bytes = None):
     cpe_id, ipsec_id = cpe.id, ipsec.id
 
     current_ip = cpe.ip_address
-    dns_ip = _resolve_current_public_ip(DDNS_HOSTNAME)
+    dns_ip = _resolve_current_public_ip(ddns_hostname)
 
     if dns_ip == current_ip:
         logger.info("CPE IP %s matches DNS, no-op", current_ip)

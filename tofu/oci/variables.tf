@@ -299,21 +299,18 @@ variable "vpn_subnet_cidr" {
 }
 
 variable "home_cpe_public_ip" {
-  description = "Public egress IP of the home OpenWrt router (the CPE)."
+  description = "Public egress IP of the home OpenWrt router (the CPE). No default -- real value lives in the HOME_CPE_PUBLIC_IP GitHub secret, never hardcoded (was previously committed in the clear; history purged, see openspec/changes/oci-cpe-auto-recreate)."
   type        = string
-  default     = "REDACTED-HOME-PUBLIC-IP"
 }
 
 variable "cpe_local_identifier" {
-  description = "IKE local identifier for the CPE. OpenWrt is behind NAT, so this is its private WAN IP, not the public IP (see plan Q5)."
+  description = "IKE local identifier for the CPE. OpenWrt is behind NAT, so this is its private WAN IP, not the public IP (see plan Q5). No default -- real value lives in a GitHub secret, never hardcoded (history purged, see openspec/changes/oci-cpe-auto-recreate)."
   type        = string
-  default     = "REDACTED-CPE-LOCAL-ID-IP"
 }
 
 variable "omni_target_ip" {
-  description = "Omni endpoint reachable over the VPN. Tailnet /32, routed via OpenWrt tailscale0. Only this /32 is routed into the tunnel."
+  description = "Omni endpoint reachable over the VPN. Tailnet /32, routed via OpenWrt tailscale0. Only this /32 is routed into the tunnel. No default -- real value lives in a GitHub secret, never hardcoded (history purged, see openspec/changes/oci-cpe-auto-recreate)."
   type        = string
-  default     = "REDACTED-OMNI-TARGET-IP"
 }
 
 variable "omni_api_port" {
@@ -401,6 +398,11 @@ variable "iam_api_public_key" {
   type        = string
   sensitive   = true
   default     = null
+}
+
+variable "ddns_hostname" {
+  description = "DDNS hostname the cpe-auto-recreate Function resolves and compares against the CPE's registered IP. No default -- real value lives in the DDNS_HOSTNAME GitHub secret, never hardcoded."
+  type        = string
 }
 
 variable "cpe_recreate_fn_image" {
