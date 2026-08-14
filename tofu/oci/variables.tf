@@ -412,9 +412,8 @@ variable "cpe_recreate_fn_image" {
 }
 
 variable "cpe_recreate_fn_push_user_ocid" {
-  description = "OCI user OCID the OCIR push auth token (functions/cpe-auto-recreate) belongs to. Null by default so routine deploy.yml runs aren't blocked by a one-off, targeted-apply-only resource."
+  description = "OCI user OCID the OCIR push auth token (functions/cpe-auto-recreate) belongs to. No default -- despite the underlying resource being gated on local.vpn_enabled only, the OCI provider requires a non-null user_id at schema-validation time, which breaks any untargeted plan/apply if this is null. Real value lives in the CPE_RECREATE_FN_PUSH_USER_OCID GitHub secret, always supplied in deploy.yml."
   type        = string
-  default     = null
 }
 
 variable "cpe_recreate_fn_image_digest" {
