@@ -167,3 +167,32 @@ resource "oci_identity_auth_token" "cpe_recreate_fn_push" {
   user_id     = var.cpe_recreate_fn_push_user_ocid
   description = "OCIR push for functions/cpe-auto-recreate — see openspec/changes/oci-cpe-auto-recreate"
 }
+
+# ---------------------------------------------------------------------------
+# Bastion sub-hourly drift-check trigger. OCI Resource Scheduler's own cron
+# floor is hourly (confirmed via a real API error, not docs -- see the
+# Scheduler resource above), so the already-running bastion invokes the
+# Function every 5 min via a systemd timer (cloud-init-bastion.yaml.tmpl).
+# The Scheduler's hourly cron stays as a backup for when the bastion itself
+# is down. IAM is scoped to exactly this: one instance, one verb (use =
+# invoke, which also covers the CLI's own GetFunction endpoint lookup),
+# one target function -- nothing else.
+# ---------------------------------------------------------------------------
+resource "oci_identity_dynamic_group" "cpe_drift_check_bastion" {
+  count          = local.vpn_enabled && var.create_bastion ? 1 : 0
+  compartment_id = var.tenancy_ocid
+  name           = "oci-lab-cpe-drift-check-bastion"
+  description    = "Matches the bastion instance that triggers cpe-auto-recreate drift checks"
+  matching_rule  = "ALL {instance.id = '${oci_core_instance.bastion[0].id}'}"
+}
+
+resource "oci_identity_policy" "cpe_drift_check_bastion" {
+  count          = local.vpn_enabled && var.create_bastion ? 1 : 0
+  compartment_id = var.tenancy_ocid
+  name           = "oci-lab-cpe-drift-check-bastion-policy"
+  description    = "Least-privilege policy for the bastion's cpe-auto-recreate drift-check timer -- invoke one Function, nothing else"
+
+  statements = [
+    "Allow dynamic-group ${oci_identity_dynamic_group.cpe_drift_check_bastion[0].name} to use functions-family in compartment id ${local.compartment_id} where target.function.id = '${oci_functions_function.cpe_recreate[0].id}'",
+  ]
+}

@@ -65,7 +65,7 @@ write_files:
       echo "DNS_STATUS:$?"
 
       echo "# tcp 8090"
-      timeout 15 bash -c 'cat < /dev/null > /dev/tcp/REDACTED-OMNI-TARGET-IP/8090'
+      timeout 15 bash -c 'cat < /dev/null > /dev/tcp/${omni_target_ip}/8090'
       echo "TCP_8090_STATUS:$?"
 
       echo "# tls 8090"
@@ -76,10 +76,59 @@ write_files:
       echo "TLS_8090_STATUS:$?"
 
       echo "# udp 50180 send"
-      timeout 5 bash -c 'printf "oci-vpn-probe" > /dev/udp/REDACTED-OMNI-TARGET-IP/50180'
+      timeout 5 bash -c 'printf "oci-vpn-probe" > /dev/udp/${omni_target_ip}/50180'
       echo "UDP_50180_SEND_STATUS:$?"
 
       echo "OCI_VPN_PROBE_END $(date -Is)"
+%{ endif ~}
+
+%{ if enable_cpe_drift_check ~}
+  # Invokes the cpe-auto-recreate Function every 5 min (OCI Resource
+  # Scheduler's own cron floor is hourly -- confirmed via a real
+  # 400-InvalidParameter API error, not docs -- so this bastion timer is the
+  # sub-hourly trigger; the hourly Scheduler stays as a backup in case this
+  # instance is down). Function does its own DNS-vs-CPE compare and no-ops
+  # if nothing changed, so this script has zero logic beyond "invoke it" --
+  # keeps the bastion's IAM grant to a single scoped "use" statement.
+  - path: /usr/local/bin/cpe-drift-check.sh
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      exec >> /var/log/cpe-drift-check.log 2>&1
+      echo "cpe-drift-check invoking at $(date -Is)"
+      oci --auth instance_principal fn function invoke \
+        --function-id "${cpe_recreate_function_id}" \
+        --body '' \
+        --file -
+      echo
+
+  - path: /etc/systemd/system/cpe-drift-check.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=Invoke cpe-auto-recreate Function to check VPN drift
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/cpe-drift-check.sh
+
+  - path: /etc/systemd/system/cpe-drift-check.timer
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=Run cpe-drift-check every 5 minutes
+
+      [Timer]
+      OnBootSec=2min
+      OnUnitActiveSec=5min
+      Unit=cpe-drift-check.service
+
+      [Install]
+      WantedBy=timers.target
 %{ endif ~}
 
 runcmd:
@@ -102,6 +151,13 @@ runcmd:
   - [ systemctl, daemon-reload ]
   - [ systemctl, enable, --now, knockd ]
   - [ systemctl, restart, knockd ]
+
+%{ if enable_cpe_drift_check ~}
+  - [ bash, -c, 'apt-get update -qq && apt-get install -y -qq python3-pip' ]
+  - [ bash, -c, 'python3 -m pip install --quiet oci-cli' ]
+  - [ systemctl, daemon-reload ]
+  - [ systemctl, enable, --now, cpe-drift-check.timer ]
+%{ endif ~}
 
 %{ if enable_vpn_probe ~}
   # Run the VPN probe test once at boot from the secondary VPN-subnet VNIC.

@@ -183,13 +183,16 @@ locals {
 
   # Bastion cloud-init: knockd + optional VPN probe runner.
   _bastion_user_data = base64encode(templatefile("${path.module}/files/cloud-init-bastion.yaml.tmpl", {
-    ssh_public_key   = length(local._ssh_authorized_keys) > 0 ? local._ssh_authorized_keys[0] : ""
-    extra_ssh_keys   = length(local._ssh_authorized_keys) > 1 ? slice(local._ssh_authorized_keys, 1, length(local._ssh_authorized_keys)) : []
-    primary_nic      = "ens3"
-    knock_sequence   = local._bastion_knock_sequence
-    knock_timeout    = var.bastion_knock_timeout
-    knock_ports      = var.bastion_knock_ports
-    enable_vpn_probe = local.vpn_enabled && var.enable_oci_vpn_probe
+    ssh_public_key           = length(local._ssh_authorized_keys) > 0 ? local._ssh_authorized_keys[0] : ""
+    extra_ssh_keys           = length(local._ssh_authorized_keys) > 1 ? slice(local._ssh_authorized_keys, 1, length(local._ssh_authorized_keys)) : []
+    primary_nic              = "ens3"
+    knock_sequence           = local._bastion_knock_sequence
+    knock_timeout            = var.bastion_knock_timeout
+    knock_ports              = var.bastion_knock_ports
+    enable_vpn_probe         = local.vpn_enabled && var.enable_oci_vpn_probe
+    omni_target_ip           = var.omni_target_ip
+    enable_cpe_drift_check   = local.vpn_enabled
+    cpe_recreate_function_id = local.vpn_enabled ? oci_functions_function.cpe_recreate[0].id : ""
   }))
 
   # Workload Micro cloud-init: Docker/Tailscale + SSH restricted to bastion.
