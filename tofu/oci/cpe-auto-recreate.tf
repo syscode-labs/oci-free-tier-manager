@@ -140,13 +140,16 @@ resource "oci_functions_function" "cpe_recreate" {
 # ApplyResourceChange call rejected it: "unsupported enum value for Action:
 # START. Supported values are: START_RESOURCE,STOP_RESOURCE,BACKUP_RESOURCE."
 resource "oci_resource_scheduler_schedule" "cpe_recreate" {
-  count              = local.vpn_enabled ? 1 : 0
-  compartment_id     = local.compartment_id
-  display_name       = "cpe-auto-recreate-schedule"
-  description        = "Every 15 min: check REDACTED-DDNS-HOSTNAME against the CPE's registered IP, recreate on drift"
-  action             = "START_RESOURCE"
+  count          = local.vpn_enabled ? 1 : 0
+  compartment_id = local.compartment_id
+  display_name   = "cpe-auto-recreate-schedule"
+  description    = "Hourly: check REDACTED-DDNS-HOSTNAME against the CPE's registered IP, recreate on drift"
+  action         = "START_RESOURCE"
+  # Confirmed against the live API: 400-InvalidParameter, "Invalid
+  # recurrenceDetails. Frequency cannot be higher than HOURLY" -- Resource
+  # Scheduler caps cron frequency at hourly, sub-hourly crons are rejected.
   recurrence_type    = "CRON"
-  recurrence_details = "0/15 * * * *"
+  recurrence_details = "0 * * * *"
 
   resources {
     id = oci_functions_function.cpe_recreate[0].id
