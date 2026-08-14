@@ -39,6 +39,10 @@ on:
         description: "TEMP: throwaway serial-console password for oci-micro-01 debugging (remove after diagnose)."
         required: false
         default: ""
+      extra_tfvars:
+        description: "Extra -var key=value pairs, one per line, for one-off targeted resources."
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -199,6 +203,13 @@ jobs:
             for r in $REPLACE; do REPLACE_ARGS="$REPLACE_ARGS -replace=$r"; done
             echo "Forced replace:$REPLACE_ARGS"
           fi
+          EXTRA_TFVARS_ARGS=""
+          if [ -n "$EXTRA_TFVARS" ]; then
+            while IFS= read -r line; do
+              [ -n "$line" ] && EXTRA_TFVARS_ARGS="$EXTRA_TFVARS_ARGS -var=$line"
+            done <<< "$EXTRA_TFVARS"
+            echo "Extra tfvars set (values not logged)"
+          fi
           tofu plan \
             -lock=false \
             $TARGET_ARGS \
@@ -217,6 +228,7 @@ jobs:
             -var="openwrt_resolver_ip=REDACTED-LAN-GATEWAY-IP" \
             -var="ssh_public_key=$SSH_PUBLIC_KEY" \
             -var="temp_diag_password=$TEMP_DIAG_PASSWORD" \
+            $EXTRA_TFVARS_ARGS \
             -var-file=terraform.tfvars \
             -out=tfplan
         env:
@@ -233,6 +245,7 @@ jobs:
           ALLOW_REPLACE: ${{ github.event.inputs.allow_replace || 'false' }}
           SSH_PUBLIC_KEY: ${{ github.event.inputs.ssh_public_key || '' }}
           TEMP_DIAG_PASSWORD: ${{ github.event.inputs.temp_diag_password || '' }}
+          EXTRA_TFVARS: ${{ github.event.inputs.extra_tfvars || '' }}
           TF_LOG: WARN
 
       - name: Reject destructive plan
