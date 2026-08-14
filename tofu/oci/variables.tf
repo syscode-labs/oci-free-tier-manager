@@ -147,9 +147,8 @@ variable "create_ingress_ip" {
 }
 
 variable "ssh_public_key" {
-  description = "Primary SSH public key injected via metadata for all Ubuntu instances. Talos ignores SSH keys."
+  description = "Primary SSH public key injected via metadata for all Ubuntu instances. Talos ignores SSH keys. No default -- real value lives in the SSH_PUBLIC_KEY GitHub secret, always supplied in deploy.yml (a workflow_dispatch input previously defaulted this to empty on runs that omitted it, which locked the bastion out with an empty authorized_keys after a recreate, 2026-08-14)."
   type        = string
-  default     = null
 }
 
 variable "ssh_extra_public_keys" {

@@ -32,7 +32,7 @@ on:
         required: false
         default: ""
       ssh_public_key:
-        description: "SSH public key for the temporary VPN probe (optional, only used when vpn_probe=true)."
+        description: "Override for var.ssh_public_key (all Ubuntu instances). Empty = use the SSH_PUBLIC_KEY secret."
         required: false
         default: ""
       temp_diag_password:
@@ -254,7 +254,7 @@ jobs:
           DESTROY: ${{ github.event.inputs.destroy || 'false' }}
           REPLACE: ${{ github.event.inputs.replace || '' }}
           ALLOW_REPLACE: ${{ github.event.inputs.allow_replace || 'false' }}
-          SSH_PUBLIC_KEY: ${{ github.event.inputs.ssh_public_key || '' }}
+          SSH_PUBLIC_KEY: ${{ github.event.inputs.ssh_public_key || secrets.SSH_PUBLIC_KEY }}
           TEMP_DIAG_PASSWORD: ${{ github.event.inputs.temp_diag_password || '' }}
           EXTRA_TFVARS: ${{ github.event.inputs.extra_tfvars || '' }}
           TF_LOG: WARN
