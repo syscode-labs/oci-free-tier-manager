@@ -402,3 +402,13 @@ variable "iam_api_public_key" {
   sensitive   = true
   default     = null
 }
+
+variable "cpe_recreate_fn_image" {
+  description = "OCIR image reference for the CPE auto-recreate Function (functions/cpe-auto-recreate), e.g. lhr.ocir.io/<namespace>/cpe-auto-recreate:<tag>. Built/pushed manually for now — see openspec/changes/oci-cpe-auto-recreate."
+  type        = string
+}
+
+variable "cpe_recreate_fn_image_digest" {
+  description = "sha256 digest of the pushed cpe-auto-recreate Function image (from `docker push` / `oci artifacts container image list`)."
+  type        = string
+}

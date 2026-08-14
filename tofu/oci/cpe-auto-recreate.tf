@@ -91,3 +91,61 @@ resource "oci_identity_policy" "cpe_recreate_fn" {
     "Allow dynamic-group ${oci_identity_dynamic_group.cpe_recreate_fn[0].name} to use secret-family in compartment id ${local.compartment_id} where target.secret.id = '${oci_vault_secret.cpe_tunnel_details[0].id}'",
   ]
 }
+
+# ---------------------------------------------------------------------------
+# Function deployment. Image is built + pushed manually for now (see
+# openspec/changes/oci-cpe-auto-recreate, Out of Scope: CI wiring for the
+# image pipeline is a follow-up once the Function itself is proven working).
+# Reuses the existing NAT-routed subnet (outbound internet for image pull +
+# DNS resolution of the DDNS hostname; Resource Principal calls to other OCI
+# services don't need internet) rather than creating a new one.
+# ---------------------------------------------------------------------------
+resource "oci_artifacts_container_repository" "cpe_recreate_fn" {
+  count          = local.vpn_enabled ? 1 : 0
+  compartment_id = local.compartment_id
+  display_name   = "cpe-auto-recreate"
+}
+
+resource "oci_functions_application" "cpe_recreate" {
+  count          = local.vpn_enabled ? 1 : 0
+  compartment_id = local.compartment_id
+  display_name   = "cpe-auto-recreate"
+  subnet_ids     = [local.subnet_id]
+}
+
+resource "oci_functions_function" "cpe_recreate" {
+  count              = local.vpn_enabled ? 1 : 0
+  application_id     = oci_functions_application.cpe_recreate[0].id
+  display_name       = "cpe-auto-recreate"
+  memory_in_mbs      = "256"
+  timeout_in_seconds = 300
+  image              = var.cpe_recreate_fn_image
+  image_digest       = var.cpe_recreate_fn_image_digest
+
+  # Exposed to the Function as environment variables -- see func.py's
+  # handler(), which reads these via os.environ rather than the invocation
+  # payload (Resource Scheduler fires a bare invoke with no body).
+  config = {
+    COMPARTMENT_ID          = local.compartment_id
+    CPE_LOCAL_IDENTIFIER    = var.cpe_local_identifier
+    DRG_ID                  = oci_core_drg.vpn_drg[0].id
+    STATIC_ROUTE_CIDRS_JSON = jsonencode(local.vpn_static_route_cidrs)
+    SECRET_ID               = oci_vault_secret.cpe_tunnel_details[0].id
+  }
+}
+
+# action = "START" invokes the target Function on each firing (OCI Resource
+# Scheduler's documented mechanism for periodic Function invocation).
+resource "oci_resource_scheduler_schedule" "cpe_recreate" {
+  count              = local.vpn_enabled ? 1 : 0
+  compartment_id     = local.compartment_id
+  display_name       = "cpe-auto-recreate-schedule"
+  description        = "Every 15 min: check REDACTED-DDNS-HOSTNAME against the CPE's registered IP, recreate on drift"
+  action             = "START"
+  recurrence_type    = "CRON"
+  recurrence_details = "0/15 * * * *"
+
+  resources {
+    id = oci_functions_function.cpe_recreate[0].id
+  }
+}
