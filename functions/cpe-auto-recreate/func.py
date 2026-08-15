@@ -164,12 +164,20 @@ def _start_recreate(
     # the drgs resource-type in the Function's policy, not just manage on
     # cpes/ipsec-connections -- missed on the first pass, only surfaced as a
     # live 404 NotAuthorizedOrNotFound (2026-08-15).
+    # Reuse the OLD IPSec connection's own display_name verbatim -- NOT a
+    # derived f"{cpe_name}-ipsec" -- so the name is stable across every
+    # recreate cycle. A derived name only matches the env var default
+    # ("home-openwrt-ipsec") on the very first recreate; the second
+    # recreate's initial _find_by_display_name lookup then finds 0 matches
+    # (confirmed live, 2026-08-15: the first full test cycle created
+    # "home-openwrt-cpe-ipsec", silently diverging from what every future
+    # invocation looks for).
     new_ipsec = net_client.create_ip_sec_connection(
         oci.core.models.CreateIPSecConnectionDetails(
             compartment_id=compartment_id,
             cpe_id=new_cpe.id,
             drg_id=drg_id,
-            display_name=f"{display_name}-ipsec",
+            display_name=old_ipsec.display_name,
             static_routes=static_route_cidrs,
             cpe_local_identifier=cpe_local_identifier,
             cpe_local_identifier_type="IP_ADDRESS",
