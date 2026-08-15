@@ -304,7 +304,7 @@ variable "vpn_subnet_cidr" {
 }
 
 variable "home_cpe_public_ip" {
-  description = "Public egress IP of the home OpenWrt router (the CPE). No default -- real value lives in the HOME_CPE_PUBLIC_IP GitHub secret, never hardcoded (was previously committed in the clear; history purged, see openspec/changes/oci-cpe-auto-recreate)."
+  description = "Public egress IP of the home OpenWrt router (the CPE). No default -- real value lives in the HOME_CPE_PUBLIC_IP GitHub secret, never hardcoded (was previously committed in the clear; history purged, see openspec/changes/oci-cpe-auto-recreate). Not read anywhere in tofu/oci as of the 2026-08-15 idempotency fix -- the CPE resource became a display_name data-source lookup, and the Function owns ip_address post-bootstrap. Kept declared (required by CI's -var= wiring) for a possible future one-time bootstrap script."
   type        = string
 }
 

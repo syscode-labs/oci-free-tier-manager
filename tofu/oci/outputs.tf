@@ -181,37 +181,22 @@ output "iam_api_key_fingerprint" {
 # Empty when enable_oci_vpn = false.
 # ---------------------------------------------------------------------------
 
-output "oci_vpn_tunnel_public_ips" {
-  description = "OCI-side public IPs of the two IPSec tunnels (remote_addrs for swanctl)."
-  value       = [for t in oci_core_ipsec_connection_tunnel_management.home : t.vpn_ip]
-}
-
-output "oci_vpn_tunnel_shared_secrets" {
-  description = "PSK for each IPSec tunnel (swanctl secrets)."
-  value       = [for t in oci_core_ipsec_connection_tunnel_management.home : t.shared_secret]
-  sensitive   = true
-}
+# Tunnel public IPs / PSKs are no longer surfaced as Terraform outputs: the
+# Function rewrites both tunnels' OCIDs (and PSKs) on every recreate, so a
+# `tofu output` here would go stale exactly like the removed resources did.
+# The Vault secret (oci_vault_secret.cpe_tunnel_details) is the live handoff
+# interface to the OpenWrt side now -- read it directly, e.g.:
+#   oci secrets secret-bundle get --secret-id <id> --raw-output \
+#     --query 'data."secret-bundle-content".content' | base64 -d
 
 output "oci_vpn_cpe_id" {
-  description = "OCID of the CPE (home OpenWrt) — for OCI console tunnel detail lookups."
-  value       = length(oci_core_cpe.home_cpe) > 0 ? oci_core_cpe.home_cpe[0].id : null
+  description = "OCID of the CPE (home OpenWrt) — for OCI console tunnel detail lookups. Resolved by display_name lookup, not a managed resource; see vpn.tf."
+  value       = local.home_cpe_id
 }
 
 output "oci_vpn_ipsec_id" {
-  description = "OCID of the IPSec connection."
-  value       = length(oci_core_ipsec.home_ipsec) > 0 ? oci_core_ipsec.home_ipsec[0].id : null
-}
-
-# Inside-tunnel IPs are populated only for BGP-routed tunnels. These are STATIC
-# route-based tunnels (OpenWrt scopes via XFRM if_id + firewall), so this is
-# empty by design — no inside addressing is negotiated. Surfaced for parity with
-# the plan's output checklist and in case a tunnel is later switched to BGP.
-output "oci_vpn_tunnel_bgp_inside_ips" {
-  description = "Oracle/customer inside-tunnel IPs (BGP only; empty for STATIC route-based tunnels)."
-  value = [for t in oci_core_ipsec_connection_tunnel_management.home : {
-    oracle   = try(t.bgp_session_info[0].oracle_interface_ip, null)
-    customer = try(t.bgp_session_info[0].customer_interface_ip, null)
-  }]
+  description = "OCID of the IPSec connection. Resolved by display_name lookup, not a managed resource; see vpn.tf."
+  value       = local.home_ipsec_id
 }
 
 output "oci_vpn_probe_instance_id" {
