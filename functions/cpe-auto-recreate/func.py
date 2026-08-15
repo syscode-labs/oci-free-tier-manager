@@ -214,20 +214,25 @@ def _continue_after_create(
             tunnel_id=tunnel.id,
             update_ip_sec_connection_tunnel_details=oci.core.models.UpdateIPSecConnectionTunnelDetails(
                 routing="STATIC",
-                # Field names here are the raw OCI Python SDK/REST API names,
-                # NOT the Terraform provider's HCL argument names (vpn.tf's
-                # custom_encryption_algorithm/dh_group etc are the Terraform
-                # provider's own abstraction, translated internally to these
-                # -- confirmed against the SDK source on GitHub after a live
-                # TypeError: Unrecognized keyword arguments, 2026-08-15,
-                # copying vpn.tf's HCL names verbatim into Python).
-                phase_one_details=oci.core.models.PhaseOneConfigDetails(
+                # Field names throughout this call are the raw OCI Python
+                # SDK/REST API names, NOT the Terraform provider's HCL
+                # argument names (vpn.tf's custom_encryption_algorithm/
+                # dh_group/phase_one_details/phase_two_details etc are the
+                # Terraform provider's own abstraction, translated
+                # internally to these) -- confirmed against the SDK source
+                # on GitHub after two rounds of live TypeError: Unrecognized
+                # keyword arguments, 2026-08-15, from copying vpn.tf's HCL
+                # names verbatim into Python at two nesting levels
+                # (UpdateIPSecConnectionTunnelDetails.phase_one_config, not
+                # phase_one_details; PhaseOneConfigDetails.encryption_algorithm,
+                # not custom_encryption_algorithm).
+                phase_one_config=oci.core.models.PhaseOneConfigDetails(
                     is_custom_phase_one_config=True,
                     encryption_algorithm=PHASE_ONE_ENCRYPTION,
                     authentication_algorithm=PHASE_ONE_AUTHENTICATION,
                     diffie_helman_group=PHASE_ONE_DH_GROUP,
                 ),
-                phase_two_details=oci.core.models.PhaseTwoConfigDetails(
+                phase_two_config=oci.core.models.PhaseTwoConfigDetails(
                     is_custom_phase_two_config=True,
                     encryption_algorithm=PHASE_TWO_ENCRYPTION,
                     authentication_algorithm=PHASE_TWO_AUTHENTICATION,
