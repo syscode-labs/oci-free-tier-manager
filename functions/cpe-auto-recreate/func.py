@@ -89,6 +89,10 @@ def recreate_cpe_and_tunnels(
     #    still references it -- confirmed directly: 409-IncorrectState,
     #    "CPE ... cannot be deleted because it is still used by an
     #    IPsecConnections", 2026-08-13).
+    # Cpe has no lifecycle_state at all (confirmed via a live traceback,
+    # 2026-08-15: AttributeError inside _wait_for_state's .data.lifecycle_state
+    # -- same root cause as _find_by_display_name's bug below, missed here on
+    # the first pass). CreateCpe is synchronous; there is no state to poll.
     new_cpe = net_client.create_cpe(
         oci.core.models.CreateCpeDetails(
             compartment_id=compartment_id,
@@ -96,9 +100,6 @@ def recreate_cpe_and_tunnels(
             display_name=display_name,
         )
     ).data
-    _wait_for_state(
-        net_client.get_cpe, new_cpe.id, {"AVAILABLE"}, RECREATE_POLL_TIMEOUT_SECONDS
-    )
 
     # 2. New IPSec connection pointing at the new CPE.
     new_ipsec = net_client.create_ip_sec_connection(
