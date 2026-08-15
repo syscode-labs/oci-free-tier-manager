@@ -214,17 +214,24 @@ def _continue_after_create(
             tunnel_id=tunnel.id,
             update_ip_sec_connection_tunnel_details=oci.core.models.UpdateIPSecConnectionTunnelDetails(
                 routing="STATIC",
+                # Field names here are the raw OCI Python SDK/REST API names,
+                # NOT the Terraform provider's HCL argument names (vpn.tf's
+                # custom_encryption_algorithm/dh_group etc are the Terraform
+                # provider's own abstraction, translated internally to these
+                # -- confirmed against the SDK source on GitHub after a live
+                # TypeError: Unrecognized keyword arguments, 2026-08-15,
+                # copying vpn.tf's HCL names verbatim into Python).
                 phase_one_details=oci.core.models.PhaseOneConfigDetails(
                     is_custom_phase_one_config=True,
-                    custom_encryption_algorithm=PHASE_ONE_ENCRYPTION,
-                    custom_authentication_algorithm=PHASE_ONE_AUTHENTICATION,
-                    custom_dh_group=PHASE_ONE_DH_GROUP,
+                    encryption_algorithm=PHASE_ONE_ENCRYPTION,
+                    authentication_algorithm=PHASE_ONE_AUTHENTICATION,
+                    diffie_helman_group=PHASE_ONE_DH_GROUP,
                 ),
                 phase_two_details=oci.core.models.PhaseTwoConfigDetails(
                     is_custom_phase_two_config=True,
-                    custom_encryption_algorithm=PHASE_TWO_ENCRYPTION,
-                    custom_authentication_algorithm=PHASE_TWO_AUTHENTICATION,
-                    dh_group=PHASE_TWO_DH_GROUP,
+                    encryption_algorithm=PHASE_TWO_ENCRYPTION,
+                    authentication_algorithm=PHASE_TWO_AUTHENTICATION,
+                    pfs_dh_group=PHASE_TWO_DH_GROUP,
                     is_pfs_enabled=True,
                 ),
             ),
