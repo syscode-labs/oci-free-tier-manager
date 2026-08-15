@@ -135,6 +135,35 @@ resource "oci_functions_function" "cpe_recreate" {
   }
 }
 
+# Read-only observability -- captures the Function's own stdout/stderr
+# (Python tracebacks included) on invoke. Added specifically to diagnose the
+# first real end-to-end invoke's "502 FunctionInvokeExecutionFailed" with no
+# detail otherwise available. Safe/additive, no effect on live CPE/tunnel
+# resources.
+resource "oci_logging_log_group" "cpe_recreate" {
+  count          = local.vpn_enabled ? 1 : 0
+  compartment_id = local.compartment_id
+  display_name   = "cpe-auto-recreate-logs"
+}
+
+resource "oci_logging_log" "cpe_recreate_fn" {
+  count              = local.vpn_enabled ? 1 : 0
+  display_name       = "cpe-auto-recreate-fn-invoke"
+  log_group_id       = oci_logging_log_group.cpe_recreate[0].id
+  log_type           = "SERVICE"
+  is_enabled         = true
+  retention_duration = 30
+
+  configuration {
+    source {
+      category    = "invoke"
+      resource    = oci_functions_application.cpe_recreate[0].id
+      service     = "functions"
+      source_type = "OCISERVICE"
+    }
+  }
+}
+
 # action = "START_RESOURCE" invokes the target Function on each firing.
 # Confirmed against the live API, not docs -- ValidateResourceTypeConfig
 # accepted the wrong value "START" at plan time; only the real
