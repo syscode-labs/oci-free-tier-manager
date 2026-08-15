@@ -224,3 +224,17 @@ output "cpe_recreate_fn_push_auth_token" {
   value     = local.vpn_enabled ? oci_identity_auth_token.cpe_recreate_fn_push[0].token : null
   sensitive = true
 }
+
+# ---------------------------------------------------------------------------
+# DNS — one-time setup value. Add an NS record for syscode-lab.oci.syscode.uk
+# on whatever DNS provider hosts syscode.uk, pointing at these hostnames.
+# ---------------------------------------------------------------------------
+output "oci_dns_lab_zone_nameservers" {
+  description = "OCI's authoritative nameservers for syscode-lab.oci.syscode.uk -- create an NS delegation record for this subdomain on syscode.uk's DNS provider pointing here."
+  value       = var.create_bastion ? [for ns in oci_dns_zone.lab[0].nameservers : ns.hostname] : null
+}
+
+output "bastion_fqdn" {
+  description = "bastion.syscode-lab.oci.syscode.uk -- resolves once the NS delegation above is in place."
+  value       = var.create_bastion ? oci_dns_rrset.bastion[0].domain : null
+}
