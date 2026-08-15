@@ -182,10 +182,16 @@ def _find_by_display_name(list_fn, compartment_id: str, display_name: str, **ext
     would silently operate on already-deleted resources. Discover the
     current live one by display_name each run instead.
     """
+    # Cpe objects have no lifecycle_state attribute at all (confirmed via the
+    # live traceback: AttributeError: 'Cpe' object has no attribute
+    # 'lifecycle_state', 2026-08-15 -- unlike IPSecConnection, which does).
+    # getattr(..., "AVAILABLE") treats state-less resources as always
+    # available while still filtering real state on the ones that have it.
     matches = [
         r
         for r in list_fn(compartment_id=compartment_id, **extra).data
-        if r.display_name == display_name and r.lifecycle_state == "AVAILABLE"
+        if r.display_name == display_name
+        and getattr(r, "lifecycle_state", "AVAILABLE") == "AVAILABLE"
     ]
     if len(matches) != 1:
         raise RuntimeError(
