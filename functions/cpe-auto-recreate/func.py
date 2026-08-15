@@ -222,6 +222,25 @@ def _continue_after_create(
             tunnel_id=tunnel.id,
             update_ip_sec_connection_tunnel_details=oci.core.models.UpdateIPSecConnectionTunnelDetails(
                 routing="STATIC",
+                ike_version="V2",
+                # OCI's non-customized default policy prefers AES-256-GCM +
+                # ECP384, which this OpenWrt router's strongSwan build cannot
+                # offer (no ecp/curve25519 or AEAD plugin loaded --
+                # swanctl --list-algs shows classical MODP DH groups and
+                # AES-CBC only). Pin to what the router can actually produce
+                # instead of relying on OCI's default, which is what broke
+                # this tunnel on 2026-08-13 when it was recreated after a CPE
+                # IP update: the old tunnel had negotiated
+                # AES256-CBC/SHA256/modp2048 for months, but the new one came
+                # up requiring ECP384/GCM and rejected every classical
+                # proposal the router offered with NO_PROPOSAL_CHOSEN.
+                #
+                # ike_version="V2" is pinned for the same reason: omitting it
+                # let OCI default two recreated tunnels to IKEv1 on
+                # 2026-08-15, silently diverging from the router's IKEv2
+                # config and taking the VPN down until both sides were
+                # manually re-aligned.
+                #
                 # Field names throughout this call are the raw OCI Python
                 # SDK/REST API names, NOT the Terraform provider's HCL
                 # argument names (vpn.tf's custom_encryption_algorithm/
