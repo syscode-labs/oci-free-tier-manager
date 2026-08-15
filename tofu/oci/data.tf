@@ -188,6 +188,7 @@ locals {
     primary_nic              = "ens3"
     knock_sequence           = local._bastion_knock_sequence
     knock_timeout            = var.bastion_knock_timeout
+    ssh_window_seconds       = var.bastion_ssh_window_seconds
     knock_ports              = var.bastion_knock_ports
     enable_vpn_probe         = local.vpn_enabled && var.enable_oci_vpn_probe
     omni_target_ip           = var.omni_target_ip

@@ -193,6 +193,12 @@ variable "bastion_knock_timeout" {
   default     = 60
 }
 
+variable "bastion_ssh_window_seconds" {
+  description = "How long the SSH-allow window stays open after a completed knock, before knockd's stop_command revokes it -- independent of session activity (a long-running SSH command doesn't extend it). 60s (knockd's typical default) was found to be a real footgun for interactive work: any session outliving the window gets cut off mid-command, and every new connection attempt after that needs a fresh knock. 1800s (30 min) trades a slightly larger opportunistic-entry window for actually being usable."
+  type        = number
+  default     = 1800
+}
+
 variable "temp_diag_password" {
   description = "TEMP: throwaway serial-console password for oci-micro-01 debugging. Injected via metadata, never committed. Remove after diagnose."
   type        = string

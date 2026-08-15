@@ -16,7 +16,11 @@ users:
 %{ endfor ~}
 
 write_files:
-  # knockd configuration: 3 ports, 5s pause, 1 port, within 60s.
+  # knockd configuration: 4-port sequence, must complete within
+  # knock_timeout; the resulting SSH-allow window then stays open for
+  # ssh_window_seconds regardless of session activity (see
+  # bastion_ssh_window_seconds for why this isn't left at knockd's 60s
+  # default).
   - path: /etc/knockd.conf
     permissions: "0600"
     owner: root:root
@@ -30,7 +34,7 @@ write_files:
         seq_timeout = ${knock_timeout}
         tcpflags    = syn
         start_command = /sbin/ufw allow from %IP% to any port 22 proto tcp
-        cmd_timeout   = 60
+        cmd_timeout   = ${ssh_window_seconds}
         stop_command  = /sbin/ufw delete allow from %IP% to any port 22 proto tcp
 
   # Detect-primary-interface helper used by knockd and runcmd.
