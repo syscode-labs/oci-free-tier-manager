@@ -89,6 +89,13 @@ resource "oci_identity_policy" "cpe_recreate_fn" {
     "Allow dynamic-group ${oci_identity_dynamic_group.cpe_recreate_fn[0].name} to manage cpes in compartment id ${local.compartment_id}",
     "Allow dynamic-group ${oci_identity_dynamic_group.cpe_recreate_fn[0].name} to manage ipsec-connections in compartment id ${local.compartment_id}",
     "Allow dynamic-group ${oci_identity_dynamic_group.cpe_recreate_fn[0].name} to use secret-family in compartment id ${local.compartment_id} where target.secret.id = '${oci_vault_secret.cpe_tunnel_details[0].id}'",
+    # CreateIPSecConnection against a DRG requires DRG_ATTACH on the drgs
+    # resource-type too, not just manage on cpes/ipsec-connections --
+    # missed on the first pass, only surfaced as a live 404
+    # NotAuthorizedOrNotFound on create_ip_sec_connection during the first
+    # real forced-drift test (2026-08-15). Confirmed against OCI's Core
+    # Services policy reference, scoped to just this one DRG.
+    "Allow dynamic-group ${oci_identity_dynamic_group.cpe_recreate_fn[0].name} to use drgs in compartment id ${local.compartment_id} where target.drg.id = '${oci_core_drg.vpn_drg[0].id}'",
   ]
 }
 
