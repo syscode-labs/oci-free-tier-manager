@@ -157,8 +157,11 @@ runcmd:
   - [ systemctl, restart, knockd ]
 
 %{ if enable_cpe_drift_check ~}
-  - [ bash, -c, 'apt-get update -qq && apt-get install -y -qq python3-pip' ]
-  - [ bash, -c, 'python3 -m pip install --quiet oci-cli' ]
+  # pip install (not pipx) fails on Ubuntu 24.04 with PEP 668's
+  # externally-managed-environment error -- confirmed live, 2026-08-15.
+  - [ bash, -c, 'apt-get update -qq && apt-get install -y -qq pipx' ]
+  - [ bash, -c, 'pipx install oci-cli' ]
+  - [ bash, -c, 'ln -sf /root/.local/bin/oci /usr/local/bin/oci' ]
   - [ systemctl, daemon-reload ]
   - [ systemctl, enable, --now, cpe-drift-check.timer ]
 %{ endif ~}
