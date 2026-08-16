@@ -46,6 +46,16 @@ net.ipv6.conf.default.accept_redirects = 0
 net.ipv6.conf.all.accept_source_route = 0
 net.ipv6.conf.default.accept_source_route = 0
 
+# IPv6 fully disabled: the OCI VCN in tofu/oci is IPv4-only (no ipv6 CIDR/
+# routing configured), no service here listens on IPv6, and a client-side
+# IPv4/IPv6 addressing mismatch (knock vs ssh choosing different families)
+# caused a real multi-hour "sshd never responds" outage on 2026-08-16 --
+# disabling it guest-side removes the ambiguity at the source instead of
+# only patching it client-side (~/.ssh/config AddressFamily inet).
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+net.ipv6.conf.lo.disable_ipv6 = 1
+
 # Kernel hardening
 kernel.kptr_restrict = 2
 kernel.dmesg_restrict = 1
