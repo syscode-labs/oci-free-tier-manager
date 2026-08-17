@@ -30,6 +30,11 @@ tasks:
       - dagger call build-all-images
       - echo "✓ Images built successfully"
 
+  build:cpe-remediator:
+    desc: Build the CPE remediator for Linux amd64 at artifacts/cpe-remediator
+    cmds:
+      - bash scripts/build-cpe-remediator.sh
+
   build:validate:
     desc: Validate built images meet size requirements
     deps: [build:images]
@@ -177,6 +182,15 @@ tasks:
             echo ""
           fi
     cmds:
+      - task: build:cpe-remediator
+      - |
+          if [ "${CPE_REMEDIATOR_MODE:-function}" = "local-remediator" ]; then
+            test -n "${OCI_COMPARTMENT_OCID:-}" || \
+              (echo "OCI_COMPARTMENT_OCID is required for local-remediator" >&2; exit 1)
+            printf '{"compartment_id":"%s"}\n' "$OCI_COMPARTMENT_OCID" | \
+              bash ../../scripts/check-cpe-remediator-retirement.sh | \
+              jq -e '.retired == "true"' >/dev/null
+          fi
       - echo "Deploying OCI infrastructure..."
       - |
         if [ -n "{{.BACKEND_CONFIG}}" ]; then
@@ -184,7 +198,12 @@ tasks:
         else
           tofu init -upgrade
         fi
-      - tofu plan -out=tfplan
+      - |
+        if [ -n "${CPE_REMEDIATOR_MODE+x}" ]; then
+          tofu plan -out=tfplan -var="cpe_remediator_mode=$CPE_REMEDIATOR_MODE"
+        else
+          tofu plan -out=tfplan
+        fi
       - tofu apply tfplan
       - rm -f tfplan
       - echo "✓ OCI infrastructure deployed"
@@ -203,13 +222,27 @@ tasks:
             echo ""
           fi
     cmds:
+      - task: build:cpe-remediator
+      - |
+          if [ "${CPE_REMEDIATOR_MODE:-function}" = "local-remediator" ]; then
+            test -n "${OCI_COMPARTMENT_OCID:-}" || \
+              (echo "OCI_COMPARTMENT_OCID is required for local-remediator" >&2; exit 1)
+            printf '{"compartment_id":"%s"}\n' "$OCI_COMPARTMENT_OCID" | \
+              bash ../../scripts/check-cpe-remediator-retirement.sh | \
+              jq -e '.retired == "true"' >/dev/null
+          fi
       - |
         if [ -n "{{.BACKEND_CONFIG}}" ]; then
           tofu init -upgrade -backend-config="{{.BACKEND_CONFIG}}"
         else
           tofu init -upgrade
         fi
-      - tofu plan
+      - |
+        if [ -n "${CPE_REMEDIATOR_MODE+x}" ]; then
+          tofu plan -var="cpe_remediator_mode=$CPE_REMEDIATOR_MODE"
+        else
+          tofu plan
+        fi
 
   destroy:oci:
     desc: Destroy OCI infrastructure
@@ -327,47 +360,36 @@ tasks:
   # ============================================================================
 
   validate:
-    desc: Run all validation checks
+    desc: Validate the supported OCI infrastructure layer
     cmds:
-      - task: header
-        vars: {MSG: "Running Validation Checks"}
-      - task: validate:images
+      - task: build:cpe-remediator
       - task: validate:oci
-      - task: validate:proxmox
-      - task: validate:talos
-      - task: validate:cost
-      - echo ""
-      - echo "✓ All validation checks passed!"
+      - echo "✓ OCI validation passed!"
 
   validate:images:
     desc: Validate image sizes
     cmds:
       - bash scripts/validate-phase1.sh
-    ignore_error: true
 
   validate:oci:
     desc: Validate OCI infrastructure
     cmds:
       - bash scripts/validate-phase2.sh
-    ignore_error: true
 
   validate:proxmox:
     desc: Validate Proxmox cluster
     cmds:
       - bash scripts/validate-phase3.sh
-    ignore_error: true
 
   validate:talos:
     desc: Validate Talos Kubernetes
     cmds:
       - bash scripts/validate-phase4.sh
-    ignore_error: true
 
   validate:cost:
     desc: Verify $0.00 billing
     cmds:
       - bash scripts/validate-cost.sh
-    ignore_error: true
 
   # ============================================================================
   # Utilities

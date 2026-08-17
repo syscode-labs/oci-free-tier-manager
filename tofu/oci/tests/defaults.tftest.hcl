@@ -79,8 +79,75 @@ variables {
   budget_alert_email = "test@example.com"
   omni_ready         = false
   # null → use tier defaults (overrides any terraform.tfvars values)
-  ampere_nodes = null
-  micro_nodes  = null
+  ampere_nodes                   = null
+  micro_nodes                    = null
+  create_bastion                 = false
+  home_cpe_public_ip             = "203.0.113.10"
+  cpe_local_identifier           = "192.0.2.10"
+  omni_target_ip                 = "100.64.0.1"
+  ddns_hostname                  = "home.example.test"
+  cpe_recreate_fn_push_user_ocid = "ocid1.user.test"
+  ssh_public_key                 = "ssh-ed25519 AAAATEST fixture"
+}
+
+run "cpe_remediator_function_mode_plan" {
+  command = plan
+
+  variables {
+    create_bastion      = true
+    enable_oci_vpn      = true
+    cpe_remediator_mode = "function"
+  }
+
+  assert {
+    condition     = terraform_data.cpe_remediator_artifact.input.cpe_remediator_mode == "function"
+    error_message = "Function mode must keep the Function executor render state."
+  }
+}
+
+run "cpe_remediator_verify_local_mode_plan" {
+  command = plan
+
+  variables {
+    create_bastion      = true
+    enable_oci_vpn      = true
+    cpe_remediator_mode = "verify-local"
+  }
+
+  assert {
+    condition     = length(oci_functions_function.cpe_recreate) == 1 && length(oci_resource_scheduler_schedule.cpe_recreate) == 1
+    error_message = "verify-local must retain Function and scheduler resources."
+  }
+}
+
+run "cpe_remediator_retire_function_mode_plan" {
+  command = plan
+
+  variables {
+    create_bastion      = true
+    enable_oci_vpn      = true
+    cpe_remediator_mode = "retire-function"
+  }
+
+  assert {
+    condition     = terraform_data.cpe_remediator_artifact.input.cpe_remediator_mode == "retire-function"
+    error_message = "Retire-function mode must replace the bastion's cloud-init state."
+  }
+}
+
+run "cpe_remediator_local_mode_plan" {
+  command = plan
+
+  variables {
+    create_bastion      = true
+    enable_oci_vpn      = true
+    cpe_remediator_mode = "local-remediator"
+  }
+
+  assert {
+    condition     = terraform_data.cpe_remediator_artifact.input.cpe_remediator_mode == "local-remediator"
+    error_message = "Local-remediator mode must replace the bastion's cloud-init state."
+  }
 }
 
 # --- Default node counts: 2 Ampere + 0 Micro ---

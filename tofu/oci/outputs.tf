@@ -221,8 +221,9 @@ output "resource_summary" {
 # Never printed in plan/apply output; pipe straight into Bitwarden Secrets
 # Manager, don't `tofu output` this to a terminal.
 output "cpe_recreate_fn_push_auth_token" {
-  value     = local.vpn_enabled ? oci_identity_auth_token.cpe_recreate_fn_push[0].token : null
-  sensitive = true
+  description = "One-time OCIR push credential for the Function image; null after local-remediator cutover."
+  value       = local.vpn_enabled && contains(["function", "verify-local"], var.cpe_remediator_mode) ? oci_identity_auth_token.cpe_recreate_fn_push[0].token : null
+  sensitive   = true
 }
 
 # ---------------------------------------------------------------------------

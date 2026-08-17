@@ -291,6 +291,17 @@ variable "enable_oci_vpn" {
   default     = false
 }
 
+variable "cpe_remediator_mode" {
+  description = "CPE remediation executor: function retains the Function; verify-local grants local permissions but keeps timers disabled; retire-function removes it with both timers disabled; local-remediator enables only the local timer after retirement is verified."
+  type        = string
+  default     = "function"
+
+  validation {
+    condition     = contains(["function", "verify-local", "retire-function", "local-remediator"], var.cpe_remediator_mode)
+    error_message = "cpe_remediator_mode must be function, verify-local, retire-function, or local-remediator."
+  }
+}
+
 variable "vpn_vcn_secondary_cidr" {
   description = "Secondary CIDR block appended to the existing VCN for VPN-reachable nodes. Clear of home LAN, tailnet, and Docker pools."
   type        = string

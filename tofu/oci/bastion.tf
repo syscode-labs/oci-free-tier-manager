@@ -13,12 +13,34 @@
 # ---------------------------------------------------------------------------
 # Bastion compute instance
 # ---------------------------------------------------------------------------
+resource "oci_identity_tag_namespace" "cpe_remediator" {
+  count          = var.create_bastion ? 1 : 0
+  compartment_id = var.tenancy_ocid
+  name           = "cpe_remediator"
+  description    = "Stable identity tag namespace for the CPE remediator bastion"
+}
+
+resource "oci_identity_tag" "cpe_remediator_role" {
+  count            = var.create_bastion ? 1 : 0
+  tag_namespace_id = oci_identity_tag_namespace.cpe_remediator[0].id
+  name             = "bastion_role"
+  description      = "Marks the bastion eligible to read the staged CPE remediator artifact"
+}
+
 resource "oci_core_instance" "bastion" {
   count               = var.create_bastion ? 1 : 0
   availability_domain = var.micro_availability_domain
   compartment_id      = local.compartment_id
   display_name        = var.bastion_name
   shape               = "VM.Standard.E2.1.Micro"
+  # The replacement must not boot the local executor until its policy is live.
+  # OCI applies policy changes before dependent instances, while the installer
+  # retries artifact reads to absorb post-apply IAM propagation delay.
+  depends_on = [
+    oci_objectstorage_object.cpe_remediator,
+    oci_identity_tag.cpe_remediator_role,
+    oci_identity_policy.cpe_drift_check_bastion,
+  ]
 
   source_details {
     source_type             = "image"
@@ -37,7 +59,15 @@ resource "oci_core_instance" "bastion" {
     ssh_authorized_keys = join("\n", local._ssh_authorized_keys)
   }
 
+  defined_tags = {
+    "cpe_remediator.bastion_role" = "true"
+  }
+
   lifecycle {
+    # Cloud-init runs only on first boot. Replace on either staged-artifact or
+    # executor-state changes; the reserved IP remains a separate resource.
+    replace_triggered_by = [terraform_data.cpe_remediator_artifact]
+
     ignore_changes = [
       availability_domain,
       shape_config,

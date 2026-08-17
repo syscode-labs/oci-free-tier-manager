@@ -65,7 +65,7 @@ resource "oci_vault_secret" "cpe_tunnel_details" {
 # else in the compartment, no account-wide rights.
 # ---------------------------------------------------------------------------
 resource "oci_identity_dynamic_group" "cpe_recreate_fn" {
-  count          = local.vpn_enabled ? 1 : 0
+  count          = local.vpn_enabled && contains(["function", "verify-local"], var.cpe_remediator_mode) ? 1 : 0
   compartment_id = var.tenancy_ocid
   name           = "oci-lab-cpe-recreate-fn"
   description    = "Matches the CPE auto-recreate OCI Function's resource principal"
@@ -73,7 +73,7 @@ resource "oci_identity_dynamic_group" "cpe_recreate_fn" {
 }
 
 resource "oci_identity_policy" "cpe_recreate_fn" {
-  count          = local.vpn_enabled ? 1 : 0
+  count          = local.vpn_enabled && contains(["function", "verify-local"], var.cpe_remediator_mode) ? 1 : 0
   compartment_id = var.tenancy_ocid
   name           = "oci-lab-cpe-recreate-fn-policy"
   description    = "Least-privilege policy for the CPE auto-recreate Function — network CPE/IPSec/tunnel management plus one Vault secret, nothing else"
@@ -113,20 +113,20 @@ resource "oci_identity_policy" "cpe_recreate_fn" {
 # services don't need internet) rather than creating a new one.
 # ---------------------------------------------------------------------------
 resource "oci_artifacts_container_repository" "cpe_recreate_fn" {
-  count          = local.vpn_enabled ? 1 : 0
+  count          = local.vpn_enabled && contains(["function", "verify-local"], var.cpe_remediator_mode) ? 1 : 0
   compartment_id = local.compartment_id
   display_name   = "cpe-auto-recreate"
 }
 
 resource "oci_functions_application" "cpe_recreate" {
-  count          = local.vpn_enabled ? 1 : 0
+  count          = local.vpn_enabled && contains(["function", "verify-local"], var.cpe_remediator_mode) ? 1 : 0
   compartment_id = local.compartment_id
   display_name   = "cpe-auto-recreate"
   subnet_ids     = [local.subnet_id]
 }
 
 resource "oci_functions_function" "cpe_recreate" {
-  count              = local.vpn_enabled ? 1 : 0
+  count              = local.vpn_enabled && contains(["function", "verify-local"], var.cpe_remediator_mode) ? 1 : 0
   application_id     = oci_functions_application.cpe_recreate[0].id
   display_name       = "cpe-auto-recreate"
   memory_in_mbs      = "256"
@@ -153,13 +153,13 @@ resource "oci_functions_function" "cpe_recreate" {
 # detail otherwise available. Safe/additive, no effect on live CPE/tunnel
 # resources.
 resource "oci_logging_log_group" "cpe_recreate" {
-  count          = local.vpn_enabled ? 1 : 0
+  count          = local.vpn_enabled && contains(["function", "verify-local"], var.cpe_remediator_mode) ? 1 : 0
   compartment_id = local.compartment_id
   display_name   = "cpe-auto-recreate-logs"
 }
 
 resource "oci_logging_log" "cpe_recreate_fn" {
-  count              = local.vpn_enabled ? 1 : 0
+  count              = local.vpn_enabled && contains(["function", "verify-local"], var.cpe_remediator_mode) ? 1 : 0
   display_name       = "cpe-auto-recreate-fn-invoke"
   log_group_id       = oci_logging_log_group.cpe_recreate[0].id
   log_type           = "SERVICE"
@@ -182,7 +182,7 @@ resource "oci_logging_log" "cpe_recreate_fn" {
 # ApplyResourceChange call rejected it: "unsupported enum value for Action:
 # START. Supported values are: START_RESOURCE,STOP_RESOURCE,BACKUP_RESOURCE."
 resource "oci_resource_scheduler_schedule" "cpe_recreate" {
-  count          = local.vpn_enabled ? 1 : 0
+  count          = local.vpn_enabled && contains(["function", "verify-local"], var.cpe_remediator_mode) ? 1 : 0
   compartment_id = local.compartment_id
   display_name   = "cpe-auto-recreate-schedule"
   description    = "Hourly: check var.ddns_hostname against the CPE's registered IP, recreate on drift"
@@ -204,7 +204,7 @@ resource "oci_resource_scheduler_schedule" "cpe_recreate" {
 # and surfaced via the sensitive output below, then piped straight into
 # Bitwarden Secrets Manager (never printed/logged in plain text).
 resource "oci_identity_auth_token" "cpe_recreate_fn_push" {
-  count       = local.vpn_enabled ? 1 : 0
+  count       = local.vpn_enabled && contains(["function", "verify-local"], var.cpe_remediator_mode) ? 1 : 0
   user_id     = var.cpe_recreate_fn_push_user_ocid
   description = "OCIR push for functions/cpe-auto-recreate — see openspec/changes/oci-cpe-auto-recreate"
 }
@@ -224,16 +224,27 @@ resource "oci_identity_dynamic_group" "cpe_drift_check_bastion" {
   compartment_id = var.tenancy_ocid
   name           = "oci-lab-cpe-drift-check-bastion"
   description    = "Matches the bastion instance that triggers cpe-auto-recreate drift checks"
-  matching_rule  = "ALL {instance.id = '${oci_core_instance.bastion[0].id}'}"
+  matching_rule  = "All {instance.compartment.id = '${local.compartment_id}', tag.cpe_remediator.bastion_role.value = 'true'}"
 }
 
 resource "oci_identity_policy" "cpe_drift_check_bastion" {
   count          = local.vpn_enabled && var.create_bastion ? 1 : 0
   compartment_id = var.tenancy_ocid
   name           = "oci-lab-cpe-drift-check-bastion-policy"
-  description    = "Least-privilege policy for the bastion's cpe-auto-recreate drift-check timer -- invoke one Function, nothing else"
+  description    = "Least-privilege policy for the staged artifact or active local CPE remediator"
 
-  statements = [
+  statements = concat(contains(["function", "verify-local"], var.cpe_remediator_mode) ? [
+    # Function and verify-local modes retain the Function-invocation grant.
     "Allow dynamic-group ${oci_identity_dynamic_group.cpe_drift_check_bastion[0].name} to use functions-family in compartment id ${local.compartment_id} where target.function.id = '${oci_functions_function.cpe_recreate[0].id}'",
-  ]
+    "Allow dynamic-group ${oci_identity_dynamic_group.cpe_drift_check_bastion[0].name} to read objects in compartment id ${local.compartment_id} where all {target.bucket.name = '${oci_objectstorage_bucket.cpe_remediator[0].name}', target.object.name = '${local.cpe_remediator_object_name}'}",
+    ] : [
+    # Post-Function modes remove invocation permission before local activation.
+    "Allow dynamic-group ${oci_identity_dynamic_group.cpe_drift_check_bastion[0].name} to read objects in compartment id ${local.compartment_id} where all {target.bucket.name = '${oci_objectstorage_bucket.cpe_remediator[0].name}', target.object.name = '${local.cpe_remediator_object_name}'}",
+    ], contains(["verify-local", "local-remediator"], var.cpe_remediator_mode) ? [
+    # verify-local grants the local remediator's no-op permissions before its timer is enabled.
+    "Allow dynamic-group ${oci_identity_dynamic_group.cpe_drift_check_bastion[0].name} to manage cpes in compartment id ${local.compartment_id}",
+    "Allow dynamic-group ${oci_identity_dynamic_group.cpe_drift_check_bastion[0].name} to manage ipsec-connections in compartment id ${local.compartment_id}",
+    "Allow dynamic-group ${oci_identity_dynamic_group.cpe_drift_check_bastion[0].name} to use drgs in compartment id ${local.compartment_id}",
+    "Allow dynamic-group ${oci_identity_dynamic_group.cpe_drift_check_bastion[0].name} to use secret-family in compartment id ${local.compartment_id} where target.secret.id = '${oci_vault_secret.cpe_tunnel_details[0].id}'",
+  ] : [])
 }

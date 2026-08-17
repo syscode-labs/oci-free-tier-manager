@@ -135,6 +135,80 @@ write_files:
       WantedBy=timers.target
 %{ endif ~}
 
+%{ if enable_cpe_remediator ~}
+  # The binary is staged in both cutover states. Its timer is enabled only
+  # after Terraform has retired the Function executor and granted local IAM.
+  - path: /usr/local/sbin/install-cpe-remediator
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      umask 077
+
+      artifact=$(mktemp /var/tmp/cpe-remediator.XXXXXX)
+      checksum=$(mktemp /var/tmp/cpe-remediator.sha256.XXXXXX)
+      staged=$(mktemp /usr/local/bin/.cpe-remediator.XXXXXX)
+      trap 'rm -f "$artifact" "$checksum" "$staged"' EXIT
+
+      for attempt in 1 2 3 4 5; do
+        if oci --auth instance_principal os object get \
+          --bucket-name "${cpe_remediator_bucket_name}" \
+          --name "${cpe_remediator_object_name}" \
+          --file "$artifact"; then
+          break
+        fi
+        if [ "$attempt" -eq 5 ]; then
+          exit 1
+        fi
+        sleep "$((attempt * 15))"
+      done
+      printf '%s  %s\n' "${cpe_remediator_sha256}" "$artifact" > "$checksum"
+      sha256sum -c "$checksum"
+      install -m 0755 "$artifact" "$staged"
+      mv -f "$staged" /usr/local/bin/cpe-remediator
+
+  - path: /etc/cpe-remediator.env
+    permissions: "0600"
+    owner: root:root
+    content: |
+      COMPARTMENT_ID=${cpe_remediator_compartment_id}
+      DDNS_HOSTNAME=${cpe_remediator_ddns_hostname}
+      CPE_LOCAL_IDENTIFIER=${cpe_remediator_local_identifier}
+      DRG_ID=${cpe_remediator_drg_id}
+      STATIC_ROUTE_CIDRS_JSON='${cpe_remediator_static_routes_json}'
+      SECRET_ID=${cpe_remediator_secret_id}
+
+  - path: /etc/systemd/system/cpe-remediator.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=Reconcile OCI CPE and IPSec resources after DDNS drift
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      EnvironmentFile=/etc/cpe-remediator.env
+      ExecStart=/usr/local/bin/cpe-remediator
+
+  - path: /etc/systemd/system/cpe-remediator.timer
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=Run the local CPE remediator every five minutes
+
+      [Timer]
+      OnBootSec=2min
+      OnUnitActiveSec=5min
+      Unit=cpe-remediator.service
+
+      [Install]
+      WantedBy=timers.target
+%{ endif ~}
+
 runcmd:
   # Detect the primary NIC name and rewrite knockd config/interface.
   - >-
@@ -156,14 +230,28 @@ runcmd:
   - [ systemctl, enable, --now, knockd ]
   - [ systemctl, restart, knockd ]
 
-%{ if enable_cpe_drift_check ~}
+%{ if enable_oci_cli ~}
   # pip install (not pipx) fails on Ubuntu 24.04 with PEP 668's
   # externally-managed-environment error -- confirmed live, 2026-08-15.
   - [ bash, -c, 'apt-get update -qq && apt-get install -y -qq pipx' ]
   - [ bash, -c, 'pipx install oci-cli' ]
   - [ bash, -c, 'ln -sf /root/.local/bin/oci /usr/local/bin/oci' ]
+%{ endif ~}
+
+%{ if enable_cpe_drift_check ~}
   - [ systemctl, daemon-reload ]
   - [ systemctl, enable, --now, cpe-drift-check.timer ]
+%{ endif ~}
+
+%{ if enable_cpe_remediator ~}
+  # Artifact-read retries also cover OCI IAM propagation after the policy is
+  # applied and before this replacement first boots.
+  - [ /usr/local/sbin/install-cpe-remediator ]
+  - [ systemctl, daemon-reload ]
+%{ endif ~}
+
+%{ if enable_cpe_remediator_timer ~}
+  - [ systemctl, enable, --now, cpe-remediator.timer ]
 %{ endif ~}
 
 %{ if enable_vpn_probe ~}
