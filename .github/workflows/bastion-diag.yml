@@ -77,7 +77,7 @@ jobs:
           SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
       - name: Fetch console history
         run: |
-          COMP=$(tofu -chdir=tofu/oci output -raw compartment_ocid)
+          COMP=$(tofu -chdir=tofu/oci output -raw managed_compartment_id)
           BASTION_ID=$(oci compute instance list --compartment-id "$COMP" --all --output json | jq -r '.data[] | select(."display-name"=="oci-bastion") | .id')
           if [ -n "$BASTION_ID" ]; then
             echo "capturing console history"
