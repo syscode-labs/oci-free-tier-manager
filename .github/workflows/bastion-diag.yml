@@ -3,6 +3,8 @@ on: workflow_dispatch
 jobs:
   diag:
     runs-on: ubuntu-latest
+    env:
+      OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
     steps:
       - uses: actions/checkout@v4
       - name: Install OCI CLI
@@ -42,7 +44,7 @@ jobs:
         working-directory: tofu/oci
         run: |
           tofu output -json | jq '.bastion_reserved_ip, .bastion_private_ip'
-          COMP=$(tofu output -raw managed_compartment_id)
+          COMP="${OCI_COMPARTMENT_OCID}"
           echo "compartment $COMP"
           oci compute instance list --compartment-id "$COMP" --all --output json > /tmp/list.json
           cat /tmp/list.json | jq '.data[] | select(.shape=="VM.Standard.E2.1.Micro") | {name: ."display-name", state: ."lifecycle-state", time: ."time-created", id: .id}'
@@ -77,7 +79,7 @@ jobs:
           SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
       - name: Fetch console history
         run: |
-          COMP=$(tofu -chdir=tofu/oci output -raw managed_compartment_id)
+          COMP="${OCI_COMPARTMENT_OCID}"
           BASTION_ID=$(oci compute instance list --compartment-id "$COMP" --all --output json | jq -r '.data[] | select(."display-name"=="oci-bastion") | .id')
           if [ -n "$BASTION_ID" ]; then
             echo "capturing console history"
