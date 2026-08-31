@@ -56,6 +56,7 @@ class CpeRemediatorDeliveryTests(unittest.TestCase):
         self.assertIn("GOARCH=amd64", build_script)
         self.assertIn("unset GOROOT", build_script)
         self.assertIn("artifacts/cpe-remediator", build_script)
+        self.assertIn("touch -t 200001010000 artifacts/cpe-remediator", build_script)
         self.assertIn("build:cpe-remediator", taskfile)
         self.assertIn("scripts/build-cpe-remediator.sh", taskfile)
         self.assertIn("scripts/build-cpe-remediator.sh", ci)
