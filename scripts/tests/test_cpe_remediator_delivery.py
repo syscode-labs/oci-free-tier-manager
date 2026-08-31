@@ -242,7 +242,7 @@ class CpeRemediatorDeliveryTests(unittest.TestCase):
             data_tf,
         )
         self.assertIn(
-            'enable_cpe_remediator_timer       = local.vpn_enabled && var.cpe_remediator_mode == "local-remediator"',
+            'enable_cpe_remediator_timer     = local.vpn_enabled && var.cpe_remediator_mode == "local-remediator"',
             data_tf,
         )
 
