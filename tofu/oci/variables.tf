@@ -147,7 +147,55 @@ variable "create_ingress_ip" {
 }
 
 variable "ssh_public_key" {
-  description = "SSH public key injected via metadata for all instances in Ubuntu mode. Talos ignores SSH keys."
+  description = "Primary SSH public key injected via metadata for all Ubuntu instances. Talos ignores SSH keys."
+  type        = string
+  default     = null
+}
+
+variable "ssh_extra_public_keys" {
+  description = "Additional SSH public keys (e.g. personal + syscode) authorized on Ubuntu instances. Concatenated with ssh_public_key."
+  type        = list(string)
+  default     = []
+}
+
+variable "create_bastion" {
+  description = "Create a self-managed E2.1.Micro bastion host with port-knock SSH in the main subnet."
+  type        = bool
+  default     = true
+}
+
+variable "write_packer_vars" {
+  description = "Write packer/variables.auto.pkrvars.hcl from live Terraform values. Disable in CI if Packer is not used."
+  type        = bool
+  default     = true
+}
+
+variable "bastion_name" {
+  description = "Display name for the self-managed bastion host."
+  type        = string
+  default     = "oci-bastion-01"
+}
+
+variable "bastion_boot_vol_gb" {
+  description = "Boot volume size in GB for the bastion host."
+  type        = number
+  default     = 50
+}
+
+variable "bastion_knock_ports" {
+  description = "TCP port sequence for knockd to open SSH on the bastion."
+  type        = list(number)
+  default     = [7000, 8000, 9000, 1234]
+}
+
+variable "bastion_knock_timeout" {
+  description = "Seconds within which the full knock sequence must be completed."
+  type        = number
+  default     = 60
+}
+
+variable "temp_diag_password" {
+  description = "TEMP: throwaway serial-console password for oci-micro-01 debugging. Injected via metadata, never committed. Remove after diagnose."
   type        = string
   default     = null
 }
@@ -251,21 +299,18 @@ variable "vpn_subnet_cidr" {
 }
 
 variable "home_cpe_public_ip" {
-  description = "Public egress IP of the home OpenWrt router (the CPE)."
+  description = "Public egress IP of the home OpenWrt router (the CPE). No default -- real value lives in the HOME_CPE_PUBLIC_IP GitHub secret, never hardcoded (was previously committed in the clear; history purged, see openspec/changes/oci-cpe-auto-recreate)."
   type        = string
-  default     = "45.148.13.185"
 }
 
 variable "cpe_local_identifier" {
-  description = "IKE local identifier for the CPE. OpenWrt is behind NAT, so this is its private WAN IP, not the public IP (see plan Q5)."
+  description = "IKE local identifier for the CPE. OpenWrt is behind NAT, so this is its private WAN IP, not the public IP (see plan Q5). No default -- real value lives in a GitHub secret, never hardcoded (history purged, see openspec/changes/oci-cpe-auto-recreate)."
   type        = string
-  default     = "REDACTED-CPE-LOCAL-ID-IP"
 }
 
 variable "omni_target_ip" {
-  description = "Omni endpoint reachable over the VPN. Tailnet /32, routed via OpenWrt tailscale0. Only this /32 is routed into the tunnel."
+  description = "Omni endpoint reachable over the VPN. Tailnet /32, routed via OpenWrt tailscale0. Only this /32 is routed into the tunnel. No default -- real value lives in a GitHub secret, never hardcoded (history purged, see openspec/changes/oci-cpe-auto-recreate)."
   type        = string
-  default     = "REDACTED-OMNI-TARGET-IP"
 }
 
 variable "omni_api_port" {
@@ -296,6 +341,24 @@ variable "enable_oci_vpn_probe" {
   description = "Create a temporary Ubuntu E2.1.Micro probe in the VPN subnet to verify DNS/API/UDP reachability to Omni. Use targeted apply/destroy only."
   type        = bool
   default     = false
+}
+
+variable "vpn_probe_home_cidr" {
+  description = "Home network CIDR allowed temporary SSH access to the VPN probe when enable_oci_vpn_probe and ssh_public_key are set."
+  type        = string
+  default     = "10.0.0.0/8"
+}
+
+variable "vpn_probe_golden_image_ocid" {
+  description = "OCID of pre-baked golden image for VPN probe Micro. If null, falls back to cloud-init only (Ubuntu 24.04 Minimal)."
+  type        = string
+  default     = null
+}
+
+variable "micro_golden_image_ocid" {
+  description = "OCID of pre-baked golden image for Micro nodes (packer golden-micro-YYYYMMDD). If null, falls back to latest Ubuntu 24.04 marketplace image."
+  type        = string
+  default     = null
 }
 
 variable "load_balancer" {
@@ -334,5 +397,27 @@ variable "iam_api_public_key" {
   description = "PEM-encoded RSA public key to register as an API key for the new IAM user. Optional — when null, the user is created but no API key is registered (you can add one manually). Only used when create_compartment = true."
   type        = string
   sensitive   = true
+  default     = null
+}
+
+variable "ddns_hostname" {
+  description = "DDNS hostname the cpe-auto-recreate Function resolves and compares against the CPE's registered IP. No default -- real value lives in the DDNS_HOSTNAME GitHub secret, never hardcoded."
+  type        = string
+}
+
+variable "cpe_recreate_fn_image" {
+  description = "OCIR image reference for the CPE auto-recreate Function (functions/cpe-auto-recreate), e.g. lhr.ocir.io/<namespace>/cpe-auto-recreate:<tag>. Built/pushed manually for now — see openspec/changes/oci-cpe-auto-recreate. Null until the image has actually been pushed; the Function resource must not be targeted for apply until this is set for real."
+  type        = string
+  default     = null
+}
+
+variable "cpe_recreate_fn_push_user_ocid" {
+  description = "OCI user OCID the OCIR push auth token (functions/cpe-auto-recreate) belongs to. No default -- despite the underlying resource being gated on local.vpn_enabled only, the OCI provider requires a non-null user_id at schema-validation time, which breaks any untargeted plan/apply if this is null. Real value lives in the CPE_RECREATE_FN_PUSH_USER_OCID GitHub secret, always supplied in deploy.yml."
+  type        = string
+}
+
+variable "cpe_recreate_fn_image_digest" {
+  description = "sha256 digest of the pushed cpe-auto-recreate Function image (from `docker push` / `oci artifacts container image list`). Null until the image has actually been pushed."
+  type        = string
   default     = null
 }
