@@ -22,6 +22,8 @@ REMEDIATOR_TF_PATH = REPOSITORY_ROOT / "tofu" / "oci" / "cpe-remediator.tf"
 DATA_TF_PATH = REPOSITORY_ROOT / "tofu" / "oci" / "data.tf"
 CPE_TF_PATH = REPOSITORY_ROOT / "tofu" / "oci" / "cpe-auto-recreate.tf"
 Bastion_TF_PATH = REPOSITORY_ROOT / "tofu" / "oci" / "bastion.tf"
+MAIN_TF_PATH = REPOSITORY_ROOT / "tofu" / "oci" / "main.tf"
+VPN_TF_PATH = REPOSITORY_ROOT / "tofu" / "oci" / "vpn.tf"
 CLOUD_INIT_PATH = (
     REPOSITORY_ROOT / "tofu" / "oci" / "files" / "cloud-init-bastion.yaml.tmpl"
 )
@@ -75,6 +77,19 @@ class CpeRemediatorDeliveryTests(unittest.TestCase):
             self.assertLess(
                 block.index("task: build:cpe-remediator"), block.index("tofu init")
             )
+
+    def test_bastion_uses_scoped_drg_routes_instead_of_a_second_vnic(self) -> None:
+        """The one-VNIC E2 Micro reaches Harbor through the public route table."""
+        bastion = Bastion_TF_PATH.read_text(encoding="utf-8")
+        main = MAIN_TF_PATH.read_text(encoding="utf-8")
+        vpn = VPN_TF_PATH.read_text(encoding="utf-8")
+
+        self.assertNotIn(
+            'resource "oci_core_vnic_attachment" "bastion_vpn_vnic"', bastion
+        )
+        self.assertIn("local.vpn_static_route_cidrs", main)
+        self.assertIn("oci_core_drg.vpn_drg[0].id", main)
+        self.assertIn('"10.10.210.59/32"', vpn)
 
     def test_local_oci_deploy_tasks_override_tfvars_with_an_explicit_executor_mode(
         self,

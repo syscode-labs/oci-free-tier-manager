@@ -97,11 +97,6 @@ output "bastion_private_ip" {
   value       = length(oci_core_instance.bastion) > 0 ? oci_core_instance.bastion[0].private_ip : null
 }
 
-output "bastion_vpn_vnic_private_ip" {
-  description = "Private IP of the bastion's secondary VNIC in the VPN subnet (null unless VPN probe enabled)"
-  value       = length(data.oci_core_private_ips.bastion_vpn_private_ip) > 0 ? data.oci_core_private_ips.bastion_vpn_private_ip[0].private_ips[0].ip_address : null
-}
-
 output "ampere_ssh_reserved_ip" {
   description = "Reserved public IP for the first Ampere node (null if no Ampere nodes)"
   value       = length(oci_core_public_ip.ampere_instance) > 0 ? oci_core_public_ip.ampere_instance[0].ip_address : null
