@@ -42,7 +42,7 @@ jobs:
         working-directory: tofu/oci
         run: |
           tofu output -json | jq '.bastion_reserved_ip, .bastion_private_ip'
-          COMP=$(tofu output -raw compartment_ocid)
+          COMP=$(tofu output -raw managed_compartment_id)
           echo "compartment $COMP"
           oci compute instance list --compartment-id "$COMP" --all --output json > /tmp/list.json
           cat /tmp/list.json | jq '.data[] | select(.shape=="VM.Standard.E2.1.Micro") | {name: ."display-name", state: ."lifecycle-state", time: ."time-created", id: .id}'
