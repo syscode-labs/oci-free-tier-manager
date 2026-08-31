@@ -147,9 +147,8 @@ variable "create_ingress_ip" {
 }
 
 variable "ssh_public_key" {
-  description = "Primary SSH public key injected via metadata for all Ubuntu instances. Talos ignores SSH keys."
+  description = "Primary SSH public key injected via metadata for all Ubuntu instances. Talos ignores SSH keys. No default -- real value lives in the SSH_PUBLIC_KEY GitHub secret, always supplied in deploy.yml (a workflow_dispatch input previously defaulted this to empty on runs that omitted it, which locked the bastion out with an empty authorized_keys after a recreate, 2026-08-14)."
   type        = string
-  default     = null
 }
 
 variable "ssh_extra_public_keys" {
@@ -192,6 +191,12 @@ variable "bastion_knock_timeout" {
   description = "Seconds within which the full knock sequence must be completed."
   type        = number
   default     = 60
+}
+
+variable "bastion_ssh_window_seconds" {
+  description = "How long the SSH-allow window stays open after a completed knock, before knockd's stop_command revokes it -- independent of session activity (a long-running SSH command doesn't extend it). 60s (knockd's typical default) was found to be a real footgun for interactive work: any session outliving the window gets cut off mid-command, and every new connection attempt after that needs a fresh knock. 1800s (30 min) trades a slightly larger opportunistic-entry window for actually being usable."
+  type        = number
+  default     = 1800
 }
 
 variable "temp_diag_password" {
@@ -286,6 +291,17 @@ variable "enable_oci_vpn" {
   default     = false
 }
 
+variable "cpe_remediator_mode" {
+  description = "CPE remediation executor: function retains the Function; verify-local grants local permissions but keeps timers disabled; retire-function removes it with both timers disabled; local-remediator enables only the local timer after retirement is verified."
+  type        = string
+  default     = "function"
+
+  validation {
+    condition     = contains(["function", "verify-local", "retire-function", "local-remediator"], var.cpe_remediator_mode)
+    error_message = "cpe_remediator_mode must be function, verify-local, retire-function, or local-remediator."
+  }
+}
+
 variable "vpn_vcn_secondary_cidr" {
   description = "Secondary CIDR block appended to the existing VCN for VPN-reachable nodes. Clear of home LAN, tailnet, and Docker pools."
   type        = string
@@ -299,7 +315,7 @@ variable "vpn_subnet_cidr" {
 }
 
 variable "home_cpe_public_ip" {
-  description = "Public egress IP of the home OpenWrt router (the CPE). No default -- real value lives in the HOME_CPE_PUBLIC_IP GitHub secret, never hardcoded (was previously committed in the clear; history purged, see openspec/changes/oci-cpe-auto-recreate)."
+  description = "Public egress IP of the home OpenWrt router (the CPE). No default -- real value lives in the HOME_CPE_PUBLIC_IP GitHub secret, never hardcoded (was previously committed in the clear; history purged, see openspec/changes/oci-cpe-auto-recreate). Not read anywhere in tofu/oci as of the 2026-08-15 idempotency fix -- the CPE resource became a display_name data-source lookup, and the Function owns ip_address post-bootstrap. Kept declared (required by CI's -var= wiring) for a possible future one-time bootstrap script."
   type        = string
 }
 

@@ -81,6 +81,13 @@ check "micro_min_boot_vol" {
   }
 }
 
+check "bastion_min_boot_vol" {
+  assert {
+    condition     = !var.create_bastion || var.bastion_boot_vol_gb >= 50
+    error_message = "Bastion boot volume must be at least 50 GB (OCI minimum). Check bastion_boot_vol_gb."
+  }
+}
+
 check "ampere_vpn_subnet_requires_oci_vpn" {
   assert {
     condition     = !anytrue([for n in local._ampere_nodes : n.vpn_subnet]) || local.vpn_enabled

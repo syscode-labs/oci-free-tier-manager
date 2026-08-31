@@ -128,6 +128,20 @@ resource "oci_core_security_list" "vpn_security_list" {
     protocol = "all"
     source   = var.vpn_subnet_cidr
   }
+
+  # Ingress: temporary SSH from the home network for the VPN probe.
+  dynamic "ingress_security_rules" {
+    for_each = local.vpn_probe_enabled && var.ssh_public_key != null ? [var.vpn_probe_home_cidr] : []
+    content {
+      protocol    = "6" # TCP
+      source      = ingress_security_rules.value
+      description = "Temporary SSH from home network for VPN probe"
+      tcp_options {
+        min = 22
+        max = 22
+      }
+    }
+  }
 }
 
 # ---------------------------------------------------------------------------
@@ -170,44 +184,53 @@ resource "oci_core_drg_attachment" "vpn_vcn_attach" {
 }
 
 # Customer Premises Equipment = the home OpenWrt public egress IP.
-resource "oci_core_cpe" "home_cpe" {
+#
+# Read-only lookup, not a managed resource. openspec/changes/oci-cpe-auto-recreate's
+# Function owns CPE lifecycle post-bootstrap: it deletes and recreates the CPE (new
+# OCID every time) whenever the home router's public IP drifts. A `resource` block
+# here fought the Function on every recreate -- `tofu plan` kept showing "2 to add"
+# for a CPE/IPSec pair the Function had already replaced out from under Terraform's
+# state. Fixed 2026-08-15 by converting to a display_name lookup instead; Terraform
+# no longer creates, updates, or deletes either resource. First-time bootstrap (a
+# fresh account with no CPE yet) is out of scope for this config -- create it once
+# via the Function or `oci network cpe create`, then this lookup finds it.
+data "oci_core_cpes" "home_cpe" {
   count          = local.vpn_enabled ? 1 : 0
   compartment_id = local.compartment_id
-  ip_address     = var.home_cpe_public_ip
-  display_name   = "home-openwrt-cpe"
 }
 
-# IPSec connection — OCI auto-creates two redundant tunnels.
-# static_routes = the on-prem prefix OCI routes into the tunnel (the Omni /32).
-resource "oci_core_ipsec" "home_ipsec" {
+locals {
+  # one() fails loudly instead of silently picking one if the Function's
+  # recreate is mid-flight and old+new CPEs briefly share the display_name --
+  # rerun `tofu plan`/apply once the recreate finishes.
+  home_cpe_id = local.vpn_enabled ? one([
+    for c in data.oci_core_cpes.home_cpe[0].cpes : c.id
+    if c.display_name == "home-openwrt-cpe"
+  ]) : null
+}
+
+# IPSec connection — same read-only contract as the CPE above; the Function owns
+# create/delete post-bootstrap. cpe_id scopes the lookup so at most one AVAILABLE
+# connection can match (the Function deletes the old IPSec connection before
+# finishing a recreate, per func.py's phased state machine).
+data "oci_core_ipsec_connections" "home_ipsec" {
   count          = local.vpn_enabled ? 1 : 0
   compartment_id = local.compartment_id
-  cpe_id         = oci_core_cpe.home_cpe[0].id
-  drg_id         = oci_core_drg.vpn_drg[0].id
-  display_name   = "home-openwrt-ipsec"
-  static_routes  = local.vpn_static_route_cidrs
-
-  # CPE is behind NAT (WAN REDACTED-CPE-LOCAL-ID-IP, public egress 45.148.13.185); the local
-  # IKE identifier is the private WAN IP, not the public IP (see plan Q5).
-  cpe_local_identifier      = var.cpe_local_identifier
-  cpe_local_identifier_type = "IP_ADDRESS"
+  cpe_id         = local.home_cpe_id
 }
 
-# Read the two auto-created tunnels so we can manage each and export their
-# public IPs / PSKs. Deferred to apply time (depends on the ipsec resource).
-data "oci_core_ipsec_connection_tunnels" "home" {
-  count    = local.vpn_enabled ? 1 : 0
-  ipsec_id = oci_core_ipsec.home_ipsec[0].id
+locals {
+  home_ipsec_id = local.vpn_enabled ? one([
+    for i in data.oci_core_ipsec_connections.home_ipsec[0].connections : i.id
+    if i.state == "AVAILABLE"
+  ]) : null
 }
 
-# Force STATIC routing (route-based) on both tunnels. OCI route-based tunnels
-# negotiate 0.0.0.0/0 selectors and scope via routing — the OpenWrt side uses
-# XFRM if_id + firewall to scope to Omni (Task 6/7), not narrow traffic selectors.
-resource "oci_core_ipsec_connection_tunnel_management" "home" {
-  count        = local.vpn_enabled ? 2 : 0
-  ipsec_id     = oci_core_ipsec.home_ipsec[0].id
-  tunnel_id    = data.oci_core_ipsec_connection_tunnels.home[0].ip_sec_connection_tunnels[count.index].id
-  routing      = "STATIC"
-  ike_version  = "V2"
-  display_name = "home-tunnel-${count.index + 1}"
-}
+# Tunnel management (routing/ike_version/phase-1/phase-2 policy) is no longer
+# a Terraform resource -- func.py applies the identical policy directly via the
+# SDK on every recreate (see _continue_after_create's update_ip_sec_connection_tunnel
+# call, including the strongSwan-compatibility rationale that used to live in the
+# comment here). Duplicating that write path in Terraform is exactly the
+# stale-state problem this file was rewritten to fix, since the tunnels get new
+# OCIDs on every Function-driven recreate too. Current tunnel state is visible via
+# `oci network ip-sec-tunnel list --ipsc-id <id>` or the OCI console.
