@@ -63,8 +63,8 @@ output "micro_instance_names" {
 }
 
 output "micro_instance_public_ips" {
-  description = "Public IP addresses of E2.1.Micro instances (explicit reserved IP resources)"
-  value       = [for i in range(length(local._micro_nodes)) : oci_core_public_ip.micro_instance[i].ip_address]
+  description = "Public IP addresses of E2.1.Micro workload instances (empty; access via bastion only)"
+  value       = []
 }
 
 output "micro_private_ips" {
@@ -88,8 +88,18 @@ output "micro_shapes" {
 # ---------------------------------------------------------------------------
 
 output "bastion_reserved_ip" {
-  description = "Reserved public IP for the bastion host (null if no micro instances)"
-  value       = length(oci_core_public_ip.micro_instance) > 0 ? oci_core_public_ip.micro_instance[0].ip_address : null
+  description = "Reserved public IP for the self-managed bastion host"
+  value       = length(oci_core_public_ip.bastion) > 0 ? oci_core_public_ip.bastion[0].ip_address : null
+}
+
+output "bastion_private_ip" {
+  description = "Private IP of the self-managed bastion host"
+  value       = length(oci_core_instance.bastion) > 0 ? oci_core_instance.bastion[0].private_ip : null
+}
+
+output "bastion_vpn_vnic_private_ip" {
+  description = "Private IP of the bastion's secondary VNIC in the VPN subnet (null unless VPN probe enabled)"
+  value       = length(data.oci_core_private_ips.bastion_vpn_private_ip) > 0 ? data.oci_core_private_ips.bastion_vpn_private_ip[0].private_ips[0].ip_address : null
 }
 
 output "ampere_ssh_reserved_ip" {
@@ -131,16 +141,13 @@ output "budget_id" {
 
 output "ssh_connection_commands" {
   description = "SSH commands to connect to instances (Ubuntu mode only; Talos nodes use Talos API)"
-  value = var.talos_image_ocid != null ? (
-    concat(
-      [for i in range(length(local._ampere_nodes)) : "# ${local._ampere_nodes[i].name} (${oci_core_public_ip.ampere_instance[i].ip_address}) — Talos API"],
-      [for i in range(length(local._micro_nodes)) : "ssh ubuntu@${oci_core_public_ip.micro_instance[i].ip_address}  # ${local._micro_nodes[i].name}"]
-    )
-    ) : (
-    concat(
-      [for i in range(length(local._ampere_nodes)) : "ssh ubuntu@${oci_core_public_ip.ampere_instance[i].ip_address}  # ${local._ampere_nodes[i].name}"],
-      [for i in range(length(local._micro_nodes)) : "ssh ubuntu@${oci_core_public_ip.micro_instance[i].ip_address}  # ${local._micro_nodes[i].name}"]
-    )
+  value = concat(
+    [for i in range(length(local._ampere_nodes)) : "ssh ubuntu@${oci_core_public_ip.ampere_instance[i].ip_address}  # ${local._ampere_nodes[i].name}"],
+    length(oci_core_public_ip.bastion) > 0 ? [
+      "# Knock sequence: ${join(", ", [for p in var.bastion_knock_ports : "${p}/tcp"])}",
+      "ssh ubuntu@${oci_core_public_ip.bastion[0].ip_address}  # ${var.bastion_name}",
+    ] : [],
+    [for i in range(length(local._micro_nodes)) : "ssh ubuntu@${oci_core_instance.micro_instance[i].private_ip}  # ${local._micro_nodes[i].name} (via bastion)"]
   )
 }
 
@@ -174,42 +181,27 @@ output "iam_api_key_fingerprint" {
 # Empty when enable_oci_vpn = false.
 # ---------------------------------------------------------------------------
 
-output "oci_vpn_tunnel_public_ips" {
-  description = "OCI-side public IPs of the two IPSec tunnels (remote_addrs for swanctl)."
-  value       = [for t in oci_core_ipsec_connection_tunnel_management.home : t.vpn_ip]
-}
-
-output "oci_vpn_tunnel_shared_secrets" {
-  description = "PSK for each IPSec tunnel (swanctl secrets)."
-  value       = [for t in oci_core_ipsec_connection_tunnel_management.home : t.shared_secret]
-  sensitive   = true
-}
+# Tunnel public IPs / PSKs are no longer surfaced as Terraform outputs: the
+# Function rewrites both tunnels' OCIDs (and PSKs) on every recreate, so a
+# `tofu output` here would go stale exactly like the removed resources did.
+# The Vault secret (oci_vault_secret.cpe_tunnel_details) is the live handoff
+# interface to the OpenWrt side now -- read it directly, e.g.:
+#   oci secrets secret-bundle get --secret-id <id> --raw-output \
+#     --query 'data."secret-bundle-content".content' | base64 -d
 
 output "oci_vpn_cpe_id" {
-  description = "OCID of the CPE (home OpenWrt) — for OCI console tunnel detail lookups."
-  value       = length(oci_core_cpe.home_cpe) > 0 ? oci_core_cpe.home_cpe[0].id : null
+  description = "OCID of the CPE (home OpenWrt) — for OCI console tunnel detail lookups. Resolved by display_name lookup, not a managed resource; see vpn.tf."
+  value       = local.home_cpe_id
 }
 
 output "oci_vpn_ipsec_id" {
-  description = "OCID of the IPSec connection."
-  value       = length(oci_core_ipsec.home_ipsec) > 0 ? oci_core_ipsec.home_ipsec[0].id : null
-}
-
-# Inside-tunnel IPs are populated only for BGP-routed tunnels. These are STATIC
-# route-based tunnels (OpenWrt scopes via XFRM if_id + firewall), so this is
-# empty by design — no inside addressing is negotiated. Surfaced for parity with
-# the plan's output checklist and in case a tunnel is later switched to BGP.
-output "oci_vpn_tunnel_bgp_inside_ips" {
-  description = "Oracle/customer inside-tunnel IPs (BGP only; empty for STATIC route-based tunnels)."
-  value = [for t in oci_core_ipsec_connection_tunnel_management.home : {
-    oracle   = try(t.bgp_session_info[0].oracle_interface_ip, null)
-    customer = try(t.bgp_session_info[0].customer_interface_ip, null)
-  }]
+  description = "OCID of the IPSec connection. Resolved by display_name lookup, not a managed resource; see vpn.tf."
+  value       = local.home_ipsec_id
 }
 
 output "oci_vpn_probe_instance_id" {
-  description = "Temporary OCI VPN data-plane probe instance ID (null unless enable_oci_vpn_probe=true)."
-  value       = length(oci_core_instance.vpn_probe) > 0 ? oci_core_instance.vpn_probe[0].id : null
+  description = "OCID of the host running VPN probe tests (now the bastion; null unless enable_oci_vpn_probe=true)."
+  value       = length(oci_core_instance.bastion) > 0 && local.vpn_probe_enabled ? oci_core_instance.bastion[0].id : null
 }
 
 output "resource_summary" {
@@ -217,9 +209,33 @@ output "resource_summary" {
   value = {
     ampere_nodes     = length(local._ampere_nodes)
     micro_nodes      = length(local._micro_nodes)
+    bastion          = var.create_bastion
     total_ocpus      = local.total_ocpus
     total_ram_gb     = local.total_ram_gb
     total_storage_gb = local.total_storage_gb
     load_balancer    = var.load_balancer != null
   }
+}
+
+# One-time-visible OCIR push credential for functions/cpe-auto-recreate.
+# Never printed in plan/apply output; pipe straight into Bitwarden Secrets
+# Manager, don't `tofu output` this to a terminal.
+output "cpe_recreate_fn_push_auth_token" {
+  description = "One-time OCIR push credential for the Function image; null after local-remediator cutover."
+  value       = local.vpn_enabled && contains(["function", "verify-local"], var.cpe_remediator_mode) ? oci_identity_auth_token.cpe_recreate_fn_push[0].token : null
+  sensitive   = true
+}
+
+# ---------------------------------------------------------------------------
+# DNS — one-time setup value. Add an NS record for syscode-lab.oci.syscode.uk
+# on whatever DNS provider hosts syscode.uk, pointing at these hostnames.
+# ---------------------------------------------------------------------------
+output "oci_dns_lab_zone_nameservers" {
+  description = "OCI's authoritative nameservers for syscode-lab.oci.syscode.uk -- create an NS delegation record for this subdomain on syscode.uk's DNS provider pointing here."
+  value       = var.create_bastion ? [for ns in oci_dns_zone.lab[0].nameservers : ns.hostname] : null
+}
+
+output "bastion_fqdn" {
+  description = "bastion.syscode-lab.oci.syscode.uk -- resolves once the NS delegation above is in place."
+  value       = var.create_bastion ? oci_dns_rrset.bastion[0].domain : null
 }

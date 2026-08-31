@@ -37,6 +37,23 @@ class TaskfileValidateFailFastTests(unittest.TestCase):
                 f"{task_name} should fail fast instead of ignoring errors",
             )
 
+    def test_validate_aggregate_only_runs_the_supported_oci_check(self) -> None:
+        """The aggregate command must not invoke absent legacy phase scripts."""
+        text = TASKFILE_PATH.read_text(encoding="utf-8")
+        block_pattern = r"(?ms)^  validate:\n(.*?)(?=^  [^ \n][^:]*:|\Z)"
+        match = re.search(block_pattern, text)
+        self.assertIsNotNone(match, "Task block not found: validate")
+        block = match.group(1)
+
+        self.assertIn("task: validate:oci", block)
+        for task_name in (
+            "validate:images",
+            "validate:proxmox",
+            "validate:talos",
+            "validate:cost",
+        ):
+            self.assertNotIn(task_name, block)
+
 
 if __name__ == "__main__":
     unittest.main()

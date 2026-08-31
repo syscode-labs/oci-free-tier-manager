@@ -17,22 +17,5 @@
  */
 
 terraform {
-  backend "http" {}
+  backend "s3" {}
 }
-
-# Alternative: S3-compatible backend (requires pre-authenticated request)
-# terraform {
-#   backend "s3" {
-#     bucket                      = "tofu-state"
-#     key                         = "oci/terraform.tfstate"
-#     region                      = "us-phoenix-1"
-#     skip_region_validation      = true
-#     skip_credentials_validation = true
-#     skip_metadata_api_check     = true
-#     endpoint                    = "https://NAMESPACE.compat.objectstorage.REGION.oraclecloud.com"
-#
-#     # Uses AWS signature V4 with OCI Customer Secret Keys
-#     access_key = var.oci_s3_access_key
-#     secret_key = var.oci_s3_secret_key
-#   }
-# }
