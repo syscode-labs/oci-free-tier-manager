@@ -210,7 +210,7 @@ locals {
     cpe_remediator_drg_id           = local.vpn_enabled ? oci_core_drg.vpn_drg[0].id : ""
     cpe_remediator_static_routes_json = jsonencode(distinct(concat(
       local.vpn_static_route_cidrs,
-      ["${var.harbor_registry_ip}/32"],
+      ["10.10.210.59/32"],
     )))
     cpe_remediator_secret_id = local.vpn_enabled ? oci_vault_secret.cpe_tunnel_details[0].id : ""
   }))

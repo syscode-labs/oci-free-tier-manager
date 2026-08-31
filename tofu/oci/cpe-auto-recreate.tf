@@ -144,7 +144,7 @@ resource "oci_functions_function" "cpe_recreate" {
     DRG_ID               = oci_core_drg.vpn_drg[0].id
     STATIC_ROUTE_CIDRS_JSON = jsonencode(distinct(concat(
       local.vpn_static_route_cidrs,
-      ["${var.harbor_registry_ip}/32"],
+      ["10.10.210.59/32"],
     )))
     SECRET_ID = oci_vault_secret.cpe_tunnel_details[0].id
   }
