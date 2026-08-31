@@ -61,7 +61,7 @@ func TestRunDoesNotAdvanceWithIncompleteTunnels(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			vault := &fakeVault{state: State{Phase: phase(PhaseCPEIPSecCreated), NewIPSecID: "new"}}
 			network := &fakeNetwork{ipsecLookup: IPSecConnection{LifecycleState: "AVAILABLE"}, tunnels: test.tunnels, tunnelDetails: test.details, secrets: test.secrets} // pragma: allowlist secret
-			if _, err := New(Config{SecretID: "test-vault-id"}, fakeDNS{}, network, vault).Run(context.Background()); err == nil { // pragma: allowlist secret
+			if _, err := New(Config{SecretID: "test-vault-id"}, fakeDNS{}, network, vault).Run(context.Background()); err == nil {                                        // pragma: allowlist secret
 				t.Fatal("incomplete tunnels did not fail")
 			}
 			if vault.state.Phase == nil || *vault.state.Phase != PhaseCPEIPSecCreated || vault.writes != 0 {
