@@ -19,6 +19,13 @@ on:
         description: "Create the temporary OCI VPN probe instance (targeted workflow only)."
         required: false
         default: "false"
+      cpe_remediator_mode:
+        description: >-
+          function (default), retire-function (remove Function with both timers
+          disabled), or local-remediator (enable only local timer after
+          retire-function verification).
+        required: false
+        default: "function"
       destroy:
         description: "Run targeted destroy. Requires targets and apply=true."
         required: false
@@ -32,7 +39,7 @@ on:
         required: false
         default: ""
       ssh_public_key:
-        description: "SSH public key for the temporary VPN probe (optional, only used when vpn_probe=true)."
+        description: "Override for var.ssh_public_key (all Ubuntu instances). Empty = use the SSH_PUBLIC_KEY secret."
         required: false
         default: ""
       temp_diag_password:
@@ -99,6 +106,30 @@ jobs:
 
       - name: Install OCI CLI
         run: pip install oci-cli --quiet
+
+      - name: Verify local remediator retirement
+        if: github.event.inputs.cpe_remediator_mode == 'local-remediator'
+        env:
+          OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
+          CPE_REMEDIATOR_MODE: ${{ github.event.inputs.cpe_remediator_mode || 'function' }}
+        run: |
+          if [ "$CPE_REMEDIATOR_MODE" != "local-remediator" ]; then
+            exit 0
+          fi
+          FUNCTIONS=$(oci fn function list --compartment-id "$OCI_COMPARTMENT_OCID" \
+            --all --output json)
+          SCHEDULES=$(oci resource-scheduler schedule list \
+            --compartment-id "$OCI_COMPARTMENT_OCID" --all --output json)
+          FUNCTION_QUERY='[.data[] | select(."display-name" == "cpe-auto-recreate"'
+          FUNCTION_QUERY+=' and ."lifecycle-state" != "DELETED")] | length == 0'
+          SCHEDULE_QUERY='[.data[] | select(."display-name" == "cpe-auto-recreate-schedule"'
+          SCHEDULE_QUERY+=' and ."lifecycle-state" != "DELETED")] | length == 0'
+          if ! jq -e "$FUNCTION_QUERY" <<< "$FUNCTIONS" >/dev/null || \
+            ! jq -e "$SCHEDULE_QUERY" <<< "$SCHEDULES" >/dev/null; then
+            echo "ERROR: cpe-auto-recreate Function or scheduler still exists."
+            echo "Complete the reviewed retire-function apply first."
+            exit 1
+          fi
 
       - name: Check free tier capacity
         env:
@@ -175,6 +206,15 @@ jobs:
         with:
           tofu_version: "1.11.5"
 
+      - name: Setup Go for remediator artifact
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Build remediator artifact
+        run: bash scripts/build-cpe-remediator.sh
+
       - name: Tofu Init
         working-directory: tofu/oci
         run: tofu init -backend-config=backend-config.tfvars
@@ -203,10 +243,20 @@ jobs:
             for r in $REPLACE; do REPLACE_ARGS="$REPLACE_ARGS -replace=$r"; done
             echo "Forced replace:$REPLACE_ARGS"
           fi
-          EXTRA_TFVARS_ARGS=""
+          EXTRA_TFVARS_ARGS=()
           if [ -n "$EXTRA_TFVARS" ]; then
             while IFS= read -r line; do
-              [ -n "$line" ] && EXTRA_TFVARS_ARGS="$EXTRA_TFVARS_ARGS -var=$line"
+              [ -z "$line" ] && continue
+              if [[ "$line" =~ ^[[:space:]]*(enable_cpe_remediator|cpe_remediator_mode)[[:space:]]*= ]]; then
+                echo "ERROR: executor mode must be set only through cpe_remediator_mode"
+                exit 1
+              fi
+              if ! [[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*=[A-Za-z0-9_./,:=@+%\"\'\[\]-]*$ ]]; then
+                echo "ERROR: invalid extra_tfvars assignment: expected safe key=value"
+                echo "without whitespace or shell characters"
+                exit 1
+              fi
+              EXTRA_TFVARS_ARGS+=("-var=$line")
             done <<< "$EXTRA_TFVARS"
             echo "Extra tfvars set (values not logged)"
           fi
@@ -225,6 +275,7 @@ jobs:
             -var="oci_config_profile=DEFAULT" \
             -var="enable_oci_vpn=true" \
             -var="enable_oci_vpn_probe=$VPN_PROBE" \
+            -var="cpe_remediator_mode=$CPE_REMEDIATOR_MODE" \
             -var="openwrt_resolver_ip=$OPENWRT_RESOLVER_IP" \
             -var="home_cpe_public_ip=$HOME_CPE_PUBLIC_IP" \
             -var="cpe_local_identifier=$CPE_LOCAL_IDENTIFIER" \
@@ -233,7 +284,7 @@ jobs:
             -var="cpe_recreate_fn_push_user_ocid=$CPE_RECREATE_FN_PUSH_USER_OCID" \
             -var="ssh_public_key=$SSH_PUBLIC_KEY" \
             -var="temp_diag_password=$TEMP_DIAG_PASSWORD" \
-            $EXTRA_TFVARS_ARGS \
+            "${EXTRA_TFVARS_ARGS[@]}" \
             -var-file=terraform.tfvars \
             -out=tfplan
         env:
@@ -251,10 +302,11 @@ jobs:
           CPE_RECREATE_FN_PUSH_USER_OCID: ${{ secrets.CPE_RECREATE_FN_PUSH_USER_OCID }}
           TARGETS: ${{ github.event.inputs.targets }}
           VPN_PROBE: ${{ github.event.inputs.vpn_probe || 'false' }}
+          CPE_REMEDIATOR_MODE: ${{ github.event.inputs.cpe_remediator_mode || 'function' }}
           DESTROY: ${{ github.event.inputs.destroy || 'false' }}
           REPLACE: ${{ github.event.inputs.replace || '' }}
           ALLOW_REPLACE: ${{ github.event.inputs.allow_replace || 'false' }}
-          SSH_PUBLIC_KEY: ${{ github.event.inputs.ssh_public_key || '' }}
+          SSH_PUBLIC_KEY: ${{ github.event.inputs.ssh_public_key || secrets.SSH_PUBLIC_KEY }}
           TEMP_DIAG_PASSWORD: ${{ github.event.inputs.temp_diag_password || '' }}
           EXTRA_TFVARS: ${{ github.event.inputs.extra_tfvars || '' }}
           TF_LOG: WARN
@@ -342,10 +394,46 @@ jobs:
         env:
           TF_BACKEND_CONFIG: ${{ secrets.TF_BACKEND_CONFIG }}
 
+      - name: Install OCI CLI
+        run: pip install oci-cli --quiet
+
+      - name: Verify local remediator retirement
+        if: github.event.inputs.cpe_remediator_mode == 'local-remediator'
+        env:
+          OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
+          CPE_REMEDIATOR_MODE: ${{ github.event.inputs.cpe_remediator_mode || 'function' }}
+        run: |
+          if [ "$CPE_REMEDIATOR_MODE" != "local-remediator" ]; then
+            exit 0
+          fi
+          FUNCTIONS=$(oci fn function list --compartment-id "$OCI_COMPARTMENT_OCID" \
+            --all --output json)
+          SCHEDULES=$(oci resource-scheduler schedule list \
+            --compartment-id "$OCI_COMPARTMENT_OCID" --all --output json)
+          FUNCTION_QUERY='[.data[] | select(."display-name" == "cpe-auto-recreate"'
+          FUNCTION_QUERY+=' and ."lifecycle-state" != "DELETED")] | length == 0'
+          SCHEDULE_QUERY='[.data[] | select(."display-name" == "cpe-auto-recreate-schedule"'
+          SCHEDULE_QUERY+=' and ."lifecycle-state" != "DELETED")] | length == 0'
+          if ! jq -e "$FUNCTION_QUERY" <<< "$FUNCTIONS" >/dev/null || \
+            ! jq -e "$SCHEDULE_QUERY" <<< "$SCHEDULES" >/dev/null; then
+            echo "ERROR: cpe-auto-recreate Function or scheduler still exists."
+            echo "Complete the reviewed retire-function apply first."
+            exit 1
+          fi
+
       - name: Setup OpenTofu
         uses: opentofu/setup-opentofu@v2.0.0
         with:
           tofu_version: "1.11.5"
+
+      - name: Setup Go for remediator artifact
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Build remediator artifact
+        run: bash scripts/build-cpe-remediator.sh
 
       - name: Tofu Init
         working-directory: tofu/oci

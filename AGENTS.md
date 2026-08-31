@@ -144,7 +144,6 @@ task validate:cost
 │
 └── docs/                     # Documentation
     ├── ARCHITECTURE-DIAGRAMS.md    # Mermaid diagrams
-    ├── STATE-BACKEND.md           # Remote state guide
     ├── SECURITY-SCANNING.md       # Security tools
     └── BRANCH-PROTECTION.md       # Git workflow
 ```
@@ -435,7 +434,6 @@ cd tofu/oci && tofu state list
 - **[DEVELOPMENT.md](DEVELOPMENT.md)**: Dev environment setup
 - **[docs/ARCHITECTURE-DIAGRAMS.md](docs/ARCHITECTURE-DIAGRAMS.md)**: Visual diagrams
 - **[docs/SECURITY-SCANNING.md](docs/SECURITY-SCANNING.md)**: Security tools guide
-- **[docs/STATE-BACKEND.md](docs/STATE-BACKEND.md)**: Remote state setup
 - **[docs/BRANCH-PROTECTION.md](docs/BRANCH-PROTECTION.md)**: Git workflow
 
 ## External Resources
