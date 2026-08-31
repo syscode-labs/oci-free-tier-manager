@@ -1,0 +1,14 @@
+{
+  "builds": [
+    {
+      "name": "golden",
+      "builder_type": "oracle-oci",
+      "build_time": 1785802791,
+      "files": null,
+      "artifact_id": "ocid1.image.oc1.uk-london-1.aaaaaaaafhydgy4jzxvi47pp2cniwlqfhzprm76gzhuvfme6zl2b6hu47vla",
+      "packer_run_uuid": "f31861d5-efc4-f6b4-09c6-9b96a7d57359",
+      "custom_data": null
+    }
+  ],
+  "last_run_uuid": "f31861d5-efc4-f6b4-09c6-9b96a7d57359"
+}
