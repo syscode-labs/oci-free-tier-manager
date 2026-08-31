@@ -1,0 +1,273 @@
+#cloud-config
+# Bastion host bootstrap — self-managed jump host + optional VPN probe runner.
+# Provisioned from the golden Micro image (base OS + hardening + knockd).
+
+ssh_pwauth: false
+
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+%{ for k in extra_ssh_keys ~}
+      - ${k}
+%{ endfor ~}
+
+write_files:
+  # knockd configuration: 4-port sequence, must complete within
+  # knock_timeout; the resulting SSH-allow window then stays open for
+  # ssh_window_seconds regardless of session activity (see
+  # bastion_ssh_window_seconds for why this isn't left at knockd's 60s
+  # default).
+  - path: /etc/knockd.conf
+    permissions: "0600"
+    owner: root:root
+    content: |
+      [options]
+        logfile = /var/log/knockd.log
+        interface = ${primary_nic}
+
+      [openSSH]
+        sequence    = ${knock_sequence}
+        seq_timeout = ${knock_timeout}
+        tcpflags    = syn
+        start_command = /sbin/ufw allow from %IP% to any port 22 proto tcp
+        cmd_timeout   = ${ssh_window_seconds}
+        stop_command  = /sbin/ufw delete allow from %IP% to any port 22 proto tcp
+
+  # Detect-primary-interface helper used by knockd and runcmd.
+  - path: /usr/local/bin/bastion-primary-nic
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      ip route show default | awk '/default/ {print $5; exit}'
+
+%{ if enable_vpn_probe ~}
+  # VPN probe scripts (reused from the old vpn_probe.tf cloud-init)
+  - path: /usr/local/bin/oci-vpn-probe.sh
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set +e
+      exec > >(tee -a /var/log/oci-vpn-probe.log /dev/console) 2>&1
+
+      echo "OCI_VPN_PROBE_START $(date -Is)"
+      echo "# addresses"
+      ip -4 addr show
+      echo "# routes"
+      ip route
+      echo "# resolv.conf"
+      cat /etc/resolv.conf
+
+      echo "# dns"
+      getent hosts omni.REDACTED_TAILNET_DOMAIN
+      echo "DNS_STATUS:$?"
+
+      echo "# tcp 8090"
+      timeout 15 bash -c 'cat < /dev/null > /dev/tcp/${omni_target_ip}/8090'
+      echo "TCP_8090_STATUS:$?"
+
+      echo "# tls 8090"
+      timeout 20 openssl s_client \
+        -connect omni.REDACTED_TAILNET_DOMAIN:8090 \
+        -servername omni.REDACTED_TAILNET_DOMAIN \
+        -verify_return_error < /dev/null
+      echo "TLS_8090_STATUS:$?"
+
+      echo "# udp 50180 send"
+      timeout 5 bash -c 'printf "oci-vpn-probe" > /dev/udp/${omni_target_ip}/50180'
+      echo "UDP_50180_SEND_STATUS:$?"
+
+      echo "OCI_VPN_PROBE_END $(date -Is)"
+%{ endif ~}
+
+%{ if enable_cpe_drift_check ~}
+  # Invokes the cpe-auto-recreate Function every 5 min (OCI Resource
+  # Scheduler's own cron floor is hourly -- confirmed via a real
+  # 400-InvalidParameter API error, not docs -- so this bastion timer is the
+  # sub-hourly trigger; the hourly Scheduler stays as a backup in case this
+  # instance is down). Function does its own DNS-vs-CPE compare and no-ops
+  # if nothing changed, so this script has zero logic beyond "invoke it" --
+  # keeps the bastion's IAM grant to a single scoped "use" statement.
+  - path: /usr/local/bin/cpe-drift-check.sh
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      exec >> /var/log/cpe-drift-check.log 2>&1
+      echo "cpe-drift-check invoking at $(date -Is)"
+      oci --auth instance_principal fn function invoke \
+        --function-id "${cpe_recreate_function_id}" \
+        --body '' \
+        --file -
+      echo
+
+  - path: /etc/systemd/system/cpe-drift-check.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=Invoke cpe-auto-recreate Function to check VPN drift
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/cpe-drift-check.sh
+
+  - path: /etc/systemd/system/cpe-drift-check.timer
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=Run cpe-drift-check every 5 minutes
+
+      [Timer]
+      OnBootSec=2min
+      OnUnitActiveSec=5min
+      Unit=cpe-drift-check.service
+
+      [Install]
+      WantedBy=timers.target
+%{ endif ~}
+
+%{ if enable_cpe_remediator ~}
+  # The binary is staged in both cutover states. Its timer is enabled only
+  # after Terraform has retired the Function executor and granted local IAM.
+  - path: /usr/local/sbin/install-cpe-remediator
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      umask 077
+
+      artifact=$(mktemp /var/tmp/cpe-remediator.XXXXXX)
+      checksum=$(mktemp /var/tmp/cpe-remediator.sha256.XXXXXX)
+      staged=$(mktemp /usr/local/bin/.cpe-remediator.XXXXXX)
+      trap 'rm -f "$artifact" "$checksum" "$staged"' EXIT
+
+      for attempt in 1 2 3 4 5; do
+        if oci --auth instance_principal os object get \
+          --bucket-name "${cpe_remediator_bucket_name}" \
+          --name "${cpe_remediator_object_name}" \
+          --file "$artifact"; then
+          break
+        fi
+        if [ "$attempt" -eq 5 ]; then
+          exit 1
+        fi
+        sleep "$((attempt * 15))"
+      done
+      printf '%s  %s\n' "${cpe_remediator_sha256}" "$artifact" > "$checksum"
+      sha256sum -c "$checksum"
+      install -m 0755 "$artifact" "$staged"
+      mv -f "$staged" /usr/local/bin/cpe-remediator
+
+  - path: /etc/cpe-remediator.env
+    permissions: "0600"
+    owner: root:root
+    content: |
+      COMPARTMENT_ID=${cpe_remediator_compartment_id}
+      DDNS_HOSTNAME=${cpe_remediator_ddns_hostname}
+      CPE_LOCAL_IDENTIFIER=${cpe_remediator_local_identifier}
+      DRG_ID=${cpe_remediator_drg_id}
+      STATIC_ROUTE_CIDRS_JSON='${cpe_remediator_static_routes_json}'
+      SECRET_ID=${cpe_remediator_secret_id}
+
+  - path: /etc/systemd/system/cpe-remediator.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=Reconcile OCI CPE and IPSec resources after DDNS drift
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      EnvironmentFile=/etc/cpe-remediator.env
+      ExecStart=/usr/local/bin/cpe-remediator
+
+  - path: /etc/systemd/system/cpe-remediator.timer
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=Run the local CPE remediator every five minutes
+
+      [Timer]
+      OnBootSec=2min
+      OnUnitActiveSec=5min
+      Unit=cpe-remediator.service
+
+      [Install]
+      WantedBy=timers.target
+%{ endif ~}
+
+runcmd:
+  # Detect the primary NIC name and rewrite knockd config/interface.
+  - >-
+    NIC=$(/usr/local/bin/bastion-primary-nic);
+    sed -i "s/interface = .*/interface = $NIC/" /etc/knockd.conf;
+    printf 'START_KNOCKD=1\nKNOCKD_OPTS="-i %s"\n' "$NIC" > /etc/default/knockd
+
+  # UFW defaults are baked into the image; add bastion-specific rules.
+  # Allow the knock ports through the instance firewall so knockd can see them.
+  # Default deny incoming already blocks SSH; do NOT add an explicit deny 22
+  # rule, because UFW evaluates rules in order and a deny rule would prevent
+  # knockd's dynamically-added allow rule from matching.
+%{ for p in knock_ports ~}
+  - [ ufw, allow, "${p}/tcp" ]
+%{ endfor ~}
+
+  - [ ufw, reload ]
+  - [ systemctl, daemon-reload ]
+  - [ systemctl, enable, --now, knockd ]
+  - [ systemctl, restart, knockd ]
+
+%{ if enable_oci_cli ~}
+  # pip install (not pipx) fails on Ubuntu 24.04 with PEP 668's
+  # externally-managed-environment error -- confirmed live, 2026-08-15.
+  - [ bash, -c, 'apt-get update -qq && apt-get install -y -qq pipx' ]
+  - [ bash, -c, 'pipx install oci-cli' ]
+  - [ bash, -c, 'ln -sf /root/.local/bin/oci /usr/local/bin/oci' ]
+%{ endif ~}
+
+%{ if enable_cpe_drift_check ~}
+  - [ systemctl, daemon-reload ]
+  - [ systemctl, enable, --now, cpe-drift-check.timer ]
+%{ endif ~}
+
+%{ if enable_cpe_remediator ~}
+  # Artifact-read retries also cover OCI IAM propagation after the policy is
+  # applied and before this replacement first boots.
+  - [ /usr/local/sbin/install-cpe-remediator ]
+  - [ systemctl, daemon-reload ]
+%{ endif ~}
+
+%{ if enable_cpe_remediator_timer ~}
+  - [ systemctl, enable, --now, cpe-remediator.timer ]
+%{ endif ~}
+
+%{ if enable_vpn_probe ~}
+  # Run the VPN probe test once at boot from the secondary VPN-subnet VNIC.
+  - [ /usr/local/bin/oci-vpn-probe.sh ]
+  - [ bash, -c, 'echo "BASTION_VPN_PROBE_COMPLETE $(date -Is)" >> /var/log/oci-vpn-probe.log' ]
+%{ endif ~}
+
+  # Log knockd startup state for diagnostics.
+  - [ bash, -c, 'echo "[bastion] knockd status: $(systemctl is-active knockd 2>&1 || true)" >> /var/log/bastion-boot.log' ]
+  - [ bash, -c, 'echo "[bastion] ufw status: $(ufw status numbered 2>&1 || true)" >> /var/log/bastion-boot.log' ]
+
+final_message: |
+  Bastion host configured.
+  SSH is closed by default; use the knock sequence to open it.
+  Knockd logs at /var/log/knockd.log.
+%{ if enable_vpn_probe ~}
+  VPN probe results in /var/log/oci-vpn-probe.log.
+%{ endif ~}
