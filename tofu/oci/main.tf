@@ -165,6 +165,19 @@ resource "oci_core_route_table" "free_tier_public_route_table" {
   vcn_id         = oci_core_vcn.free_tier_vcn[0].id
   display_name   = "free-tier-public-route-table"
 
+  # E2.1.Micro permits one VNIC. Route only approved home targets through the
+  # DRG so the bastion reaches Harbor without a secondary VPN-subnet VNIC.
+  dynamic "route_rules" {
+    for_each = local.vpn_enabled ? local.vpn_static_route_cidrs : []
+
+    content {
+      destination       = route_rules.value
+      destination_type  = "CIDR_BLOCK"
+      network_entity_id = oci_core_drg.vpn_drg[0].id
+      description       = "Scoped home VPN target"
+    }
+  }
+
   route_rules {
     network_entity_id = oci_core_internet_gateway.free_tier_igw[0].id
     destination       = "0.0.0.0/0"
