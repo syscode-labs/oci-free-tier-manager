@@ -41,15 +41,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Setup Go for remediator artifact
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache-dependency-path: go.sum
-
-      - name: Build remediator artifact
-        run: bash scripts/build-cpe-remediator.sh
-
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
