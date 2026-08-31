@@ -208,7 +208,7 @@ locals {
     cpe_remediator_ddns_hostname      = var.ddns_hostname
     cpe_remediator_local_identifier   = var.cpe_local_identifier
     cpe_remediator_drg_id             = local.vpn_enabled ? oci_core_drg.vpn_drg[0].id : ""
-    cpe_remediator_static_routes_json = jsonencode(local.vpn_static_route_cidrs)
+    cpe_remediator_static_routes_json = jsonencode(local.vpn_drg_route_cidrs)
     cpe_remediator_secret_id          = local.vpn_enabled ? oci_vault_secret.cpe_tunnel_details[0].id : ""
   }))
 

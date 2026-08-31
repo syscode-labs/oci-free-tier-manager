@@ -142,7 +142,7 @@ resource "oci_functions_function" "cpe_recreate" {
     DDNS_HOSTNAME           = var.ddns_hostname
     CPE_LOCAL_IDENTIFIER    = var.cpe_local_identifier
     DRG_ID                  = oci_core_drg.vpn_drg[0].id
-    STATIC_ROUTE_CIDRS_JSON = jsonencode(local.vpn_static_route_cidrs)
+    STATIC_ROUTE_CIDRS_JSON = jsonencode(local.vpn_drg_route_cidrs)
     SECRET_ID               = oci_vault_secret.cpe_tunnel_details[0].id
   }
 }
