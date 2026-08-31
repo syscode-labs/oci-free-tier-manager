@@ -13,3 +13,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
   -ldflags='-s -w -buildid=' \
   -o artifacts/cpe-remediator \
   ./cmd/cpe-remediator
+
+# OCI's object provider includes the source file mtime in a saved plan. Keep
+# it stable because CI builds the artifact once for plan and again for apply.
+touch -t 200001010000 artifacts/cpe-remediator
