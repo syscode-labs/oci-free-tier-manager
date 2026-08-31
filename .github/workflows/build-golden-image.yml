@@ -46,6 +46,9 @@ jobs:
       - name: Setup Packer
         uses: hashicorp/setup-packer@v2
 
+      - name: Install OCI CLI
+        run: pip install oci-cli --quiet
+
       - name: Configure OCI CLI
         run: |
           mkdir -p ~/.oci
@@ -99,17 +102,20 @@ jobs:
         run: |
           # NB: --shape and --operating-system-version filters would exclude the
           # Minimal image (its version string is "24.04 Minimal"), so filter by
-          # display-name instead.
+          # display-name instead. Runner jq is POSIX-ERE only (no lookaheads),
+          # so exclude aarch64 variants with a separate filter.
           IMAGES_JSON=$(oci compute image list \
+            --all \
             --compartment-id "${{ github.event.inputs.compartment_ocid }}" \
             --operating-system "Canonical Ubuntu" \
-            --sort-by TIMECREATED --sort-order DESC \
             --output json)
           BASE_OCID=$(printf '%s' "$IMAGES_JSON" | jq -r '
-            .data[]
-            | select(."display-name" | test("^Canonical-Ubuntu-24.04-Minimal-(?!aarch64)"))
-            | .id
-          ' | head -1)
+            .data
+            | map(select(."display-name" | startswith("Canonical-Ubuntu-24.04-Minimal-"))
+                 | select(."display-name" | test("aarch64") | not))
+            | sort_by(."time-created") | reverse
+            | .[0].id
+          ')
           if [ -z "$BASE_OCID" ] || [ "$BASE_OCID" = "null" ]; then
             echo "ERROR: Could not find Ubuntu 24.04 Minimal image"
             exit 1
@@ -131,7 +137,14 @@ jobs:
             --all \
             --compartment-id "${{ github.event.inputs.compartment_ocid }}" \
             --output json \
-            | jq '.data | map(select(."lifecycle-state"=="AVAILABLE")) | length')
+            | jq --arg compartment "${{ github.event.inputs.compartment_ocid }}" '
+                .data
+                | map(select(
+                    ."lifecycle-state"=="AVAILABLE"
+                    and ."compartment-id"==$compartment
+                  ))
+                | length
+              ')
 
           echo "Custom image quota: $CURRENT / $LIMIT"
 
@@ -245,3 +258,4 @@ jobs:
           echo ""
           echo "To use in terraform, add to terraform.tfvars or set as variable:"
           echo 'vpn_probe_golden_image_ocid = "${{ steps.output.outputs.image_ocid }}"'
+          echo 'micro_golden_image_ocid      = "${{ steps.output.outputs.image_ocid }}"'

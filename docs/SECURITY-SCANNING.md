@@ -123,32 +123,32 @@ plugin "oci" {
 
 ### Issue: Public IP on instances
 
-**Finding:** `oracle-compute-no-public-ip`  
-**Severity:** MEDIUM  
+**Finding:** `oracle-compute-no-public-ip`
+**Severity:** MEDIUM
 **Why we skip:** We need public IPs for SSH access and services
 
 **Fix:** Added to exclusions in `.tfsec.yml`
 
 ### Issue: No encryption with customer-managed keys
 
-**Finding:** `CKV_OCI_5`  
-**Severity:** HIGH  
+**Finding:** `CKV_OCI_5`
+**Severity:** HIGH
 **Why we skip:** Customer-managed encryption keys not available in free tier
 
 **Fix:** Added to skip list in `.checkov.yml`
 
 ### Issue: Security list allows all inbound traffic
 
-**Finding:** `CKV2_OCI_1`  
-**Severity:** MEDIUM  
+**Finding:** `CKV2_OCI_1`
+**Severity:** MEDIUM
 **Why we skip:** We restrict to specific ports (22, 80, 443)
 
 **Fix:** Security list already restricts ports, false positive
 
 ### Issue: No block volume backup policy
 
-**Finding:** `CKV_OCI_7`  
-**Severity:** LOW  
+**Finding:** `CKV_OCI_7`
+**Severity:** LOW
 **Why we skip:** Optional for testing/dev environment
 
 **Fix:** Can enable in production, skipped for now
@@ -182,7 +182,7 @@ plugin "oci" {
 1. **Enable OCI KMS encryption:**
 ```bash
 oci os bucket update \
-  --bucket-name tofu-state-oci-free-tier \
+  --bucket-name tofu-state-syscode-homelab \
   --kms-key-id <kms-key-ocid>
 ```
 
