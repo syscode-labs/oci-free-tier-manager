@@ -1,0 +1,87 @@
+name: Bastion Diag
+on: workflow_dispatch
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install OCI CLI
+        run: pip install oci-cli --quiet
+      - name: Write OCI credentials
+        run: |
+          mkdir -p ~/.oci
+          printf '%s' "$OCI_API_KEY_PEM" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+          cat > ~/.oci/config <<EOF
+          [DEFAULT]
+          user=$OCI_USER_OCID
+          fingerprint=$OCI_FINGERPRINT
+          tenancy=$OCI_TENANCY_OCID
+          region=$OCI_REGION
+          key_file=$HOME/.oci/oci_api_key.pem
+          EOF
+          chmod 600 ~/.oci/config
+        env:
+          OCI_USER_OCID: ${{ secrets.OCI_USER_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_API_KEY_PEM: ${{ secrets.OCI_API_KEY_PEM }}
+          OCI_REGION: ${{ secrets.OCI_REGION }}
+      - name: Write backend config
+        run: printf '%s' "$TF_BACKEND_CONFIG" > tofu/oci/backend-config.tfvars
+        env:
+          TF_BACKEND_CONFIG: ${{ secrets.TF_BACKEND_CONFIG }}
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v2.0.0
+        with:
+          tofu_version: "1.11.5"
+      - name: Tofu init
+        working-directory: tofu/oci
+        run: tofu init -backend-config=backend-config.tfvars
+      - name: Show outputs and instance state
+        working-directory: tofu/oci
+        run: |
+          tofu output -json | jq '.bastion_reserved_ip, .bastion_private_ip'
+          COMP=$(tofu output -raw compartment_ocid)
+          echo "compartment $COMP"
+          oci compute instance list --compartment-id "$COMP" --all --output json > /tmp/list.json
+          cat /tmp/list.json | jq '.data[] | select(.shape=="VM.Standard.E2.1.Micro") | {name: ."display-name", state: ."lifecycle-state", time: ."time-created", id: .id}'
+          BASTION_ID=$(jq -r '.data[] | select(."display-name"=="oci-bastion") | .id' /tmp/list.json)
+          echo "bastion id $BASTION_ID"
+          if [ -n "$BASTION_ID" ]; then
+            oci compute instance get --instance-id "$BASTION_ID" > /tmp/bastion.json || true
+            cat /tmp/bastion.json | jq .
+            echo "--- VNIC attachments ---"
+            oci compute vnic-attachment list --compartment-id "$COMP" --instance-id "$BASTION_ID" --all | jq .
+            echo "--- route table ---"
+            tofu show -json | jq '.values.root_module.resources[] | select(.address=="oci_core_route_table.free_tier_public_route_table[0]") | .values' || true
+          fi
+      - name: Try knock and SSH from runner
+        run: |
+          BASTION_IP=$(tofu -chdir=tofu/oci output -raw bastion_reserved_ip)
+          echo "bastion IP $BASTION_IP"
+          sudo apt-get update -qq && sudo apt-get install -y -qq knockd 2>&1 | tail -5
+          echo "knocking"
+          knock -v $BASTION_IP 7000 8000 9000 1234 || true
+          sleep 5
+          echo "nmap ports"
+          nmap -Pn -p 22,7000,8000,9000,1234 $BASTION_IP || true
+          echo "ssh attempt"
+          mkdir -p ~/.ssh
+          echo "$SSH_PUBLIC_KEY" > /tmp/key.pub
+          # use github secret key? we have no private key, try without key to see banner
+          timeout 15 ssh -vvv -o StrictHostKeyChecking=accept-new -o ConnectTimeout=8 ubuntu@$BASTION_IP "echo hello; ip route get 10.10.210.59; curl -v --connect-timeout 5 http://10.10.210.59:8096/v2/; echo EXIT:\$?" 2>&1 | tail -n 300 || true
+          # try with nc probe
+          for p in 7000 8000 9000 1234 22; do echo -n "port $p: "; timeout 3 bash -c "cat < /dev/null > /dev/tcp/$BASTION_IP/$p && echo open || echo closed/filtered"; done
+        env:
+          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+      - name: Fetch console history
+        run: |
+          COMP=$(tofu -chdir=tofu/oci output -raw compartment_ocid)
+          BASTION_ID=$(oci compute instance list --compartment-id "$COMP" --all --output json | jq -r '.data[] | select(."display-name"=="oci-bastion") | .id')
+          if [ -n "$BASTION_ID" ]; then
+            echo "capturing console history"
+            oci compute console-history capture --instance-id "$BASTION_ID" --wait-for-state SUCCEEDED 2>&1 | head -20 || true
+            sleep 10
+            oci compute console-history list --compartment-id "$COMP" 2>&1 | head -20 || true
+          fi
