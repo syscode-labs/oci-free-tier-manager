@@ -24,12 +24,14 @@ locals {
   # Only ever create VPN resources when the module also manages the VCN.
   vpn_enabled = var.enable_oci_vpn && var.existing_subnet_ocid == null
 
-  # OCI nodes need two scoped routes over the VPN:
+  # OCI nodes need scoped routes over the VPN:
   # - Omni's advertised tailnet /32 for SideroLink.
   # - OpenWrt resolver /32 when custom DHCP DNS is enabled.
+  # - Harbor's /32 for registry access from the OCI bastion.
   vpn_static_route_cidrs = distinct(compact([
     "${var.omni_target_ip}/32",
     var.openwrt_resolver_ip != null ? "${var.openwrt_resolver_ip}/32" : null,
+    "10.10.210.59/32",
   ]))
 }
 

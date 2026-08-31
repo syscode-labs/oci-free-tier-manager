@@ -6,8 +6,8 @@
  * uses knockd to open SSH only for the IP that completes the configured port
  * sequence.
  *
- * When enable_oci_vpn_probe=true, a secondary VNIC is attached to the VPN subnet
- * so the bastion can run the VPN probe tests through the IPSec tunnel.
+ * The public subnet routes selected home targets through the DRG, so this
+ * single-VNIC Micro bastion can run VPN probe tests through the IPSec tunnel.
  */
 
 # ---------------------------------------------------------------------------
@@ -95,32 +95,4 @@ data "oci_core_vnic_attachments" "bastion" {
 data "oci_core_private_ips" "bastion_private_ip" {
   count   = var.create_bastion ? 1 : 0
   vnic_id = data.oci_core_vnic_attachments.bastion[0].vnic_attachments[0].vnic_id
-}
-
-# ---------------------------------------------------------------------------
-# Secondary VNIC in the VPN subnet for probe/testing
-# ---------------------------------------------------------------------------
-resource "oci_core_vnic_attachment" "bastion_vpn_vnic" {
-  count        = var.create_bastion && local.vpn_enabled && var.enable_oci_vpn_probe ? 1 : 0
-  instance_id  = oci_core_instance.bastion[0].id
-  display_name = "${var.bastion_name}-vpn-vnic"
-  nic_index    = 1
-
-  create_vnic_details {
-    subnet_id        = oci_core_subnet.vpn_subnet[0].id
-    assign_public_ip = false
-    display_name     = "${var.bastion_name}-vpn-vnic"
-  }
-}
-
-# Lookup the secondary VNIC and its private IP so outputs can expose it.
-data "oci_core_vnic" "bastion_vpn_vnic" {
-  count   = var.create_bastion && local.vpn_enabled && var.enable_oci_vpn_probe ? 1 : 0
-  vnic_id = oci_core_vnic_attachment.bastion_vpn_vnic[0].vnic_id
-}
-
-data "oci_core_private_ips" "bastion_vpn_private_ip" {
-  count      = var.create_bastion && local.vpn_enabled && var.enable_oci_vpn_probe ? 1 : 0
-  subnet_id  = oci_core_subnet.vpn_subnet[0].id
-  ip_address = data.oci_core_vnic.bastion_vpn_vnic[0].private_ip_address
 }

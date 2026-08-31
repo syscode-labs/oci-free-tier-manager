@@ -81,8 +81,8 @@ When `omni_ready = true`:
 This module deploys the full Always Free allotment:
 
 - `ampere_nodes`: 2 x A1.Flex (Talos nodes) → uses all 2 OCPUs / 12 GB
-- `micro_nodes`: 1 x E2.1.Micro (`oci-micro-01`) + 1 x E2.1.Micro VPN probe
-  (`enable_oci_vpn_probe=true`) → uses both Always Free Micro slots
+- `micro_nodes`: 1 x E2.1.Micro (`oci-micro-01`); the bastion runs VPN probes
+  through scoped DRG routes without requiring a second Micro instance
 
 ### Storage
 
