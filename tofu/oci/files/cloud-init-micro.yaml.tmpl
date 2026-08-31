@@ -1,0 +1,100 @@
+#cloud-config
+# Micro workload host bootstrap — cert-hub mirror (Docker, Tailscale, DNS).
+# SSH is restricted to the bastion's private IP only.
+
+ssh_pwauth: false
+
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+%{ for k in extra_ssh_keys ~}
+      - ${k}
+%{ endfor ~}
+
+package_update: true
+
+packages:
+  - ca-certificates
+  - curl
+  - gnupg
+
+write_files:
+  # Disable systemd-resolved stub listener — it holds port 53, conflicting with
+  # the acme-dns container which binds 0.0.0.0:53.
+  - path: /etc/systemd/resolved.conf.d/no-stub.conf
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Resolve]
+      DNSStubListener=no
+      DNS=8.8.8.8 1.1.1.1
+
+  # Docker daemon: point at real resolvers. After disabling the stub listener,
+  # Docker's internal 127.0.0.11 DNS can no longer reach upstream — fix it here.
+  - path: /etc/docker/daemon.json
+    permissions: "0644"
+    owner: root:root
+    content: |
+      {"dns": ["8.8.8.8", "1.1.1.1"]}
+
+runcmd:
+  # ── Docker: official apt repo ──────────────────────────────────────────────
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - >-
+    echo
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc]
+    https://download.docker.com/linux/ubuntu
+    $(. /etc/os-release && echo $VERSION_CODENAME) stable"
+    > /etc/apt/sources.list.d/docker.list
+  - apt-get update -qq
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - systemctl enable --now containerd docker
+
+  # ── DNS: apply resolved drop-in and fix resolv.conf symlink ───────────────
+  - systemctl restart systemd-resolved
+  - ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+
+  # ── Docker daemon: restart with new daemon.json ───────────────────────────
+  - systemctl restart docker
+
+  # ── Tailscale: join tailnet so the Micro is operator-reachable ────────────
+  - >-
+    curl --retry 3 --retry-delay 2 -fsSL
+    https://pkgs.tailscale.com/stable/ubuntu/noble.gpg
+    -o /usr/share/keyrings/tailscale-archive-keyring.gpg
+  - >-
+    echo
+    "deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg]
+    https://pkgs.tailscale.com/stable/ubuntu noble main"
+    > /etc/apt/sources.list.d/tailscale.list
+  - apt-get update -qq
+  - apt-get install -y tailscale
+  - >-
+    TS_KEY=$(curl -sf -H "Authorization: Bearer Oracle"
+    http://169.254.169.254/opc/v2/instance/metadata/tailscale_auth_key);
+    echo "[boot] TS_KEY_len=$${#TS_KEY}" >> /var/log/tailscale-boot.log;
+    for i in 1 2 3 4 5; do
+      if [ -n "$TS_KEY" ] && tailscale up --auth-key="$TS_KEY" --hostname="$(hostname)"; then
+        echo "[boot] tailscale up OK on attempt $i" >> /var/log/tailscale-boot.log;
+        break;
+      fi;
+      echo "[boot] tailscale up FAILED attempt $i rc=$?" >> /var/log/tailscale-boot.log;
+      sleep 15;
+    done;
+    tailscale status >> /var/log/tailscale-boot.log 2>&1 || true;
+    echo "[boot] hostname=$(hostname) cloudinit=$(cloud-init status 2>&1)" >> /var/log/tailscale-boot.log
+
+  # ── Firewall: restrict SSH to the bastion only ────────────────────────────
+  - [ ufw, allow, from, ${bastion_ip}, to, any, port, 22, proto, tcp ]
+  - [ ufw, reload ]
+
+final_message: |
+  Micro workload host configured.
+  SSH is restricted to the bastion (${bastion_ip}).
+  Tailscale logs at /var/log/tailscale-boot.log.

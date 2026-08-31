@@ -30,6 +30,11 @@ tasks:
       - dagger call build-all-images
       - echo "✓ Images built successfully"
 
+  build:cpe-remediator:
+    desc: Build the CPE remediator for Linux amd64 at artifacts/cpe-remediator
+    cmds:
+      - bash scripts/build-cpe-remediator.sh
+
   build:validate:
     desc: Validate built images meet size requirements
     deps: [build:images]
@@ -56,6 +61,62 @@ tasks:
           --bucket {{.BUCKET | default "oci-images"}} \
           --compartment-id {{.COMPARTMENT_ID}} \
           --region {{.REGION | default "uk-london-1"}}
+    preconditions:
+      - sh: 'test -f ~/.oci/config'
+        msg: "OCI CLI not configured. Run: task setup"
+
+  build:packer:
+    desc: Build the golden Micro image from Terraform-managed resources
+    deps: [build:packer:vars]
+    dir: packer
+    vars:
+      TFVARS_FILE: ./tofu/oci/terraform.tfvars
+    cmds:
+      - echo "Building golden Micro image..."
+      - packer build golden-micro.pkr.hcl
+      - echo "Extracting image OCID..."
+      - |
+        IMAGE_OCID=$(jq -r '.builds[-1].artifact_id' packer-manifest.json)
+        if [ -z "$IMAGE_OCID" ] || [ "$IMAGE_OCID" = "null" ]; then
+          echo "ERROR: Could not extract image OCID from packer-manifest.json" >&2
+          exit 1
+        fi
+        echo "Image OCID: $IMAGE_OCID"
+      - |
+        IMAGE_OCID=$(jq -r '.builds[-1].artifact_id' packer-manifest.json)
+        if grep -q '^micro_golden_image_ocid' "{{.TFVARS_FILE}}"; then
+          sed -i.bak "s|^micro_golden_image_ocid = .*|micro_golden_image_ocid = \"$IMAGE_OCID\"|" "{{.TFVARS_FILE}}"
+        else
+          echo "micro_golden_image_ocid = \"$IMAGE_OCID\"" >> "{{.TFVARS_FILE}}"
+        fi
+        echo "Updated {{.TFVARS_FILE}} with image OCID"
+    preconditions:
+      - sh: 'test -f ~/.oci/config'
+        msg: "OCI CLI not configured. Run: task setup"
+
+  build:packer:vars:
+    desc: Generate packer/variables.auto.pkrvars.hcl from Terraform-managed resources
+    dir: tofu/oci
+    vars:
+      BACKEND_CONFIG:
+        sh: |
+          if [ -n "{{.BACKEND_CONFIG}}" ]; then
+            echo "{{.BACKEND_CONFIG}}"
+          elif [ -f /Users/giovanni/syscode/git/syscode-infra-private/oci/syscode-backend-s3.tfvars ]; then
+            echo /Users/giovanni/syscode/git/syscode-infra-private/oci/syscode-backend-s3.tfvars
+          else
+            echo ""
+          fi
+    cmds:
+      - echo "Refreshing Packer variables from Terraform state..."
+      - |
+        if [ -n "{{.BACKEND_CONFIG}}" ]; then
+          tofu init -reconfigure -backend-config="{{.BACKEND_CONFIG}}"
+        else
+          tofu init -backend=false
+        fi
+      - tofu apply -target=local_file.packer_vars -auto-approve
+      - echo "✓ Packer variables written"
     preconditions:
       - sh: 'test -f ~/.oci/config'
         msg: "OCI CLI not configured. Run: task setup"
@@ -110,10 +171,39 @@ tasks:
   deploy:oci:
     desc: Deploy OCI infrastructure (Layer 1)
     dir: tofu/oci
+    vars:
+      BACKEND_CONFIG:
+        sh: |
+          if [ -n "{{.BACKEND_CONFIG}}" ]; then
+            echo "{{.BACKEND_CONFIG}}"
+          elif [ -f /Users/giovanni/syscode/git/syscode-infra-private/oci/syscode-backend-s3.tfvars ]; then
+            echo /Users/giovanni/syscode/git/syscode-infra-private/oci/syscode-backend-s3.tfvars
+          else
+            echo ""
+          fi
     cmds:
+      - task: build:cpe-remediator
+      - |
+          if [ "${CPE_REMEDIATOR_MODE:-function}" = "local-remediator" ]; then
+            test -n "${OCI_COMPARTMENT_OCID:-}" || \
+              (echo "OCI_COMPARTMENT_OCID is required for local-remediator" >&2; exit 1)
+            printf '{"compartment_id":"%s"}\n' "$OCI_COMPARTMENT_OCID" | \
+              bash ../../scripts/check-cpe-remediator-retirement.sh | \
+              jq -e '.retired == "true"' >/dev/null
+          fi
       - echo "Deploying OCI infrastructure..."
-      - tofu init -upgrade
-      - tofu plan -out=tfplan
+      - |
+        if [ -n "{{.BACKEND_CONFIG}}" ]; then
+          tofu init -upgrade -backend-config="{{.BACKEND_CONFIG}}"
+        else
+          tofu init -upgrade
+        fi
+      - |
+        if [ -n "${CPE_REMEDIATOR_MODE+x}" ]; then
+          tofu plan -out=tfplan -var="cpe_remediator_mode=$CPE_REMEDIATOR_MODE"
+        else
+          tofu plan -out=tfplan
+        fi
       - tofu apply tfplan
       - rm -f tfplan
       - echo "✓ OCI infrastructure deployed"
@@ -121,15 +211,60 @@ tasks:
   deploy:oci:plan:
     desc: Plan OCI infrastructure changes
     dir: tofu/oci
+    vars:
+      BACKEND_CONFIG:
+        sh: |
+          if [ -n "{{.BACKEND_CONFIG}}" ]; then
+            echo "{{.BACKEND_CONFIG}}"
+          elif [ -f /Users/giovanni/syscode/git/syscode-infra-private/oci/syscode-backend-s3.tfvars ]; then
+            echo /Users/giovanni/syscode/git/syscode-infra-private/oci/syscode-backend-s3.tfvars
+          else
+            echo ""
+          fi
     cmds:
-      - tofu init -upgrade
-      - tofu plan
+      - task: build:cpe-remediator
+      - |
+          if [ "${CPE_REMEDIATOR_MODE:-function}" = "local-remediator" ]; then
+            test -n "${OCI_COMPARTMENT_OCID:-}" || \
+              (echo "OCI_COMPARTMENT_OCID is required for local-remediator" >&2; exit 1)
+            printf '{"compartment_id":"%s"}\n' "$OCI_COMPARTMENT_OCID" | \
+              bash ../../scripts/check-cpe-remediator-retirement.sh | \
+              jq -e '.retired == "true"' >/dev/null
+          fi
+      - |
+        if [ -n "{{.BACKEND_CONFIG}}" ]; then
+          tofu init -upgrade -backend-config="{{.BACKEND_CONFIG}}"
+        else
+          tofu init -upgrade
+        fi
+      - |
+        if [ -n "${CPE_REMEDIATOR_MODE+x}" ]; then
+          tofu plan -var="cpe_remediator_mode=$CPE_REMEDIATOR_MODE"
+        else
+          tofu plan
+        fi
 
   destroy:oci:
     desc: Destroy OCI infrastructure
     dir: tofu/oci
     prompt: "This will destroy OCI infrastructure. Continue?"
+    vars:
+      BACKEND_CONFIG:
+        sh: |
+          if [ -n "{{.BACKEND_CONFIG}}" ]; then
+            echo "{{.BACKEND_CONFIG}}"
+          elif [ -f /Users/giovanni/syscode/git/syscode-infra-private/oci/syscode-backend-s3.tfvars ]; then
+            echo /Users/giovanni/syscode/git/syscode-infra-private/oci/syscode-backend-s3.tfvars
+          else
+            echo ""
+          fi
     cmds:
+      - |
+        if [ -n "{{.BACKEND_CONFIG}}" ]; then
+          tofu init -backend-config="{{.BACKEND_CONFIG}}"
+        else
+          tofu init
+        fi
       - tofu destroy
 
   # ============================================================================
@@ -225,47 +360,36 @@ tasks:
   # ============================================================================
 
   validate:
-    desc: Run all validation checks
+    desc: Validate the supported OCI infrastructure layer
     cmds:
-      - task: header
-        vars: {MSG: "Running Validation Checks"}
-      - task: validate:images
+      - task: build:cpe-remediator
       - task: validate:oci
-      - task: validate:proxmox
-      - task: validate:talos
-      - task: validate:cost
-      - echo ""
-      - echo "✓ All validation checks passed!"
+      - echo "✓ OCI validation passed!"
 
   validate:images:
     desc: Validate image sizes
     cmds:
       - bash scripts/validate-phase1.sh
-    ignore_error: true
 
   validate:oci:
     desc: Validate OCI infrastructure
     cmds:
       - bash scripts/validate-phase2.sh
-    ignore_error: true
 
   validate:proxmox:
     desc: Validate Proxmox cluster
     cmds:
       - bash scripts/validate-phase3.sh
-    ignore_error: true
 
   validate:talos:
     desc: Validate Talos Kubernetes
     cmds:
       - bash scripts/validate-phase4.sh
-    ignore_error: true
 
   validate:cost:
     desc: Verify $0.00 billing
     cmds:
       - bash scripts/validate-cost.sh
-    ignore_error: true
 
   # ============================================================================
   # Utilities

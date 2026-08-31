@@ -10,11 +10,17 @@
 # ---------------------------------------------------------------------------
 # Defaults
 #
-# This module enforces OCI free-tier limits regardless of account type:
-#   2 x A1.Flex (1 OCPU / 6 GB / 50 GB)
-#   Total: 2 OCPUs, 12 GB RAM, 100 GB storage
+# This module enforces OCI Always Free compute/storage limits regardless of
+# account type:
+#   2 x A1.Flex (configurable OCPU/RAM, min 1 OCPU / 6 GB / 50 GB each)
+#   2 x E2.1.Micro (fixed: 1/8 OCPU, 1 GB RAM, 50 GB boot volume each)
+#   Total OCPUs: 2 (Ampere), plus up to 2 Micro instances
+#   Total RAM  : 12 GB (Ampere); Micro add 1 GB each
+#   Total storage: 200 GB block volume, SHARED across Ampere + Micro boot volumes
+#   20 GB object storage, 10 TB egress/month
 #
-# OCPUs are integer-only (API min=1, step=1).
+# OCPUs are CPU-only (API min=1, step=1).
+# Boot volumes are allocated toward the shared 200 GB block-volume budget.
 # ---------------------------------------------------------------------------
 locals {
   _tier_defaults = {
@@ -85,13 +91,18 @@ locals {
 
   total_storage_gb = (
     (length(local._ampere_nodes) > 0 ? sum([for n in local._ampere_nodes : n.boot_vol_gb]) : 0) +
-    (length(local._micro_nodes) > 0 ? sum([for n in local._micro_nodes : n.boot_vol_gb]) : 0)
+    (length(local._micro_nodes) > 0 ? sum([for n in local._micro_nodes : n.boot_vol_gb]) : 0) +
+    (var.create_bastion ? var.bastion_boot_vol_gb : 0)
   )
 }
 
 # ---------------------------------------------------------------------------
 # Image resolution
 # ---------------------------------------------------------------------------
+
+data "oci_objectstorage_namespace" "current" {
+  compartment_id = local.compartment_id
+}
 
 # Get latest Ubuntu 22.04 for Ampere A1 (ARM64)
 data "oci_core_images" "ampere_images" {
@@ -107,14 +118,15 @@ data "oci_core_images" "ampere_images" {
 data "oci_core_images" "micro_images" {
   compartment_id           = var.compartment_ocid
   operating_system         = "Canonical Ubuntu"
-  operating_system_version = "22.04"
+  operating_system_version = "24.04"
   shape                    = "VM.Standard.E2.1.Micro"
   sort_by                  = "TIMECREATED"
   sort_order               = "DESC"
 }
 
 locals {
-  subnet_id = var.existing_subnet_ocid != null ? var.existing_subnet_ocid : oci_core_subnet.free_tier_subnet[0].id
+  subnet_id        = var.existing_subnet_ocid != null ? var.existing_subnet_ocid : oci_core_subnet.free_tier_subnet[0].id
+  public_subnet_id = var.existing_subnet_ocid != null ? var.existing_subnet_ocid : oci_core_subnet.free_tier_public_subnet[0].id
   ampere_subnet_ids = [
     for n in local._ampere_nodes :
     n.vpn_subnet && local.vpn_enabled ? oci_core_subnet.vpn_subnet[0].id : local.subnet_id
@@ -126,7 +138,9 @@ locals {
   # metadata below enrolls the node into Omni. Without talos_image_ocid,
   # use latest Ubuntu 22.04 from the data source.
   ampere_image_id = var.talos_image_ocid != null ? var.talos_image_ocid : data.oci_core_images.ampere_images.images[0].id
-  micro_image_id  = data.oci_core_images.micro_images.images[0].id
+  # Prefer the pre-baked golden Micro image (base OS + hardening); falls back to
+  # latest Ubuntu 24.04 marketplace image if not set.
+  micro_image_id = var.micro_golden_image_ocid != null ? var.micro_golden_image_ocid : data.oci_core_images.micro_images.images[0].id
 }
 
 # ---------------------------------------------------------------------------
@@ -162,7 +176,49 @@ locals {
     "",
   ])) : null
 
-  # cert-hub bootstrap — Docker install, DNS stub disable, daemon DNS fix.
-  # Source of truth: syscode-cert-hub/scripts/cloud-init.yaml (kept in sync manually).
-  _micro_user_data = filebase64("${path.module}/files/cloud-init.yaml")
+  # Combine the primary key with any extras (personal + syscode, etc.)
+  _ssh_authorized_keys = compact(distinct(concat(
+    var.ssh_public_key != null ? [var.ssh_public_key] : [],
+    var.ssh_extra_public_keys,
+  )))
+
+  # Knock sequence as a comma-separated string for knockd.conf.
+  _bastion_knock_sequence = join(",", [for p in var.bastion_knock_ports : "${p}:tcp"])
+
+  # The mode renders exactly one executor, or zero during retirement.
+  _bastion_user_data = base64encode(templatefile("${path.module}/files/cloud-init-bastion.yaml.tmpl", {
+    ssh_public_key                  = length(local._ssh_authorized_keys) > 0 ? local._ssh_authorized_keys[0] : ""
+    extra_ssh_keys                  = length(local._ssh_authorized_keys) > 1 ? slice(local._ssh_authorized_keys, 1, length(local._ssh_authorized_keys)) : []
+    primary_nic                     = "ens3"
+    knock_sequence                  = local._bastion_knock_sequence
+    knock_timeout                   = var.bastion_knock_timeout
+    ssh_window_seconds              = var.bastion_ssh_window_seconds
+    knock_ports                     = var.bastion_knock_ports
+    enable_vpn_probe                = local.vpn_enabled && var.enable_oci_vpn_probe
+    omni_target_ip                  = var.omni_target_ip
+    enable_cpe_drift_check          = local.vpn_enabled && (var.cpe_remediator_mode == "function" || var.cpe_remediator_mode == "verify-local")
+    cpe_recreate_function_id        = local.vpn_enabled && (var.cpe_remediator_mode == "function" || var.cpe_remediator_mode == "verify-local") ? oci_functions_function.cpe_recreate[0].id : ""
+    enable_cpe_remediator           = local.vpn_enabled
+    enable_cpe_remediator_timer     = local.vpn_enabled && var.cpe_remediator_mode == "local-remediator"
+    enable_oci_cli                  = local.vpn_enabled
+    cpe_remediator_bucket_name      = local.vpn_enabled ? oci_objectstorage_bucket.cpe_remediator[0].name : ""
+    cpe_remediator_object_name      = local.cpe_remediator_object_name
+    cpe_remediator_sha256           = local.cpe_remediator_sha256
+    cpe_remediator_compartment_id   = local.compartment_id
+    cpe_remediator_ddns_hostname    = var.ddns_hostname
+    cpe_remediator_local_identifier = var.cpe_local_identifier
+    cpe_remediator_drg_id           = local.vpn_enabled ? oci_core_drg.vpn_drg[0].id : ""
+    cpe_remediator_static_routes_json = jsonencode(distinct(concat(
+      local.vpn_static_route_cidrs,
+      ["10.10.210.59/32"],
+    )))
+    cpe_remediator_secret_id = local.vpn_enabled ? oci_vault_secret.cpe_tunnel_details[0].id : ""
+  }))
+
+  # Workload Micro cloud-init: Docker/Tailscale + SSH restricted to bastion.
+  _micro_user_data = base64encode(templatefile("${path.module}/files/cloud-init-micro.yaml.tmpl", {
+    ssh_public_key = length(local._ssh_authorized_keys) > 0 ? local._ssh_authorized_keys[0] : ""
+    extra_ssh_keys = length(local._ssh_authorized_keys) > 1 ? slice(local._ssh_authorized_keys, 1, length(local._ssh_authorized_keys)) : []
+    bastion_ip     = var.create_bastion ? oci_core_instance.bastion[0].private_ip : "0.0.0.0/0"
+  }))
 }
