@@ -27,6 +27,22 @@ on:
         description: "Allow delete/create replacement, but only for explicit targets."
         required: false
         default: "false"
+      replace:
+        description: "Space-separated -replace addresses to force recreation past ignore_changes."
+        required: false
+        default: ""
+      ssh_public_key:
+        description: "SSH public key for the temporary VPN probe (optional, only used when vpn_probe=true)."
+        required: false
+        default: ""
+      temp_diag_password:
+        description: "TEMP: throwaway serial-console password for oci-micro-01 debugging (remove after diagnose)."
+        required: false
+        default: ""
+      extra_tfvars:
+        description: "Extra -var key=value pairs, one per line, for one-off targeted resources."
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -39,7 +55,21 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
+
+      - name: Fetch Talos image OCID from oci-talos-gitops-apps
+        id: talos_image
+        run: |
+          OCID=$(curl -fsSL \
+            "https://raw.githubusercontent.com/syscode-labs/oci-talos-gitops-apps/main/omni/talos-image.yaml" \
+            | grep '^oci_image_ocid:' | awk '{print $2}')
+          if [ -z "$OCID" ] || [ "$OCID" = '""' ] || [ "$OCID" = "null" ]; then
+            echo "ERROR: oci_image_ocid is empty in oci-talos-gitops-apps/omni/talos-image.yaml"
+            echo "Run the talos-images build workflow first to import a Talos image into OCI."
+            exit 1
+          fi
+          echo "ocid=${OCID}" >> "$GITHUB_OUTPUT"
+          echo "Talos image OCID: ${OCID}"
 
       - name: Write OCI credentials
         run: |
@@ -69,56 +99,6 @@ jobs:
 
       - name: Install OCI CLI
         run: pip install oci-cli --quiet
-
-      # Resolve the image from oci-lab's OWN pinned Talos version, by querying
-      # OCI directly. The build ledger carries a single oci_image_ocid — whatever
-      # was built last — but with per-cluster pins the OCI image is a per-cluster
-      # concern and only oci-lab consumes it. Taking that single OCID would have
-      # provisioned oci-lab nodes from a Talos 1.14 beta image while oci-lab's
-      # cluster template targets v1.13.7.
-      #
-      # Querying OCI beats reading a record of it: the ledger can claim an image
-      # that was never built (it did, until 2026-08-04) whereas this cannot.
-      - name: Resolve Talos image for oci-lab's pinned version
-        id: talos_image
-        env:
-          OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
-          VERSIONS_YAML_URL: >-
-            https://raw.githubusercontent.com/syscode-labs/syscode-homelab-gitops-apps/main/omni/versions.yaml
-        run: |
-          pip install pyyaml --quiet
-          curl -fsSL "$VERSIONS_YAML_URL" -o /tmp/versions.yaml
-          VER=$(python3 -c "
-          import yaml
-          d = yaml.safe_load(open('/tmp/versions.yaml')) or {}
-          c = (d.get('clusters') or {}).get('oci-lab') or {}
-          print(c.get('talos') or d.get('talos') or '')
-          ")
-          if [ -z "$VER" ]; then
-            echo "ERROR: could not resolve oci-lab's Talos pin from ${VERSIONS_YAML_URL}" >&2
-            exit 1
-          fi
-          NAME="talos-${VER}-oracle-arm64"
-          echo "oci-lab pins Talos ${VER}; looking for image ${NAME}"
-
-          ERR="$(mktemp)"
-          if ! JSON="$(oci compute image list --all \
-                --compartment-id "$OCI_COMPARTMENT_OCID" --output json 2>"$ERR")"; then
-            echo "ERROR: could not list OCI images:" >&2; cat "$ERR" >&2; exit 1
-          fi
-          # Newest AVAILABLE match wins — re-imports can leave duplicate names.
-          OCID=$(printf '%s' "$JSON" | jq -r --arg n "$NAME" '
-            [.data[] | select(."compartment-id" != null)
-                     | select(."display-name" == $n)
-                     | select(."lifecycle-state" == "AVAILABLE")]
-            | sort_by(."time-created") | last | .id // empty')
-          if [ -z "$OCID" ]; then
-            echo "ERROR: no AVAILABLE image named ${NAME} in the compartment." >&2
-            echo "       Dispatch the talos-images build workflow for ${VER} first." >&2
-            exit 1
-          fi
-          echo "ocid=${OCID}" >> "$GITHUB_OUTPUT"
-          echo "Talos image: ${NAME} -> ${OCID}"
 
       - name: Check free tier capacity
         env:
@@ -151,9 +131,13 @@ jobs:
           # Verified against OCI docs + service limits on 2026-06-14, see
           # FREE_TIER_RESOURCES.md. Both Always Free and PAYG-with-Always-Free accounts
           # get the same 2/12 free grant. The old 4/24 figure is retired.
+          #
+          # Always Free Micro (E2.1.Micro) entitlement is 2 instances (verified against
+          # Oracle "Always Free Resources" docs). The module uses both: 1 VPN probe
+          # (vpn_probe.tf, enable_oci_vpn_probe) + 1 generic (micro_nodes).
           MAX_AMPERE_OCPUS=2
           MAX_AMPERE_RAM_GB=12
-          MAX_MICRO_INSTANCES=1
+          MAX_MICRO_INSTANCES=2
 
           echo "A1 live: ${CURRENT_OCPUS}/${MAX_AMPERE_OCPUS} OCPU, ${CURRENT_RAM}/${MAX_AMPERE_RAM_GB} GB"
           echo "A1 tfvars: ${REQUESTED_OCPUS} OCPU, ${REQUESTED_RAM} GB"
@@ -187,7 +171,7 @@ jobs:
           exit $FAIL
 
       - name: Setup OpenTofu
-        uses: opentofu/setup-opentofu@v2.0.2
+        uses: opentofu/setup-opentofu@v2.0.0
         with:
           tofu_version: "1.11.5"
 
@@ -210,10 +194,27 @@ jobs:
             DESTROY_ARG="-destroy"
             echo "Targeted destroy enabled"
           fi
+          REPLACE_ARGS=""
+          if [ -n "$REPLACE" ]; then
+            if [ "$ALLOW_REPLACE" != "true" ]; then
+              echo "ERROR: replace requires allow_replace=true"
+              exit 1
+            fi
+            for r in $REPLACE; do REPLACE_ARGS="$REPLACE_ARGS -replace=$r"; done
+            echo "Forced replace:$REPLACE_ARGS"
+          fi
+          EXTRA_TFVARS_ARGS=""
+          if [ -n "$EXTRA_TFVARS" ]; then
+            while IFS= read -r line; do
+              [ -n "$line" ] && EXTRA_TFVARS_ARGS="$EXTRA_TFVARS_ARGS -var=$line"
+            done <<< "$EXTRA_TFVARS"
+            echo "Extra tfvars set (values not logged)"
+          fi
           tofu plan \
             -lock=false \
             $TARGET_ARGS \
             $DESTROY_ARG \
+            $REPLACE_ARGS \
             -var="tenancy_ocid=$OCI_TENANCY_OCID" \
             -var="compartment_ocid=$OCI_COMPARTMENT_OCID" \
             -var="talos_image_ocid=${{ steps.talos_image.outputs.ocid }}" \
@@ -224,7 +225,15 @@ jobs:
             -var="oci_config_profile=DEFAULT" \
             -var="enable_oci_vpn=true" \
             -var="enable_oci_vpn_probe=$VPN_PROBE" \
-            -var="openwrt_resolver_ip=REDACTED-LAN-GATEWAY-IP" \
+            -var="openwrt_resolver_ip=$OPENWRT_RESOLVER_IP" \
+            -var="home_cpe_public_ip=$HOME_CPE_PUBLIC_IP" \
+            -var="cpe_local_identifier=$CPE_LOCAL_IDENTIFIER" \
+            -var="omni_target_ip=$OMNI_TARGET_IP" \
+            -var="ddns_hostname=$DDNS_HOSTNAME" \
+            -var="cpe_recreate_fn_push_user_ocid=$CPE_RECREATE_FN_PUSH_USER_OCID" \
+            -var="ssh_public_key=$SSH_PUBLIC_KEY" \
+            -var="temp_diag_password=$TEMP_DIAG_PASSWORD" \
+            $EXTRA_TFVARS_ARGS \
             -var-file=terraform.tfvars \
             -out=tfplan
         env:
@@ -234,9 +243,20 @@ jobs:
           OMNI_JOIN_TOKEN: ${{ secrets.OMNI_JOIN_TOKEN }}
           OMNI_ENDPOINT: ${{ secrets.OMNI_ENDPOINT }}
           NODES_TAILSCALE_AUTHKEY: ${{ secrets.NODES_TAILSCALE_AUTHKEY }}
+          OPENWRT_RESOLVER_IP: ${{ secrets.OPENWRT_RESOLVER_IP }}
+          HOME_CPE_PUBLIC_IP: ${{ secrets.HOME_CPE_PUBLIC_IP }}
+          CPE_LOCAL_IDENTIFIER: ${{ secrets.CPE_LOCAL_IDENTIFIER }}
+          OMNI_TARGET_IP: ${{ secrets.OMNI_TARGET_IP }}
+          DDNS_HOSTNAME: ${{ secrets.DDNS_HOSTNAME }}
+          CPE_RECREATE_FN_PUSH_USER_OCID: ${{ secrets.CPE_RECREATE_FN_PUSH_USER_OCID }}
           TARGETS: ${{ github.event.inputs.targets }}
           VPN_PROBE: ${{ github.event.inputs.vpn_probe || 'false' }}
           DESTROY: ${{ github.event.inputs.destroy || 'false' }}
+          REPLACE: ${{ github.event.inputs.replace || '' }}
+          ALLOW_REPLACE: ${{ github.event.inputs.allow_replace || 'false' }}
+          SSH_PUBLIC_KEY: ${{ github.event.inputs.ssh_public_key || '' }}
+          TEMP_DIAG_PASSWORD: ${{ github.event.inputs.temp_diag_password || '' }}
+          EXTRA_TFVARS: ${{ github.event.inputs.extra_tfvars || '' }}
           TF_LOG: WARN
 
       - name: Reject destructive plan
@@ -279,7 +299,7 @@ jobs:
           ALLOW_REPLACE: ${{ github.event.inputs.allow_replace || 'false' }}
 
       - name: Upload plan
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: tfplan
           path: tofu/oci/tfplan
@@ -294,7 +314,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Write OCI credentials
         run: |
@@ -323,7 +343,7 @@ jobs:
           TF_BACKEND_CONFIG: ${{ secrets.TF_BACKEND_CONFIG }}
 
       - name: Setup OpenTofu
-        uses: opentofu/setup-opentofu@v2.0.2
+        uses: opentofu/setup-opentofu@v2.0.0
         with:
           tofu_version: "1.11.5"
 
@@ -332,7 +352,7 @@ jobs:
         run: tofu init -backend-config=backend-config.tfvars
 
       - name: Download plan artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           name: tfplan
           path: tofu/oci
