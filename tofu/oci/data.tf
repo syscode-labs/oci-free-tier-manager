@@ -187,29 +187,32 @@ locals {
 
   # The mode renders exactly one executor, or zero during retirement.
   _bastion_user_data = base64encode(templatefile("${path.module}/files/cloud-init-bastion.yaml.tmpl", {
-    ssh_public_key                    = length(local._ssh_authorized_keys) > 0 ? local._ssh_authorized_keys[0] : ""
-    extra_ssh_keys                    = length(local._ssh_authorized_keys) > 1 ? slice(local._ssh_authorized_keys, 1, length(local._ssh_authorized_keys)) : []
-    primary_nic                       = "ens3"
-    knock_sequence                    = local._bastion_knock_sequence
-    knock_timeout                     = var.bastion_knock_timeout
-    ssh_window_seconds                = var.bastion_ssh_window_seconds
-    knock_ports                       = var.bastion_knock_ports
-    enable_vpn_probe                  = local.vpn_enabled && var.enable_oci_vpn_probe
-    omni_target_ip                    = var.omni_target_ip
-    enable_cpe_drift_check            = local.vpn_enabled && (var.cpe_remediator_mode == "function" || var.cpe_remediator_mode == "verify-local")
-    cpe_recreate_function_id          = local.vpn_enabled && (var.cpe_remediator_mode == "function" || var.cpe_remediator_mode == "verify-local") ? oci_functions_function.cpe_recreate[0].id : ""
-    enable_cpe_remediator             = local.vpn_enabled
-    enable_cpe_remediator_timer       = local.vpn_enabled && var.cpe_remediator_mode == "local-remediator"
-    enable_oci_cli                    = local.vpn_enabled
-    cpe_remediator_bucket_name        = local.vpn_enabled ? oci_objectstorage_bucket.cpe_remediator[0].name : ""
-    cpe_remediator_object_name        = local.cpe_remediator_object_name
-    cpe_remediator_sha256             = local.cpe_remediator_sha256
-    cpe_remediator_compartment_id     = local.compartment_id
-    cpe_remediator_ddns_hostname      = var.ddns_hostname
-    cpe_remediator_local_identifier   = var.cpe_local_identifier
-    cpe_remediator_drg_id             = local.vpn_enabled ? oci_core_drg.vpn_drg[0].id : ""
-    cpe_remediator_static_routes_json = jsonencode(local.vpn_drg_route_cidrs)
-    cpe_remediator_secret_id          = local.vpn_enabled ? oci_vault_secret.cpe_tunnel_details[0].id : ""
+    ssh_public_key                  = length(local._ssh_authorized_keys) > 0 ? local._ssh_authorized_keys[0] : ""
+    extra_ssh_keys                  = length(local._ssh_authorized_keys) > 1 ? slice(local._ssh_authorized_keys, 1, length(local._ssh_authorized_keys)) : []
+    primary_nic                     = "ens3"
+    knock_sequence                  = local._bastion_knock_sequence
+    knock_timeout                   = var.bastion_knock_timeout
+    ssh_window_seconds              = var.bastion_ssh_window_seconds
+    knock_ports                     = var.bastion_knock_ports
+    enable_vpn_probe                = local.vpn_enabled && var.enable_oci_vpn_probe
+    omni_target_ip                  = var.omni_target_ip
+    enable_cpe_drift_check          = local.vpn_enabled && (var.cpe_remediator_mode == "function" || var.cpe_remediator_mode == "verify-local")
+    cpe_recreate_function_id        = local.vpn_enabled && (var.cpe_remediator_mode == "function" || var.cpe_remediator_mode == "verify-local") ? oci_functions_function.cpe_recreate[0].id : ""
+    enable_cpe_remediator           = local.vpn_enabled
+    enable_cpe_remediator_timer     = local.vpn_enabled && var.cpe_remediator_mode == "local-remediator"
+    enable_oci_cli                  = local.vpn_enabled
+    cpe_remediator_bucket_name      = local.vpn_enabled ? oci_objectstorage_bucket.cpe_remediator[0].name : ""
+    cpe_remediator_object_name      = local.cpe_remediator_object_name
+    cpe_remediator_sha256           = local.cpe_remediator_sha256
+    cpe_remediator_compartment_id   = local.compartment_id
+    cpe_remediator_ddns_hostname    = var.ddns_hostname
+    cpe_remediator_local_identifier = var.cpe_local_identifier
+    cpe_remediator_drg_id           = local.vpn_enabled ? oci_core_drg.vpn_drg[0].id : ""
+    cpe_remediator_static_routes_json = jsonencode(distinct(concat(
+      local.vpn_static_route_cidrs,
+      ["${var.harbor_registry_ip}/32"],
+    )))
+    cpe_remediator_secret_id = local.vpn_enabled ? oci_vault_secret.cpe_tunnel_details[0].id : ""
   }))
 
   # Workload Micro cloud-init: Docker/Tailscale + SSH restricted to bastion.

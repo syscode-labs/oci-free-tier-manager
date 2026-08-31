@@ -138,12 +138,15 @@ resource "oci_functions_function" "cpe_recreate" {
   # handler(), which reads these via os.environ rather than the invocation
   # payload (Resource Scheduler fires a bare invoke with no body).
   config = {
-    COMPARTMENT_ID          = local.compartment_id
-    DDNS_HOSTNAME           = var.ddns_hostname
-    CPE_LOCAL_IDENTIFIER    = var.cpe_local_identifier
-    DRG_ID                  = oci_core_drg.vpn_drg[0].id
-    STATIC_ROUTE_CIDRS_JSON = jsonencode(local.vpn_drg_route_cidrs)
-    SECRET_ID               = oci_vault_secret.cpe_tunnel_details[0].id
+    COMPARTMENT_ID       = local.compartment_id
+    DDNS_HOSTNAME        = var.ddns_hostname
+    CPE_LOCAL_IDENTIFIER = var.cpe_local_identifier
+    DRG_ID               = oci_core_drg.vpn_drg[0].id
+    STATIC_ROUTE_CIDRS_JSON = jsonencode(distinct(concat(
+      local.vpn_static_route_cidrs,
+      ["${var.harbor_registry_ip}/32"],
+    )))
+    SECRET_ID = oci_vault_secret.cpe_tunnel_details[0].id
   }
 }
 
