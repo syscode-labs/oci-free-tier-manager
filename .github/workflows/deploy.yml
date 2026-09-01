@@ -251,7 +251,7 @@ jobs:
                 echo "ERROR: executor mode must be set only through cpe_remediator_mode"
                 exit 1
               fi
-              if ! [[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*=[A-Za-z0-9_./,:=@+%\"\'\[\]-]*$ ]]; then
+              if ! [[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*=[-A-Za-z0-9_./,:=@+%]*$ ]]; then
                 echo "ERROR: invalid extra_tfvars assignment: expected safe key=value"
                 echo "without whitespace or shell characters"
                 exit 1
