@@ -71,7 +71,8 @@ jobs:
         run: bash scripts/build-cpe-remediator.sh
 
       - name: Test remediator artifact delivery
-        run: python -m unittest scripts.tests.test_cpe_remediator_delivery -v
+        timeout-minutes: 5
+        run: python -u -m unittest scripts.tests.test_cpe_remediator_delivery -v
 
       - name: Install tflint
         run: |
