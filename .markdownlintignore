@@ -4,3 +4,5 @@ docs/nix-dagger-detailed.md
 docs/OCI_AMPERE_BUILD.md
 # Legacy reference plan (Proxmox+Ceph phase, abandoned) — pre-existing violations
 PLAN.md
+# Agent instruction file uses compact examples and legacy formatting.
+AGENTS.md
