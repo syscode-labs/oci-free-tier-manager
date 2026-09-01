@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 )
 
@@ -171,7 +172,12 @@ func (r Reconciler) Run(ctx context.Context) (Result, error) {
 			if len(tunnels) != 2 || tunnels[0].ID == "" || tunnels[1].ID == "" || tunnels[0].ID == tunnels[1].ID {
 				return Result{}, fmt.Errorf("expected exactly two identified IPSec tunnels, got %d", len(tunnels))
 			}
-			for i, tunnel := range tunnels {
+			type tunnelCredential struct {
+				vpnIP string
+				psk   string
+			}
+			credentials := make([]tunnelCredential, 0, len(tunnels))
+			for _, tunnel := range tunnels {
 				if err := r.network.UpdateTunnel(ctx, state.NewIPSecID, tunnel.ID); err != nil {
 					return Result{}, err
 				}
@@ -189,13 +195,13 @@ func (r Reconciler) Run(ctx context.Context) (Result, error) {
 				if refreshed.ID == "" || refreshed.VPNIP == "" {
 					return Result{}, fmt.Errorf("IPSec tunnel %q is missing its ID or VPN IP", tunnel.ID)
 				}
-				if i == 0 {
-					state.Tunnel1IP, state.Tunnel1PSK = stringPtr(refreshed.VPNIP), stringPtr(psk)
-				}
-				if i == 1 {
-					state.Tunnel2IP, state.Tunnel2PSK = stringPtr(refreshed.VPNIP), stringPtr(psk)
-				}
+				credentials = append(credentials, tunnelCredential{vpnIP: refreshed.VPNIP, psk: psk})
 			}
+			// OCI does not promise ListIPSecConnectionTunnels order. Keep each IP
+			// and PSK together, then publish a stable IP-sorted pair.
+			sort.Slice(credentials, func(i, j int) bool { return credentials[i].vpnIP < credentials[j].vpnIP })
+			state.Tunnel1IP, state.Tunnel1PSK = stringPtr(credentials[0].vpnIP), stringPtr(credentials[0].psk)
+			state.Tunnel2IP, state.Tunnel2PSK = stringPtr(credentials[1].vpnIP), stringPtr(credentials[1].psk)
 			state.Phase = stringPtr(PhaseTunnelsConfigured)
 			if err := r.vault.Write(ctx, r.config.SecretID, state); err != nil {
 				return Result{}, err
