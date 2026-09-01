@@ -392,9 +392,12 @@ class CpeRemediatorDeliveryTests(unittest.TestCase):
             with TemporaryDirectory() as temporary_directory:
                 result = subprocess.run(
                     [tofu, "console", "-no-color"],
-                    input=expression.replace(
-                        "__DRIFT_CHECK__", str(drift_check).lower()
-                    ).replace("__LOCAL_TIMER__", str(local_timer).lower()),
+                    input=(
+                        expression.replace(
+                            "__DRIFT_CHECK__", str(drift_check).lower()
+                        ).replace("__LOCAL_TIMER__", str(local_timer).lower())
+                        + "\nexit\n"
+                    ),
                     text=True,
                     capture_output=True,
                     check=True,
