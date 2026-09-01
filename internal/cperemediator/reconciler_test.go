@@ -39,10 +39,15 @@ func TestRunDoesNothingWhenDNSMatchesCurrentCPE(t *testing.T) {
 func TestRunConfiguresAvailableReplacementTunnels(t *testing.T) {
 	t.Parallel()
 	vault := &fakeVault{state: State{Phase: phase(PhaseCPEIPSecCreated), NewIPSecID: "new"}}
-	network := &fakeNetwork{ipsecLookup: IPSecConnection{LifecycleState: "AVAILABLE"}, tunnels: []Tunnel{{ID: "one"}, {ID: "two"}}, tunnelDetails: map[string]Tunnel{"one": {ID: "one", VPNIP: "192.0.2.1"}, "two": {ID: "two", VPNIP: "192.0.2.2"}}, secrets: map[string]string{"one": "psk1", "two": "psk2"}}
+	// The OCI list order is not a tunnel identity. Deliberately return the
+	// higher address first and assert each password remains paired with its IP.
+	network := &fakeNetwork{ipsecLookup: IPSecConnection{LifecycleState: "AVAILABLE"}, tunnels: []Tunnel{{ID: "two"}, {ID: "one"}}, tunnelDetails: map[string]Tunnel{"one": {ID: "one", VPNIP: "192.0.2.1"}, "two": {ID: "two", VPNIP: "192.0.2.2"}}, secrets: map[string]string{"one": "psk1", "two": "psk2"}}
 	result, err := New(Config{SecretID: "secret"}, fakeDNS{}, network, vault).Run(context.Background())
 	if err != nil || result.Action != ActionTunnelsConfigured || *vault.state.Phase != PhaseTunnelsConfigured || network.mutations != 2 {
 		t.Fatalf("result/state/mutations = %#v/%#v/%d, err = %v", result, vault.state, network.mutations, err)
+	}
+	if vault.state.Tunnel1IP == nil || vault.state.Tunnel1PSK == nil || *vault.state.Tunnel1IP != "192.0.2.1" || *vault.state.Tunnel1PSK != "psk1" || vault.state.Tunnel2IP == nil || vault.state.Tunnel2PSK == nil || *vault.state.Tunnel2IP != "192.0.2.2" || *vault.state.Tunnel2PSK != "psk2" {
+		t.Fatalf("stored tunnel credentials = %#v, want IP-paired sorted values", vault.state)
 	}
 }
 
