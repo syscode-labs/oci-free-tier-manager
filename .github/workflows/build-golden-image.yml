@@ -44,7 +44,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Packer
-        uses: hashicorp/setup-packer@v2
+        uses: hashicorp/setup-packer@v3
 
       - name: Install OCI CLI
         run: pip install oci-cli --quiet
