@@ -60,6 +60,7 @@ jobs:
         uses: opentofu/setup-opentofu@v2.0.0
         with:
           tofu_version: '1.11.5'
+          tofu_wrapper: false
 
       - name: Setup Go for remediator artifact
         uses: actions/setup-go@v7
