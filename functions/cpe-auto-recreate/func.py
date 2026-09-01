@@ -276,6 +276,10 @@ def _continue_after_create(
         ).data
         tunnel_results.append({"vpn_ip": refreshed.vpn_ip, "psk": psk.shared_secret})
 
+    # OCI does not promise list_ip_sec_connection_tunnels ordering. Sort only
+    # after each VPN IP and PSK have been collected as a pair.
+    tunnel_results.sort(key=lambda tunnel: tunnel["vpn_ip"])
+
     new_state = dict(state)
     new_state["phase"] = PHASE_TUNNELS_CONFIGURED
     new_state["tunnel1_ip"] = (
