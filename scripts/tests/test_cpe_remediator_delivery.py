@@ -349,7 +349,11 @@ class CpeRemediatorDeliveryTests(unittest.TestCase):
         self,
     ) -> None:
         """Fixture rendering covers the active template path, not just its source text."""
-        tofu = os.environ.get("TOFU_BIN") or shutil.which("tofu")
+        tofu = (
+            os.environ.get("TOFU_BIN")
+            or os.environ.get("TOFU_CLI_PATH")
+            or shutil.which("tofu")
+        )
         expression = textwrap.dedent(
             """\
             templatefile("files/cloud-init-bastion.yaml.tmpl", {
@@ -392,9 +396,12 @@ class CpeRemediatorDeliveryTests(unittest.TestCase):
             with TemporaryDirectory() as temporary_directory:
                 result = subprocess.run(
                     [tofu, "console", "-no-color"],
-                    input=expression.replace(
-                        "__DRIFT_CHECK__", str(drift_check).lower()
-                    ).replace("__LOCAL_TIMER__", str(local_timer).lower()),
+                    input=(
+                        expression.replace(
+                            "__DRIFT_CHECK__", str(drift_check).lower()
+                        ).replace("__LOCAL_TIMER__", str(local_timer).lower())
+                        + "\nexit\n"
+                    ),
                     text=True,
                     capture_output=True,
                     check=True,
