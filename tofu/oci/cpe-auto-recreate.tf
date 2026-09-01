@@ -248,6 +248,9 @@ resource "oci_identity_policy" "cpe_drift_check_bastion" {
     "Allow dynamic-group ${oci_identity_dynamic_group.cpe_drift_check_bastion[0].name} to manage cpes in compartment id ${local.compartment_id}",
     "Allow dynamic-group ${oci_identity_dynamic_group.cpe_drift_check_bastion[0].name} to manage ipsec-connections in compartment id ${local.compartment_id}",
     "Allow dynamic-group ${oci_identity_dynamic_group.cpe_drift_check_bastion[0].name} to use drgs in compartment id ${local.compartment_id}",
+    # Read the current handoff before writing a phase checkpoint. Keep this
+    # separate from secret-family, which covers the local remediator's writes.
+    "Allow dynamic-group ${oci_identity_dynamic_group.cpe_drift_check_bastion[0].name} to read secret-bundles in compartment id ${local.compartment_id} where target.secret.id = '${oci_vault_secret.cpe_tunnel_details[0].id}'",
     "Allow dynamic-group ${oci_identity_dynamic_group.cpe_drift_check_bastion[0].name} to use secret-family in compartment id ${local.compartment_id} where target.secret.id = '${oci_vault_secret.cpe_tunnel_details[0].id}'",
   ] : [])
 }

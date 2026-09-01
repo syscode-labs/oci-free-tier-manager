@@ -474,6 +474,11 @@ tfsec . --minimum-severity MEDIUM
 checkov -d . --framework terraform --compact
 ```
 
+Terraform plans run continuously in CI with the required secret inputs. Do not
+ask for those inputs or attempt a local `tofu plan` merely to validate a
+change; rely on the CI plan unless the user explicitly asks for a local plan.
+Local `tofu validate` and non-secret checks remain appropriate.
+
 ### When creating PRs
 
 CI enforces these checks:
