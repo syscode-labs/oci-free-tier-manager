@@ -429,8 +429,10 @@ resource "oci_budget_budget" "free_tier_budget" {
   display_name   = "free-tier-budget-alert"
   description    = "Alert when any costs are incurred beyond free tier"
 
+  # Cost invoice is tenancy-wide. Target root compartment so charges from
+  # resources outside the managed workload compartment are not missed.
   target_type                           = "COMPARTMENT"
-  targets                               = [local.compartment_id]
+  targets                               = [var.tenancy_ocid]
   budget_processing_period_start_offset = 1
 }
 

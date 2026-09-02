@@ -132,6 +132,11 @@ variable "budget_alert_email" {
   description = "Email address for budget alerts (comma-separated for multiple). Required when create_budget = true."
   type        = string
   default     = null
+
+  validation {
+    condition     = !var.create_budget || (var.budget_alert_email != null && trimspace(var.budget_alert_email) != "")
+    error_message = "budget_alert_email must be non-empty when create_budget is true."
+  }
 }
 
 variable "create_budget" {
