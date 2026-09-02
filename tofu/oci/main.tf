@@ -429,8 +429,10 @@ resource "oci_budget_budget" "free_tier_budget" {
   display_name   = "free-tier-budget-alert"
   description    = "Alert when any costs are incurred beyond free tier"
 
+  # Cost invoice is tenancy-wide. Target root compartment so charges from
+  # resources outside the managed workload compartment are not missed.
   target_type                           = "COMPARTMENT"
-  targets                               = [local.compartment_id]
+  targets                               = [var.tenancy_ocid]
   budget_processing_period_start_offset = 1
 }
 
@@ -444,6 +446,17 @@ resource "oci_budget_alert_rule" "free_tier_alert" {
   threshold_type = "PERCENTAGE"
   message        = "WARNING: Charges detected! You may have exceeded OCI free tier limits."
   recipients     = var.budget_alert_email
+}
+
+# Clean up failed launch artifacts on every Terraform apply. The helper only
+# deletes boot volumes already in TERMINATED state; attached or AVAILABLE
+# volumes are never eligible.
+resource "terraform_data" "cleanup_stale_boot_volumes" {
+  triggers_replace = timestamp()
+
+  provisioner "local-exec" {
+    command = "python3 ${path.module}/../../scripts/cleanup_stale_boot_volumes.py --tenancy-ocid ${var.tenancy_ocid} --profile ${var.oci_config_profile}"
+  }
 }
 
 # Reserved IPs for all Ampere nodes — stable and explicitly managed.
