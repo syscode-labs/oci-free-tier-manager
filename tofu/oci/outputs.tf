@@ -130,6 +130,11 @@ output "budget_id" {
   value       = var.create_budget ? oci_budget_budget.free_tier_budget[0].id : null
 }
 
+output "budget_target_compartment_id" {
+  description = "Compartment targeted by the cost budget (tenancy root for account-wide coverage)"
+  value       = var.create_budget ? var.tenancy_ocid : null
+}
+
 # ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
