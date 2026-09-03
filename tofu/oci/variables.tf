@@ -252,6 +252,8 @@ variable "micro_nodes" {
   type = list(object({
     boot_vol_gb = optional(number)
     name        = optional(string)
+    private_ip  = optional(string)
+    vpn_router  = optional(bool)
   }))
   default = null
 }
@@ -350,6 +352,12 @@ variable "openwrt_resolver_ip" {
   description = "OpenWrt tunnel-reachable DNS resolver IP for OCI nodes (Task 0). Piece B / OpenWrt value; when null the VPN subnet inherits the VCN default DHCP options."
   type        = string
   default     = null
+}
+
+variable "tailnet_dns_resolver" {
+  description = "Private tailnet DNS resolver IP. Supply only through the encrypted terraform.tfvars or CI secret."
+  type        = string
+  sensitive   = true
 }
 
 variable "omni_search_domain" {

@@ -382,15 +382,15 @@ resource "oci_core_instance" "micro_instance" {
   }
 
   create_vnic_details {
-    subnet_id        = local.subnet_id
-    assign_public_ip = false # reserved IP assigned separately via oci_core_public_ip.bastion
+    subnet_id        = local._micro_nodes[count.index].vpn_router && local.vpn_enabled ? oci_core_subnet.vpn_subnet[0].id : local.subnet_id
+    assign_public_ip = false # reserved public IP is attached separately to the public bastion
     display_name     = "micro-vnic-${count.index + 1}"
     private_ip       = local._micro_nodes[count.index].private_ip
   }
 
   metadata = merge(
     length(local._ssh_authorized_keys) > 0 ? { ssh_authorized_keys = join("\n", local._ssh_authorized_keys) } : {},
-    { user_data = local._micro_user_data },
+    { user_data = local._micro_user_data[count.index] },
     var.tailscale_auth_key != null ? { tailscale_auth_key = var.tailscale_auth_key } : {},
   )
 
