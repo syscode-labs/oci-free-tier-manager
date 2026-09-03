@@ -105,7 +105,7 @@ jobs:
           TF_BACKEND_CONFIG: ${{ secrets.TF_BACKEND_CONFIG }}
 
       - name: Install SOPS
-        uses: getsops/sops-action@v2
+        uses: nhedger/setup-sops@v2
 
       - name: Decrypt private Terraform values
         run: |
