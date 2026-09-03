@@ -1,0 +1,3 @@
+creation_rules:
+  - path_regex: tofu/oci/terraform\\.sops\\.tfvars$
+    age: age1jghlrvu8wtjn5lc3ksce7qgyucsazsf9c3ccgndul80w4yz5a5sqddef8k # pragma: allowlist secret

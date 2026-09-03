@@ -362,6 +362,8 @@ class CpeRemediatorDeliveryTests(unittest.TestCase):
               knock_ports = [1111]
               enable_vpn_probe = false
               omni_target_ip = "10.0.0.1"
+              omni_search_domain = "tailnet.example.test"
+              tailnet_dns_resolver = "100.64.0.1"
                enable_cpe_drift_check = __DRIFT_CHECK__
                cpe_recreate_function_id = "ocid1.fnfunc.fixture"
                enable_cpe_remediator = true

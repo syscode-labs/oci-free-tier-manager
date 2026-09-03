@@ -1,0 +1,43 @@
+#cloud-config
+ssh_pwauth: false
+
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+%{ for k in extra_ssh_keys ~}
+      - ${k}
+%{ endfor ~}
+
+write_files:
+  - path: /etc/knockd.conf
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [options]
+        logfile = /var/log/knockd.log
+        interface = eth0
+
+      [openSSH]
+        sequence    = ${knock_sequence}
+        seq_timeout = ${knock_timeout}
+        tcpflags    = syn
+        start_command = /sbin/ufw allow from %IP% to any port 22 proto tcp
+        cmd_timeout = ${ssh_window_seconds}
+        stop_command = /sbin/ufw delete allow from %IP% to any port 22 proto tcp
+
+runcmd:
+  - [ bash, -c, 'apt-get -o Acquire::ForceIPv4=true update -qq && apt-get -o Acquire::ForceIPv4=true install -y -qq knockd ufw' ]
+%{ for p in knock_ports ~}
+  - [ ufw, allow, "${p}/tcp" ]
+%{ endfor ~}
+  - [ ufw, reload ]
+  - [ systemctl, daemon-reload ]
+  - [ systemctl, enable, --now, knockd ]
+
+final_message: |
+  Public SSH bastion configured.
+  SSH is closed by default; use the knock sequence.

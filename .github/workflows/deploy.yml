@@ -104,6 +104,16 @@ jobs:
         env:
           TF_BACKEND_CONFIG: ${{ secrets.TF_BACKEND_CONFIG }}
 
+      - name: Install SOPS
+        uses: getsops/sops-action@v2
+
+      - name: Decrypt private Terraform values
+        run: |
+          sops --decrypt --input-type binary --output-type binary \
+            tofu/oci/terraform.sops > tofu/oci/terraform.tfvars
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+
       - name: Install OCI CLI
         run: pip install oci-cli --quiet
 

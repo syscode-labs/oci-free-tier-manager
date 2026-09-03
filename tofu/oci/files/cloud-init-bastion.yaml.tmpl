@@ -65,7 +65,7 @@ write_files:
       cat /etc/resolv.conf
 
       echo "# dns"
-      getent hosts omni.wind-bearded.ts.net
+      getent hosts omni.${omni_search_domain}
       echo "DNS_STATUS:$?"
 
       echo "# tcp 8090"
@@ -74,8 +74,8 @@ write_files:
 
       echo "# tls 8090"
       timeout 20 openssl s_client \
-        -connect omni.wind-bearded.ts.net:8090 \
-        -servername omni.wind-bearded.ts.net \
+        -connect omni.${omni_search_domain}:8090 \
+        -servername omni.${omni_search_domain} \
         -verify_return_error < /dev/null
       echo "TLS_8090_STATUS:$?"
 

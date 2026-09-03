@@ -43,12 +43,34 @@ check "ampere_instance_budget" {
   }
 }
 
+check "micro_instance_budget" {
+  assert {
+    condition     = length(local._micro_nodes) + (var.create_bastion ? 1 : 0) <= 2
+    error_message = "E2.1.Micro instance count (${length(local._micro_nodes) + (var.create_bastion ? 1 : 0)}) exceeds free tier limit of 2, including the public bastion."
+  }
+}
+
+check "micro_router_budget" {
+  assert {
+    condition     = length([for n in local._micro_nodes : n if n.vpn_router]) <= 1
+    error_message = "Only one E2.1.Micro may be the Tailscale VPN router."
+  }
+}
+
+check "micro_router_requires_vpn" {
+  assert {
+    condition     = !anytrue([for n in local._micro_nodes : n.vpn_router]) || local.vpn_enabled
+    error_message = "micro_nodes[*].vpn_router requires enable_oci_vpn=true."
+  }
+}
+
 check "storage_budget" {
   assert {
     condition     = local.total_storage_gb <= 200
     error_message = "Total boot volume storage (${local.total_storage_gb} GB) exceeds free tier limit of 200 GB. Reduce node count or boot_vol_gb."
   }
 }
+
 
 # ---------------------------------------------------------------------------
 # OCPU constraint (applies to all account types)

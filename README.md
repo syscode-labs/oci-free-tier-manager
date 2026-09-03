@@ -10,10 +10,10 @@ OpenTofu infrastructure for OCI Always Free tier - provisions Ampere A1.Flex
 
 Supports two modes via the `omni_ready` toggle:
 
-| Mode | `omni_ready` | OS | Kubernetes |
-|------|--------------|----|------------|
-| Default | `false` | Ubuntu (custom image) | Bring your own |
-| Talos + Omni | `true` | Talos Linux | Enrolled into Omni via SideroLink |
+| Mode           | `omni_ready` | OS                    | Kubernetes                        |
+|----------------|--------------|-----------------------|-----------------------------------|
+| Default        | `false`      | Ubuntu (custom image) | Bring your own                    |
+| Talos + Omni   | `true`       | Talos Linux           | Enrolled into Omni via SideroLink |
 
 ## Structure
 
@@ -76,7 +76,19 @@ When `omni_ready = true`:
 ### Compute
 
 - **Ampere A1**: 2 OCPUs + 12 GB RAM total (ARM64, flexible — split across up to 2 instances)
-- **E2.1.Micro**: 2 instances × 1/8 OCPU + 1 GB RAM (AMD)
+- **E2.1.Micro**: 2 instances × 1/8 OCPU + 1 GB RAM (AMD/x86, fixed shape — a
+  separate Always Free pool, independent of the A1 allowance)
+
+This module deploys the full Always Free allotment (two separate pools):
+
+- `ampere_nodes`: 2 x A1.Flex (Talos nodes, 1 OCPU / 6 GB each) → uses all
+  2 OCPUs / 12 GB of the A1 pool
+- `micro_nodes`: 2 x E2.1.Micro (AMD/x86, fixed 1/8 OCPU + 1 GB each — a pool
+  separate from A1) → Micro #1 (`oci-micro-01`) is the public-subnet knockd SSH
+  bastion (reserved IP `141.147.87.29`); Micro #2 is the Tailscale subnet router
+  in `oci-vpn-subnet` advertising REDACTED_PRIVATE_SUBNET (opt in via
+  `enable_oci_vpn_probe=true`). The VPN router's egress path is the VPN-subnet
+  NAT gateway route, NOT the bastion. No instance carries two VNICs.
 
 This module deploys the full Always Free allotment:
 
