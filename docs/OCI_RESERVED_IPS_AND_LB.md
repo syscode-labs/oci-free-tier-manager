@@ -14,10 +14,12 @@ Verified empirically: a reserved IP was created, attached to a running instance,
 | Name | IP | Purpose | State |
 |------|----|---------|-------|
 | `ampere-instance-{1..4}-ip` | varies | One reserved IP per Ampere node | Assigned |
+| `oci-bastion-01-ip` | `141.147.87.29` | Bastion endpoint | Currently unassigned |
 
-> The bastion/micro and k8s-ingress reserved IPs have been removed from the syscode-homelab
-> account. The micro instance was terminated (May 2026) and the k8s-ingress IP was deleted.
-> Only the 4 per-node Ampere IPs remain.
+The tenancy is PAYG. Reserved public IPv4 addresses are free, subject to the regional service quota.
+The live inventory currently contains 2 reserved IPs: 1 for ingress/LB and 1 for the bastion.
+The NAT gateway has a separate ephemeral public IP. One additional reserved IP is intended
+for `oci-pivot-controller`.
 
 **Warning:** If you delete an ephemeral public IP from a VNIC, OCI will not auto-reassign one.
 You must create a reserved IP and assign it manually. Avoid deleting ephemeral IPs outside Terraform.

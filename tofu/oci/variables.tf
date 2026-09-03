@@ -353,9 +353,9 @@ variable "openwrt_resolver_ip" {
 }
 
 variable "omni_search_domain" {
-  description = "DNS search domain pushed to VPN-subnet nodes so the advertised Omni FQDN resolves (keeps TLS valid)."
+  description = "Private tailnet DNS suffix. Supply only through the encrypted SOPS tfvars."
   type        = string
-  default     = "wind-bearded.ts.net"
+  sensitive   = true
 }
 
 variable "enable_oci_vpn_probe" {

@@ -196,6 +196,7 @@ locals {
     knock_ports                     = var.bastion_knock_ports
     enable_vpn_probe                = local.vpn_enabled && var.enable_oci_vpn_probe
     omni_target_ip                  = var.omni_target_ip
+    omni_search_domain              = var.omni_search_domain
     enable_cpe_drift_check          = local.vpn_enabled && (var.cpe_remediator_mode == "function" || var.cpe_remediator_mode == "verify-local")
     cpe_recreate_function_id        = local.vpn_enabled && (var.cpe_remediator_mode == "function" || var.cpe_remediator_mode == "verify-local") ? oci_functions_function.cpe_recreate[0].id : ""
     enable_cpe_remediator           = local.vpn_enabled

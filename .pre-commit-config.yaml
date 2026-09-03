@@ -74,7 +74,7 @@ repos:
     hooks:
       - id: detect-secrets
         args: ['--baseline', '.secrets.baseline']
-        exclude: package.lock.json
+        exclude: ^(package\.lock\.json|tofu/oci/terraform\.sops)$
 
   # Commit message format
   - repo: https://github.com/compilerla/conventional-pre-commit

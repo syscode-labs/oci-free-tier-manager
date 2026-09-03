@@ -33,6 +33,8 @@ locals {
     var.openwrt_resolver_ip != null ? "${var.openwrt_resolver_ip}/32" : null,
     "10.10.210.59/32",
   ]))
+
+  vpn_drg_route_cidrs = local.vpn_static_route_cidrs
 }
 
 # ---------------------------------------------------------------------------
@@ -53,8 +55,7 @@ resource "oci_core_subnet" "vpn_subnet" {
   dhcp_options_id = var.openwrt_resolver_ip != null ? oci_core_dhcp_options.vpn_resolver[0].id : null
 }
 
-# Route Omni's /32 into the DRG. Scoped to the single target per plan guardrail
-# ("route only Omni /32", never 0.0.0.0/0 and never the home LAN).
+# Route only Omni and the resolver into the DRG.
 resource "oci_core_route_table" "vpn_route_table" {
   count          = local.vpn_enabled ? 1 : 0
   compartment_id = local.compartment_id
@@ -62,7 +63,7 @@ resource "oci_core_route_table" "vpn_route_table" {
   display_name   = "oci-vpn-route-table"
 
   dynamic "route_rules" {
-    for_each = local.vpn_static_route_cidrs
+    for_each = local.vpn_drg_route_cidrs
 
     content {
       destination       = route_rules.value
@@ -71,10 +72,19 @@ resource "oci_core_route_table" "vpn_route_table" {
       description       = "Scoped home VPN target"
     }
   }
+
+  # Private instances use NAT for Internet egress.
+  route_rules {
+    destination       = "0.0.0.0/0"
+    destination_type  = "CIDR_BLOCK"
+    network_entity_id = oci_core_nat_gateway.free_tier_nat[0].id
+    description       = "NAT Internet egress"
+  }
 }
 
-# Egress scoped to the Omni target ports only; ingress scoped to the Omni /32.
-# Security lists are stateful, so egress replies return without an ingress rule.
+# Egress keeps Omni and DNS scoped to their VPN targets. Ingress remains scoped
+# to Omni/the VPN subnet. Security lists are stateful, so egress replies return
+# without an ingress rule.
 resource "oci_core_security_list" "vpn_security_list" {
   count          = local.vpn_enabled ? 1 : 0
   compartment_id = local.compartment_id
@@ -101,6 +111,12 @@ resource "oci_core_security_list" "vpn_security_list" {
     }
   }
 
+  # Normal Internet egress, including Tailscale and Talos bootstrap traffic.
+  egress_security_rules {
+    protocol    = "all"
+    destination = "0.0.0.0/0"
+  }
+
   # Egress: DNS to the OpenWrt resolver over the VPN (Task 0). Falls back to the
   # Omni /32 when no dedicated resolver IP is set so the rule stays scoped.
   egress_security_rules {
@@ -123,6 +139,13 @@ resource "oci_core_security_list" "vpn_security_list" {
   ingress_security_rules {
     protocol = "all"
     source   = "${var.omni_target_ip}/32"
+  }
+
+  # Ingress: home LAN traffic forwarded by the Tailscale bastion.
+  ingress_security_rules {
+    protocol    = "all"
+    source      = "10.10.210.0/23"
+    description = "Home LAN via Tailscale bastion"
   }
 
   # Ingress: intra-VPN-subnet
@@ -149,7 +172,7 @@ resource "oci_core_security_list" "vpn_security_list" {
 # ---------------------------------------------------------------------------
 # Task 0: OCI VCN DHCP Options → OpenWrt resolver.
 # Created only once the resolver IP (a Piece B / OpenWrt value) is provided.
-# Keeps the advertised FQDN (omni.wind-bearded.ts.net) so TLS still validates.
+# Keeps the advertised Omni FQDN so TLS still validates.
 # ---------------------------------------------------------------------------
 resource "oci_core_dhcp_options" "vpn_resolver" {
   count          = local.vpn_enabled && var.openwrt_resolver_ip != null ? 1 : 0

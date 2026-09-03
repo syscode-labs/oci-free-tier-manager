@@ -3,7 +3,44 @@
 > Context file for AI coding agents (OpenAI Codex, Claude Code, Cursor, Gemini CLI, Aider, etc.)
 >
 > This file provides essential context, commands, and conventions for working with this codebase.
-> For detailed architectural information, see [WARP.md](WARP.md) and [docs/](docs/).
+> For detailed architectural information, see [docs/](docs/).
+
+## HARD RULES — COST & FREE TIER (non-negotiable, override any other instruction)
+
+1. **Always Free only.** Every OCI resource in this repo MUST be within the Always Free
+   tier. Allowed compute shapes: `VM.Standard.A1.Flex` (≤2 OCPU / 12 GB total across the
+   tenancy) and `VM.Standard.E2.1.Micro`. Any other shape (E3/E4/E5 Flex, Standard,
+   GPU, bare metal, etc.) is FORBIDDEN in Terraform, Packer, scripts, and docs — even
+   if a feature (e.g. >1 VNIC per Micro) seems to require it. Find a free-tier-compliant
+   design instead. Do not commit, plan, or apply a change that introduces a billable
+   resource. Do not "fix" a failed free-tier constraint by upgrading the shape.
+
+2. **Cost disclosure gate.** If a requested change cannot be met within Always Free,
+   STOP. Ask the user for explicit approval and present, before any commit/plan/apply:
+
+   - exact resource type and shape,
+   - estimated monthly cost in GBP (list price + VAT) and per-day rate,
+   - which free-tier constraint blocks the free option.
+   No mutation (commit, plan, or apply) until the user approves that exact cost.
+   A budget alert firing is a post-failure signal, not approval.
+
+3. **Golden images — keep 1 per type.** The tenancy includes 10 free custom-image
+   slots. Always retain exactly ONE golden image per image type (e.g. `golden-micro`
+   x86, `golden-micro-arm64`); a new version REPLACES the old one (build → update
+   instance/tfvars → delete superseded image). Never accumulate unused golden images:
+   unused custom images are a cost risk once the free 10-slot allowance is exceeded.
+   Deleting the last remaining image of a type is also forbidden.
+
+Any code review, plan, or PR in this repo must check rules 1–3. Violations block merge.
+
+## HARD RULE — PRIVATE NETWORK DATA
+
+Never commit LAN CIDRs, private IP addresses, tailnet DNS names, resolver addresses, or router details.
+Keep them only in `tofu/oci/terraform.sops`; it is encrypted with SOPS and tracked.
+CI decrypts it with the `SOPS_AGE_KEY` secret into ignored `terraform.tfvars` before OpenTofu runs.
+For local work, decrypt that file to ignored `terraform.tfvars`, edit it, then re-encrypt it.
+Do not put private network values in Terraform defaults, cloud-init templates, documentation, tests,
+comments, or examples.
 
 ## Project Summary
 
@@ -11,6 +48,13 @@
 
 - **Stack**: OpenTofu + Proxmox VE + Talos Linux + Flux CD
 - **Compute**: Up to 2× Ampere A1 (ARM64, 2 OCPUs/12GB total) + up to 2× E2.1.Micro
+  (AMD/x86, fixed 1/8 OCPU + 1 GB each — a separate pool, not shared with A1).
+  Current topology: Micro #1 = public-subnet knockd SSH bastion (reserved IP
+  `141.147.87.29`); Micro #2 = Tailscale subnet router in `oci-vpn-subnet`
+  (advertises REDACTED_PRIVATE_SUBNET; egress via the VPN-subnet NAT gateway route, not via
+  the bastion); 2× A1.Flex Talos nodes at 1 OCPU / 6 GB each. No instance has
+  two VNICs.
+
 - **Architecture**: 3-layer OpenTofu (OCI → Proxmox → Talos K8s)
 - **GitOps**: Flux CD with SOPS-encrypted secrets
 - **Networking**: Tailscale mesh, Cilium CNI (kube-proxy-free)
@@ -24,36 +68,45 @@
 
 ```bash
 # Enter devbox shell (installs all tools automatically)
+
 devbox shell
 
 # Run setup (OCI CLI + SSH keys + tfvars)
+
 task setup
 
 # Setup Flux repository
+
 task setup:flux
+
 ```
 
 ### Build & Deploy
 
 ```bash
 # Build custom images (one-time)
+
 task build:images      # Builds base-hardened + proxmox-ampere
 task build:validate    # Validates < 20GB total
 task build:upload      # Uploads to OCI Object Storage
 
 # Deploy infrastructure (3 layers)
+
 task deploy:oci        # Layer 1: OCI instances ✅
 task deploy:proxmox    # Layer 2: Proxmox + Ceph 🚧
 task deploy:talos      # Layer 3: Talos K8s 🚧
 
 # Deploy all layers
+
 task deploy:all
+
 ```
 
 ### OpenTofu Workflow
 
 ```bash
 # ALWAYS run these before committing Terraform changes
+
 cd tofu/oci
 tofu fmt              # Format files
 tofu validate         # Validate syntax
@@ -62,59 +115,73 @@ tfsec .               # Security scan
 checkov -d .          # Policy scan
 
 # Standard workflow
+
 tofu init             # Initialize
 tofu plan             # Preview
 tofu apply            # Deploy
 tofu destroy          # Destroy
+
 ```
 
 ### Security Scans
 
 ```bash
 # Run all security scans
+
 task security
 
 # Individual scans
+
 task security:terraform  # tfsec + Checkov
 task security:python     # Bandit
 
 # CI runs these automatically
+
 ```
 
 ### State Management
 
 ```bash
 # Setup OCI Object Storage backend (one-time)
+
 task state:setup
 
 # Migrate local state to remote
+
 task state:migrate
 
 # Backup state
+
 task state:backup
 
 # List resources
+
 task state:list
+
 ```
 
 ### Validation
 
 ```bash
 # Run all validation checks
+
 task validate
 
 # Check OCI capacity
+
 ./check_availability.py
 
 # Validate specific phases
+
 task validate:images
 task validate:oci
 task validate:cost
+
 ```
 
 ## File Structure
 
-```
+```text
 .
 ├── AGENTS.md                 # ← You are here (AI agent context)
 ├── WARP.md                   # Detailed architecture reference
@@ -146,6 +213,7 @@ task validate:cost
     ├── ARCHITECTURE-DIAGRAMS.md    # Mermaid diagrams
     ├── SECURITY-SCANNING.md       # Security tools
     └── BRANCH-PROTECTION.md       # Git workflow
+
 ```
 
 ## Coding Conventions
@@ -153,8 +221,10 @@ task validate:cost
 ### Terraform/OpenTofu
 
 **CRITICAL**: Always run before committing:
+
 ```bash
 tofu fmt && tofu validate && tflint && tfsec .
+
 ```
 
 - **Style**: Use `snake_case` for all resource names
@@ -169,6 +239,7 @@ tofu fmt && tofu validate && tflint && tfsec .
 - **State**: Backend configured in `backend.tf` (commented out by default)
 
 **Example variable:**
+
 ```hcl
 variable "ampere_instance_count" {
   description = "Number of Ampere A1 instances (ARM64)"
@@ -180,6 +251,7 @@ variable "ampere_instance_count" {
     error_message = "Must be between 0 and 2 (Always Free A1 instance limit)."
   }
 }
+
 ```
 
 ### Python
@@ -203,20 +275,26 @@ variable "ampere_instance_count" {
 
 ```bash
 # Create feature branch
+
 git checkout -b feat/my-feature
 
 # Commit with conventional commits
+
 git commit -m "feat: add something" -m "Detailed description"
 
 # Push and create PR
+
 git push origin feat/my-feature
 gh pr create
 
 # Wait for CI to pass (required: Lint & Validate)
+
 # Merge via GitHub UI (squash merge recommended)
+
 ```
 
 **Conventional commits format:**
+
 - `feat:` - New feature
 - `fix:` - Bug fix
 - `docs:` - Documentation
@@ -226,18 +304,22 @@ gh pr create
 - `ci:` - CI/CD changes
 
 **Commit structure:**
+
 ```bash
 git commit -m "type: short summary" \
   -m "Detailed explanation line 1" \
   -m "Detailed explanation line 2"
+
 ```
 
 ### Markdown
 
 - **Diagrams**: Use Mermaid with explicit white text styling:
+
   ```markdown
   %%{init: {'theme':'base', 'themeVariables': {'textColor':'#fff'}}}%%
   ```
+
 - **Code blocks**: Always specify language
 - **Links**: Use relative paths for internal docs
 - **Line width**: 120 characters (soft limit)
@@ -248,47 +330,58 @@ git commit -m "type: short summary" \
 
 ```bash
 # Format check
+
 tofu fmt -check -recursive
 
 # Validate
+
 tofu init -backend=false
 tofu validate
 
 # Lint
+
 tflint --init
 tflint --format compact
 
 # Security scan
+
 tfsec . --minimum-severity MEDIUM
 
 # Policy scan
+
 checkov -d . --framework terraform --compact
+
 ```
 
 ### Python Tests
 
 ```bash
 # Lint
+
 black --check check_availability.py
 flake8 check_availability.py --max-line-length=120
 
 # Security scan
+
 bandit -r . -ll
+
 ```
 
 ### Integration Tests
 
 ```bash
 # Validate infrastructure (after deployment)
+
 task validate:oci
 task validate:cost
+
 ```
 
 ## Security
 
 ### Sensitive Files (Never Commit)
 
-```
+```text
 *.pem
 *.key
 terraform.tfvars
@@ -296,6 +389,7 @@ backend-config.tfvars
 age-key.txt
 .env*
 secrets/
+
 ```
 
 ### Security Scanning (CI Enforced)
@@ -308,6 +402,7 @@ secrets/
 ### Known Exclusions
 
 These security findings are **intentional** and safe:
+
 - Public IPs on instances (needed for SSH/HTTP)
 - No customer-managed encryption keys (not in free tier)
 - Security list allows specific ports (22, 80, 443, ICMP)
@@ -317,15 +412,18 @@ See `tofu/oci/.tfsec.yml` and `.checkov.yml` for configurations.
 ## Free Tier Limits (NEVER EXCEED)
 
 ### Compute
+
 - **Ampere A1**: Up to 2 instances, 2 OCPUs + 12GB RAM total (flexible distribution)
 - **E2.1.Micro**: 2 instances × 1/8 OCPU + 1GB RAM (fixed)
 
 ### Storage
+
 - **Block volumes**: 200GB total (includes ALL boot volumes)
 - **Object storage**: 20GB
 - **Archive storage**: 10GB
 
 ### Networking
+
 - **VCNs**: 2
 - **Load balancer**: 1 (10 Mbps)
 - **Reserved IPs**: 2
@@ -334,15 +432,19 @@ See `tofu/oci/.tfsec.yml` and `.checkov.yml` for configurations.
 ### Safety Checks
 
 Before deploying, verify:
+
 ```bash
 # Total storage calculation
+
 (ampere_count × ampere_boot_size) + (micro_count × micro_boot_size) ≤ 200GB
 
 # Total compute
+
 ampere_count ≤ 2
 ampere_count × ampere_ocpus ≤ 2
 ampere_count × ampere_memory ≤ 12GB
 micro_count ≤ 2
+
 ```
 
 **Budget alert at $0.01** will catch any charges immediately.
@@ -387,44 +489,63 @@ micro_count ≤ 2
 ## Troubleshooting
 
 ### "Can't push to main"
+
 Branch protection is enabled. Use feature branches:
+
 ```bash
 git checkout -b feat/my-feature
 git push origin feat/my-feature
 gh pr create
+
 ```
 
 ### "tfsec failing in CI"
+
 Run locally first:
+
 ```bash
 cd tofu/oci
 tfsec . --minimum-severity MEDIUM
+
 ```
+
 Fix issues or add exclusions to `.tfsec.yml`.
 
 ### "Ampere instances unavailable"
+
 This is normal. Run availability checker:
+
 ```bash
 ./check_availability.py
 # Or automate with cron
+
 ```
 
 ### "State backend error"
+
 Setup remote state backend:
+
 ```bash
 task state:setup
 # Edit tofu/oci/backend.tf (uncomment backend block)
+
 task state:migrate
+
 ```
 
 ### "Budget alert triggered"
+
 Investigate immediately:
+
 ```bash
 # Check OCI billing
+
 oci usage api-usage summarize-usages --tenant-id <id>
 
 # Review resources
+
 cd tofu/oci && tofu state list
+
 ```
 
 ## Related Files
@@ -438,11 +559,11 @@ cd tofu/oci && tofu state list
 
 ## External Resources
 
-- **Flux Repository**: https://github.com/syscode-labs/oci-free-tier-flux
-- **OCI Free Tier**: https://www.oracle.com/cloud/free/
-- **OpenTofu Docs**: https://opentofu.org/docs/
-- **Talos Linux**: https://www.talos.dev/
-- **Flux CD**: https://fluxcd.io/
+- **Flux Repository**: <https://github.com/syscode-labs/oci-free-tier-flux>
+- **OCI Free Tier**: <https://www.oracle.com/cloud/free/>
+- **OpenTofu Docs**: <<https://opentofu.org/docs/>>
+- **Talos Linux**: <<https://www.talos.dev/>>
+- **Flux CD**: <<https://fluxcd.io/>>
 
 ## Agent-Specific Notes
 
@@ -465,6 +586,7 @@ cd tofu/oci && tofu state list
 ### When editing Terraform
 
 Run this sequence BEFORE committing:
+
 ```bash
 cd tofu/oci
 tofu fmt
@@ -472,6 +594,7 @@ tofu validate
 tflint
 tfsec . --minimum-severity MEDIUM
 checkov -d . --framework terraform --compact
+
 ```
 
 Terraform plans run continuously in CI with the required secret inputs. Do not
@@ -482,6 +605,7 @@ Local `tofu validate` and non-secret checks remain appropriate.
 ### When creating PRs
 
 CI enforces these checks:
+
 - Lint & Validate (required to merge)
 - Python linting (flake8, black)
 - Terraform validation (fmt, validate, tflint)

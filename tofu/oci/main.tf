@@ -385,6 +385,7 @@ resource "oci_core_instance" "micro_instance" {
     subnet_id        = local.subnet_id
     assign_public_ip = false # reserved IP assigned separately via oci_core_public_ip.bastion
     display_name     = "micro-vnic-${count.index + 1}"
+    private_ip       = local._micro_nodes[count.index].private_ip
   }
 
   metadata = merge(
