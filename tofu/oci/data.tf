@@ -73,6 +73,8 @@ locals {
     for i, n in var.micro_nodes : {
       boot_vol_gb = n.boot_vol_gb != null ? n.boot_vol_gb : local._tier_defaults.micro_boot_vol_gb
       name        = n.name != null ? n.name : "micro-instance-${i + 1}"
+      private_ip  = n.private_ip != null ? n.private_ip : null
+      vpn_router  = n.vpn_router != null ? n.vpn_router : false
     }
   ] : local._default_micro_nodes
 }
@@ -216,10 +218,16 @@ locals {
     cpe_remediator_secret_id = local.vpn_enabled ? oci_vault_secret.cpe_tunnel_details[0].id : ""
   }))
 
-  # Workload Micro cloud-init: Docker/Tailscale + SSH restricted to bastion.
-  _micro_user_data = base64encode(templatefile("${path.module}/files/cloud-init-micro.yaml.tmpl", {
-    ssh_public_key = length(local._ssh_authorized_keys) > 0 ? local._ssh_authorized_keys[0] : ""
-    extra_ssh_keys = length(local._ssh_authorized_keys) > 1 ? slice(local._ssh_authorized_keys, 1, length(local._ssh_authorized_keys)) : []
-    bastion_ip     = var.create_bastion ? oci_core_instance.bastion[0].private_ip : "0.0.0.0/0"
-  }))
+  # VPN Micro cloud-init: Docker/Tailscale, with route advertisement only for
+  # the node explicitly marked vpn_router.
+  _micro_user_data = [for n in local._micro_nodes : base64encode(templatefile("${path.module}/files/cloud-init-micro.yaml.tmpl", {
+    ssh_public_key       = length(local._ssh_authorized_keys) > 0 ? local._ssh_authorized_keys[0] : ""
+    extra_ssh_keys       = length(local._ssh_authorized_keys) > 1 ? slice(local._ssh_authorized_keys, 1, length(local._ssh_authorized_keys)) : []
+    bastion_ip           = var.create_bastion ? oci_core_instance.bastion[0].private_ip : "0.0.0.0/0"
+    advertise_routes     = n.vpn_router
+    dns_forwarder        = n.vpn_router
+    dns_listen_ip        = n.private_ip != null ? n.private_ip : ""
+    tailnet_dns_suffix   = var.omni_search_domain
+    tailnet_dns_resolver = var.tailnet_dns_resolver
+  }))]
 }

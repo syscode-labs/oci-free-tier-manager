@@ -21,6 +21,9 @@ packages:
   - ca-certificates
   - curl
   - gnupg
+%{ if dns_forwarder ~}
+  - dnsmasq
+%{ endif ~}
 
 write_files:
   # Disable systemd-resolved stub listener — it holds port 53, conflicting with
@@ -40,6 +43,21 @@ write_files:
     owner: root:root
     content: |
       {"dns": ["8.8.8.8", "1.1.1.1"]}
+
+%{ if dns_forwarder ~}
+  - path: /etc/dnsmasq.d/oci-talos-bootstrap.conf
+    permissions: "0644"
+    owner: root:root
+    content: |
+      listen-address=127.0.0.1,${dns_listen_ip}
+      bind-interfaces
+      no-resolv
+      server=169.254.169.254
+      server=/${tailnet_dns_suffix}/${tailnet_dns_resolver}
+      cache-size=1000
+      domain-needed
+      bogus-priv
+%{ endif ~}
 
 runcmd:
   # ── Docker: official apt repo ──────────────────────────────────────────────
@@ -89,6 +107,10 @@ runcmd:
     done;
     tailscale status >> /var/log/tailscale-boot.log 2>&1 || true;
     echo "[boot] hostname=$(hostname) cloudinit=$(cloud-init status 2>&1)" >> /var/log/tailscale-boot.log
+
+%{ if dns_forwarder ~}
+  - [ systemctl, enable, --now, dnsmasq ]
+%{ endif ~}
 
   # ── Firewall: restrict SSH to the bastion only ────────────────────────────
   - [ ufw, allow, from, ${bastion_ip}, to, any, port, 22, proto, tcp ]
