@@ -30,6 +30,10 @@ terraform {
       source  = "hashicorp/external"
       version = "~> 2.3"
     }
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 5.0"
+    }
   }
 }
 
@@ -37,6 +41,8 @@ provider "oci" {
   region              = var.region
   config_file_profile = var.oci_config_profile
 }
+
+provider "cloudflare" {}
 
 # Resolved compartment OCID — either the newly created one or the one passed in.
 # All resources in this module reference local.compartment_id, not var.compartment_ocid.
@@ -334,7 +340,7 @@ resource "oci_core_instance" "ampere_instance" {
 
   create_vnic_details {
     subnet_id        = local.ampere_subnet_ids[count.index]
-    assign_public_ip = false # public IPs are managed explicitly via oci_core_public_ip.ampere_instance[*]
+    assign_public_ip = false # Omni/Talos nodes stay private; legacy Ubuntu mode uses reserved IP resources below.
     display_name     = "ampere-vnic-${count.index + 1}"
   }
 
@@ -346,12 +352,12 @@ resource "oci_core_instance" "ampere_instance" {
   )
 
   lifecycle {
-    create_before_destroy = true
-    replace_triggered_by  = [terraform_data.omni_credentials]
+    replace_triggered_by = [terraform_data.omni_credentials]
     ignore_changes = [
       source_details[0].source_id, # image OCID changes on new OCI image releases
       availability_domain,         # may differ from var if instance was imported
       shape_config,                # OCPUs/memory set at launch; resize via OCI console
+      metadata,                    # bootstrap drift is reconciled only by explicit Omni credential replacement
     ]
   }
 }
@@ -461,9 +467,9 @@ resource "terraform_data" "cleanup_stale_boot_volumes" {
   }
 }
 
-# Reserved IPs for all Ampere nodes — stable and explicitly managed.
+# Reserved IPs for legacy Ubuntu Ampere nodes only. Omni/Talos nodes are private.
 resource "oci_core_public_ip" "ampere_instance" {
-  count          = length(local._ampere_nodes)
+  count          = var.talos_image_ocid == null ? length(local._ampere_nodes) : 0
   compartment_id = local.compartment_id
   lifetime       = "RESERVED"
   display_name   = "${local._ampere_nodes[count.index].name}-ip"

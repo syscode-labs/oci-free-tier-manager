@@ -141,75 +141,13 @@ jobs:
             exit 1
           fi
 
-      - name: Check free tier capacity
+      - name: Check live Always Free usage
         env:
-          OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
-        run: |
-          echo "Querying live OCI state for compartment ${OCI_COMPARTMENT_OCID}"
-
-          INSTANCES=$(oci compute instance list \
-            --compartment-id "$OCI_COMPARTMENT_OCID" \
-            --all --output json 2>/dev/null || echo '{"data":[]}')
-
-          LIVE_STATES='.["lifecycle-state"] != "TERMINATING" and .["lifecycle-state"] != "TERMINATED"'
-          A1_FILTER="select(.shape==\"VM.Standard.A1.Flex\") | select($LIVE_STATES)"
-          MICRO_FILTER="select(.shape==\"VM.Standard.E2.1.Micro\") | select($LIVE_STATES)"
-
-          CURRENT_OCPUS=$(echo "$INSTANCES" | \
-            jq "[.data[] | $A1_FILTER | (.\"shape-config\".ocpus // 0)] | add // 0")
-          CURRENT_RAM=$(echo "$INSTANCES" | \
-            jq "[.data[] | $A1_FILTER | (.\"shape-config\".\"memory-in-gbs\" // 0)] | add // 0")
-          CURRENT_MICRO=$(echo "$INSTANCES" | \
-            jq "[.data[] | $MICRO_FILTER] | length")
-
-          REQUESTED_OCPUS=$(grep -oE 'ocpus\s*=\s*[0-9]+' tofu/oci/terraform.tfvars \
-            | awk -F'=' '{s+=int($2)} END {print s+0}')
-          REQUESTED_RAM=$(grep -oE 'memory_gb\s*=\s*[0-9]+' tofu/oci/terraform.tfvars \
-            | awk -F'=' '{s+=int($2)} END {print s+0}')
-          REQUESTED_MICRO=$(awk '/micro_nodes/ {count++} END {print count+0}' tofu/oci/terraform.tfvars)
-
-          # OCI cut the Always Free Ampere A1 allowance to 2 OCPU / 12 GB (2 instances).
-          # Verified against OCI docs + service limits on 2026-06-14, see
-          # FREE_TIER_RESOURCES.md. Both Always Free and PAYG-with-Always-Free accounts
-          # get the same 2/12 free grant. The old 4/24 figure is retired.
-          #
-          # Always Free Micro (E2.1.Micro) entitlement is 2 instances (verified against
-          # Oracle "Always Free Resources" docs). The module uses both: 1 VPN probe
-          # (vpn_probe.tf, enable_oci_vpn_probe) + 1 generic (micro_nodes).
-          MAX_AMPERE_OCPUS=2
-          MAX_AMPERE_RAM_GB=12
-          MAX_MICRO_INSTANCES=2
-
-          echo "A1 live: ${CURRENT_OCPUS}/${MAX_AMPERE_OCPUS} OCPU, ${CURRENT_RAM}/${MAX_AMPERE_RAM_GB} GB"
-          echo "A1 tfvars: ${REQUESTED_OCPUS} OCPU, ${REQUESTED_RAM} GB"
-          echo "Micro: live=${CURRENT_MICRO}, tfvars=${REQUESTED_MICRO}, limit=${MAX_MICRO_INSTANCES}"
-
-          FAIL=0
-          if [ "$(echo "$REQUESTED_OCPUS > $MAX_AMPERE_OCPUS" | bc)" = "1" ]; then
-            echo "ERROR: tfvars requests ${REQUESTED_OCPUS} A1 OCPU but limit is ${MAX_AMPERE_OCPUS}"
-            FAIL=1
-          fi
-          if [ "$(echo "$CURRENT_OCPUS > $MAX_AMPERE_OCPUS" | bc)" = "1" ]; then
-            echo "ERROR: live A1 OCPU=${CURRENT_OCPUS} already exceeds limit=${MAX_AMPERE_OCPUS} — drift detected"
-            FAIL=1
-          fi
-          if [ "$(echo "$REQUESTED_RAM > $MAX_AMPERE_RAM_GB" | bc)" = "1" ]; then
-            echo "ERROR: tfvars requests ${REQUESTED_RAM} GB A1 RAM but limit is ${MAX_AMPERE_RAM_GB} GB"
-            FAIL=1
-          fi
-          if [ "$(echo "$CURRENT_RAM > $MAX_AMPERE_RAM_GB" | bc)" = "1" ]; then
-            echo "ERROR: live A1 RAM=${CURRENT_RAM} GB already exceeds limit=${MAX_AMPERE_RAM_GB} GB — drift detected"
-            FAIL=1
-          fi
-          if [ "$REQUESTED_MICRO" -gt "$MAX_MICRO_INSTANCES" ]; then
-            echo "ERROR: tfvars requests ${REQUESTED_MICRO} Micro but limit is ${MAX_MICRO_INSTANCES}"
-            FAIL=1
-          fi
-          if [ "$CURRENT_MICRO" -gt "$MAX_MICRO_INSTANCES" ]; then
-            echo "ERROR: live Micro=${CURRENT_MICRO} exceeds limit=${MAX_MICRO_INSTANCES} — drift"
-            FAIL=1
-          fi
-          exit $FAIL
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+        run: >-
+          python3 scripts/check_free_tier_usage.py
+          --tenancy-ocid "$OCI_TENANCY_OCID"
+          --output free-tier-current.json
 
       - name: Setup OpenTofu
         uses: opentofu/setup-opentofu@v2.0.0
@@ -321,6 +259,15 @@ jobs:
           TEMP_DIAG_PASSWORD: ${{ github.event.inputs.temp_diag_password || '' }}
           EXTRA_TFVARS: ${{ github.event.inputs.extra_tfvars || '' }}
           TF_LOG: WARN
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLODUFLARE_API_TOKEN_OCI }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_SYSCODEUK_ID }}
+
+      - name: Enforce Always Free plan
+        working-directory: tofu/oci
+        run: |
+          tofu show -json tfplan > tfplan.json
+          python3 ../../scripts/check_free_tier_plan.py tfplan.json \
+            --current-usage ../../free-tier-current.json
 
       - name: Reject destructive plan
         working-directory: tofu/oci
@@ -462,3 +409,5 @@ jobs:
         env:
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
           TF_LOG: WARN
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLODUFLARE_API_TOKEN_OCI }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_SYSCODEUK_ID }}
