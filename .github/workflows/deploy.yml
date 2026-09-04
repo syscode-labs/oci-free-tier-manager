@@ -15,10 +15,6 @@ on:
         description: "Apply after plan (true) or plan-only for review (false)."
         required: false
         default: "false"
-      adopt_existing_budget:
-        description: "One-time import of the existing OCI budget and alert rule into OpenTofu state."
-        required: false
-        default: "false"
       vpn_probe:
         description: "Create the temporary OCI VPN probe instance (targeted workflow only)."
         required: false
@@ -170,83 +166,6 @@ jobs:
       - name: Tofu Init
         working-directory: tofu/oci
         run: tofu init -backend-config=backend-config.tfvars
-
-      - name: Adopt existing OCI budget
-        if: github.event.inputs.adopt_existing_budget == 'true'
-        working-directory: tofu/oci
-        run: |
-          BUDGETS=$(oci budgets budget budget list \
-            --compartment-id "$OCI_TENANCY_OCID" --all --output json)
-          mapfile -t BUDGET_IDS < <(jq -r \
-            '.data[] | select(."display-name" == "free-tier-budget-alert" and ."lifecycle-state" == "ACTIVE") | .id' \
-            <<< "$BUDGETS")
-          if [ "${#BUDGET_IDS[@]}" -ne 1 ]; then
-            echo "ERROR: expected exactly one active free-tier-budget-alert; found ${#BUDGET_IDS[@]}"
-            exit 1
-          fi
-          BUDGET_ID=${BUDGET_IDS[0]}
-
-          ALERTS=$(oci budgets budget alert-rule list \
-            --budget-id "$BUDGET_ID" --all --output json)
-          mapfile -t ALERT_IDS < <(jq -r \
-            '.data[] | select(."display-name" == "free-tier-cost-alert" and ."lifecycle-state" == "ACTIVE") | .id' \
-            <<< "$ALERTS")
-          if [ "${#ALERT_IDS[@]}" -ne 1 ]; then
-            echo "ERROR: expected exactly one active free-tier-cost-alert; found ${#ALERT_IDS[@]}"
-            exit 1
-          fi
-
-          IMPORT_ARGS=(
-            -input=false
-            -lock-timeout=5m
-            -var="tenancy_ocid=$OCI_TENANCY_OCID"
-            -var="compartment_ocid=$OCI_COMPARTMENT_OCID"
-            -var="talos_image_ocid=${{ steps.talos_image.outputs.ocid }}"
-            -var="omni_machine_config=$OMNI_MACHINE_CONFIG"
-            -var="omni_join_token=$OMNI_JOIN_TOKEN"
-            -var="omni_endpoint=$OMNI_ENDPOINT"
-            -var="tailscale_auth_key=$NODES_TAILSCALE_AUTHKEY"
-            -var="oci_config_profile=DEFAULT"
-            -var="enable_oci_vpn=true"
-            -var="enable_oci_vpn_probe=$VPN_PROBE"
-            -var="cpe_remediator_mode=$CPE_REMEDIATOR_MODE"
-            -var="openwrt_resolver_ip=$OPENWRT_RESOLVER_IP"
-            -var="home_cpe_public_ip=$HOME_CPE_PUBLIC_IP"
-            -var="cpe_local_identifier=$CPE_LOCAL_IDENTIFIER"
-            -var="omni_target_ip=$OMNI_TARGET_IP"
-            -var="ddns_hostname=$DDNS_HOSTNAME"
-            -var="cpe_recreate_fn_push_user_ocid=$CPE_RECREATE_FN_PUSH_USER_OCID"
-            -var="ssh_public_key=$SSH_PUBLIC_KEY"
-            -var="temp_diag_password=$TEMP_DIAG_PASSWORD"
-            -var-file=terraform.tfvars
-          )
-          if ! tofu state show 'oci_budget_budget.free_tier_budget[0]' >/dev/null 2>&1; then
-            tofu import "${IMPORT_ARGS[@]}" \
-              'oci_budget_budget.free_tier_budget[0]' "$BUDGET_ID"
-          fi
-          if ! tofu state show 'oci_budget_alert_rule.free_tier_alert[0]' >/dev/null 2>&1; then
-            tofu import "${IMPORT_ARGS[@]}" \
-              'oci_budget_alert_rule.free_tier_alert[0]' "${ALERT_IDS[0]}"
-          fi
-        env:
-          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
-          OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
-          OMNI_MACHINE_CONFIG: ${{ secrets.OMNI_MACHINE_CONFIG }}
-          OMNI_JOIN_TOKEN: ${{ secrets.OMNI_JOIN_TOKEN }}
-          OMNI_ENDPOINT: ${{ secrets.OMNI_ENDPOINT }}
-          NODES_TAILSCALE_AUTHKEY: ${{ secrets.NODES_TAILSCALE_AUTHKEY }}
-          OPENWRT_RESOLVER_IP: ${{ secrets.OPENWRT_RESOLVER_IP }}
-          HOME_CPE_PUBLIC_IP: ${{ secrets.HOME_CPE_PUBLIC_IP }}
-          CPE_LOCAL_IDENTIFIER: ${{ secrets.CPE_LOCAL_IDENTIFIER }}
-          OMNI_TARGET_IP: ${{ secrets.OMNI_TARGET_IP }}
-          DDNS_HOSTNAME: ${{ secrets.DDNS_HOSTNAME }}
-          CPE_RECREATE_FN_PUSH_USER_OCID: ${{ secrets.CPE_RECREATE_FN_PUSH_USER_OCID }}
-          VPN_PROBE: ${{ github.event.inputs.vpn_probe || 'false' }}
-          CPE_REMEDIATOR_MODE: ${{ github.event.inputs.cpe_remediator_mode || 'function' }}
-          SSH_PUBLIC_KEY: ${{ github.event.inputs.ssh_public_key || secrets.SSH_PUBLIC_KEY }}
-          TEMP_DIAG_PASSWORD: ${{ github.event.inputs.temp_diag_password || '' }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLODUFLARE_API_TOKEN_OCI }}
-          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_SYSCODEUK_ID }}
 
       - name: Tofu Plan
         working-directory: tofu/oci
