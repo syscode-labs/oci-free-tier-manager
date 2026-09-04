@@ -123,9 +123,12 @@ class ReleaseDispatchContractTests(unittest.TestCase):
         self.assertIn("kubernetes_version", deploy)
         self.assertIn("omnictl cluster status oci-lab --wait 90s", deploy)
         self.assertIn("--service-account --user oci-release-health", deploy)
-        self.assertIn("Talos nodes do not all run the exact requested version", deploy)
+        self.assertIn("python3 scripts/verify_oci_release_health.py", deploy)
         self.assertIn(
-            "Kubernetes proof must contain exactly the two expected OCI nodes", deploy
+            "--talos-version-output .release-health/talos-version.json", deploy
+        )
+        self.assertIn(
+            "--kubernetes-nodes .release-health/kubernetes-nodes.json", deploy
         )
 
 

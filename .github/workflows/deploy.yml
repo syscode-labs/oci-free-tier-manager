@@ -481,6 +481,8 @@ jobs:
             test -n "$OMNI_SERVICE_ACCOUNT_KEY" &&
             rm -rf .release-health && mkdir -m 700 .release-health &&
             omnictl cluster status oci-lab --wait 90s > .release-health/omni-status.txt &&
+            omnictl get clustermachine -l 'omni.sidero.dev/cluster=oci-lab' -o json \
+              > .release-health/cluster-machines.json &&
             omnictl talosconfig -c oci-lab --force --merge=false .release-health/talosconfig &&
             omnictl kubeconfig -c oci-lab --service-account --user oci-release-health --ttl 15m \
               --force --merge=false .release-health/kubeconfig
@@ -490,62 +492,70 @@ jobs:
         env:
           TALOS_VERSION: ${{ github.event.inputs.talos_version }}
           KUBERNETES_VERSION: ${{ github.event.inputs.kubernetes_version }}
+          OMNI_ENDPOINT: ${{ secrets.OMNI_ENDPOINT }}
+          OMNI_SERVICE_ACCOUNT_KEY: ${{ secrets.OMNI_SERVICE_ACCOUNT_KEY }}
         run: |
           set -euo pipefail
+          set +x
           test -n "$TALOS_VERSION" || { echo 'ERROR: missing approved Talos version' >&2; exit 1; }
           test -n "$KUBERNETES_VERSION" || { echo 'ERROR: missing approved Kubernetes version' >&2; exit 1; }
+          test -n "$OMNI_ENDPOINT" || { echo 'ERROR: missing Omni service-account endpoint' >&2; exit 1; }
+          test -n "$OMNI_SERVICE_ACCOUNT_KEY" || { echo 'ERROR: missing Omni service-account key' >&2; exit 1; }
           test -s .release-health/omni-status.txt || { echo 'ERROR: Omni status evidence is absent' >&2; exit 1; }
+          test -s .release-health/cluster-machines.json || {
+            echo 'ERROR: Omni machine evidence is absent' >&2
+            exit 1
+          }
           test -s .release-health/talosconfig || { echo 'ERROR: SA-generated talosconfig is absent' >&2; exit 1; }
           test -s .release-health/kubeconfig || { echo 'ERROR: SA-generated kubeconfig is absent' >&2; exit 1; }
           grep -Eq '^Cluster "oci-lab" RUNNING Ready ' .release-health/omni-status.txt || {
             echo 'ERROR: oci-lab did not reach RUNNING Ready within the bounded Omni wait.' >&2
             exit 1
           }
+          python3 - <<'PY'
+          import json
+          import sys
+
+          raw = json.load(open('.release-health/cluster-machines.json', encoding='utf-8'))
+          entries = raw if isinstance(raw, list) else [raw]
+          node_ids = []
+          for entry in entries:
+              metadata = entry.get('metadata', {}) if isinstance(entry, dict) else {}
+              labels = metadata.get('labels', {})
+              node_id = metadata.get('id')
+              if labels.get('omni.sidero.dev/cluster') == 'oci-lab' and isinstance(node_id, str):
+                  node_ids.append(node_id)
+          if len(node_ids) != 2 or len(set(node_ids)) != 2:
+              sys.exit('ERROR: Omni must select exactly two distinct oci-lab machine UUIDs')
+          with open('.release-health/machine-ids.txt', 'w', encoding='utf-8') as output:
+              output.write('\n'.join(sorted(node_ids)) + '\n')
+          PY
           curl --fail --silent --show-error --location --retry 3 \
             "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/talosctl-linux-amd64" \
-            --output .release-health/talosctl
+            --output .release-health/talosctl-linux-amd64
           curl --fail --silent --show-error --location --retry 3 \
             "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/sha256sum.txt" \
             --output .release-health/sha256sum.txt
           (cd .release-health && grep ' talosctl-linux-amd64$' sha256sum.txt | sha256sum -c -)
-          chmod 700 .release-health/talosctl
-          timeout 90s .release-health/talosctl version \
-            --talosconfig .release-health/talosconfig --output json \
+          chmod 700 .release-health/talosctl-linux-amd64
+          mkdir -m 700 .release-health/empty-siderov1-keys
+          SIDEROV1_KEY="$OMNI_SERVICE_ACCOUNT_KEY" \
+          SIDEROV1_KEYS_DIR=.release-health/empty-siderov1-keys \
+          timeout 90s .release-health/talosctl-linux-amd64 get version \
+            --talosconfig .release-health/talosconfig \
+            --nodes "$(paste -sd, .release-health/machine-ids.txt)" \
+            --output json \
             > .release-health/talos-version.json
           KUBECONFIG=.release-health/kubeconfig timeout 30s kubectl get --raw=/readyz >/dev/null
           KUBECONFIG=.release-health/kubeconfig timeout 30s kubectl get nodes -o json \
             > .release-health/kubernetes-nodes.json
           KUBECONFIG=.release-health/kubeconfig timeout 30s kubectl version -o json \
             > .release-health/kubernetes-version.json
-          python3 - "$TALOS_VERSION" "$KUBERNETES_VERSION" <<'PY'
-          import json
-          import sys
-
-          talos_version, kubernetes_version = sys.argv[1:]
-          talos = json.load(open('.release-health/talos-version.json', encoding='utf-8'))
-          entries = talos if isinstance(talos, list) else [talos]
-          if len(entries) != 2:
-              sys.exit('ERROR: Talos proof must contain exactly the two expected OCI nodes')
-          observed_talos = {
-              entry.get('version', {}).get('version')
-              for entry in entries if isinstance(entry, dict)
-          }
-          if observed_talos != {talos_version}:
-              sys.exit('ERROR: Talos nodes do not all run the exact requested version')
-          nodes = json.load(open('.release-health/kubernetes-nodes.json', encoding='utf-8')).get('items', [])
-          if len(nodes) != 2:
-              sys.exit('ERROR: Kubernetes proof must contain exactly the two expected OCI nodes')
-          for node in nodes:
-                  conditions = {
-                  condition.get('type'): condition.get('status')
-                  for condition in node.get('status', {}).get('conditions', [])
-              }
-              if conditions.get('Ready') != 'True':
-                  sys.exit('ERROR: a Kubernetes node is not Ready')
-          observed_kubernetes = json.load(
-              open('.release-health/kubernetes-version.json', encoding='utf-8')
-          ).get('serverVersion', {}).get('gitVersion')
-          if observed_kubernetes != kubernetes_version:
-              sys.exit('ERROR: Kubernetes API version does not equal the requested release version')
-          PY
+          python3 scripts/verify_oci_release_health.py \
+            --machine-ids .release-health/machine-ids.txt \
+            --talos-version-output .release-health/talos-version.json \
+            --kubernetes-nodes .release-health/kubernetes-nodes.json \
+            --kubernetes-version .release-health/kubernetes-version.json \
+            --talos-version "$TALOS_VERSION" \
+            --expected-kubernetes-version "$KUBERNETES_VERSION"
           rm -rf .release-health

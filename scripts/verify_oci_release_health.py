@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed post-apply evidence checks for the OCI Talos release receiver.
-
-The workflow deliberately collects every datum through the Omni service-account
-path, then this module checks that the observed cluster—not merely a ready
-control-plane summary—matches the release's versions and complete topology.
-"""
+"""Fail-closed checks over evidence collected by the OCI release workflow."""
 from __future__ import annotations
 
 import argparse
@@ -13,7 +8,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-EXPECTED_CLUSTER = "oci-lab"
 EXPECTED_NODE_COUNT = 2
 
 
@@ -22,6 +16,7 @@ class HealthError(RuntimeError):
 
 
 def json_stream(path: Path) -> list[Any]:
+    """Read omnictl or talosctl JSON, including multiple adjacent values."""
     text = path.read_text(encoding="utf-8").strip()
     if not text:
         raise HealthError(f"{path}: empty JSON evidence")
@@ -39,115 +34,104 @@ def json_stream(path: Path) -> list[Any]:
 
 
 def require(condition: bool, message: str) -> None:
+    """Raise a stable failure suitable for workflow logs."""
     if not condition:
         raise HealthError(message)
 
 
-def exact_version(value: object, expected: str, evidence: str) -> None:
+def machine_ids(path: Path) -> set[str]:
+    """Load exactly the Omni UUIDs selected by the workflow."""
+    ids = {
+        line.strip()
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    }
     require(
-        value == expected,
-        f"{evidence} version {value!r} does not equal requested {expected!r}",
+        len(ids) == EXPECTED_NODE_COUNT,
+        "expected exactly two selected OCI machine UUIDs",
     )
+    return ids
 
 
 def verify(
-    evidence: dict[str, Any], talos_version: str, kubernetes_version: str
+    selected_machine_ids: set[str],
+    talos: list[Any],
+    kubernetes_nodes: dict[str, Any],
+    kubernetes_version: dict[str, Any],
+    talos_version: str,
+    expected_kubernetes_version: str,
 ) -> None:
-    """Validate normalized, complete release evidence with no best-effort paths."""
-    cluster = evidence.get("cluster")
-    require(isinstance(cluster, dict), "missing Omni cluster evidence")
-    require(cluster.get("name") == EXPECTED_CLUSTER, "Omni evidence is not for oci-lab")
+    """Verify exact selected Talos UUIDs, versions, and Kubernetes readiness."""
     require(
-        cluster.get("phase") == "RUNNING" and cluster.get("ready") is True,
-        "oci-lab is not RUNNING Ready",
+        len(talos) == EXPECTED_NODE_COUNT,
+        "Talos proof must contain exactly the two selected OCI nodes",
     )
-    exact_version(cluster.get("talos_version"), talos_version, "Omni Talos")
-    exact_version(
-        cluster.get("kubernetes_version"), kubernetes_version, "Omni Kubernetes"
-    )
-
-    machines = evidence.get("machines")
-    require(
-        isinstance(machines, list) and len(machines) == EXPECTED_NODE_COUNT,
-        f"expected exactly {EXPECTED_NODE_COUNT} connected OCI machines",
-    )
-    machine_ids: set[str] = set()
-    for machine in machines:
-        require(isinstance(machine, dict), "invalid Omni machine evidence")
-        machine_id = machine.get("id")
-        require(
-            isinstance(machine_id, str) and machine_id,
-            "machine evidence has no identity",
-        )
-        require(machine_id not in machine_ids, "duplicate Omni machine identity")
-        machine_ids.add(machine_id)
-        require(
-            machine.get("cluster") == EXPECTED_CLUSTER, "machine is outside oci-lab"
-        )
-        require(
-            machine.get("connected") is True
-            and machine.get("phase") == "RUNNING"
-            and machine.get("ready") is True,
-            f"OCI machine {machine_id} is not connected RUNNING Ready",
-        )
-
-    talos = evidence.get("talos")
-    require(
-        isinstance(talos, list) and len(talos) == EXPECTED_NODE_COUNT,
-        "missing Talos proof for one or more expected OCI machines",
-    )
-    talos_ids = {entry.get("node") for entry in talos if isinstance(entry, dict)}
-    require(
-        talos_ids == machine_ids,
-        "Talos proof does not match the exact connected OCI machines",
-    )
+    observed_ids: set[str] = set()
     for entry in talos:
+        require(isinstance(entry, dict), "invalid Talos version evidence")
+        metadata = entry.get("metadata", {})
+        node = entry.get("node")
+        if node is None and isinstance(metadata, dict):
+            node = metadata.get("node")
+        require(bool(isinstance(node, str) and node), "Talos evidence has no node UUID")
+        assert isinstance(node, str)
+        observed_ids.add(node)
+        spec = entry.get("spec", {})
+        observed_version = spec.get("version") if isinstance(spec, dict) else None
         require(
-            isinstance(entry, dict) and entry.get("healthy") is True,
-            "Talos API did not report a healthy expected machine",
+            observed_version == talos_version,
+            "Talos nodes do not all run the exact requested version",
         )
-        exact_version(entry.get("version"), talos_version, "Talos node")
-
-    kubernetes = evidence.get("kubernetes")
     require(
-        isinstance(kubernetes, dict) and kubernetes.get("api_ready") is True,
-        "Kubernetes API readiness is not proven",
+        observed_ids == selected_machine_ids,
+        "Talos proof does not match the selected OCI machine UUIDs",
     )
-    exact_version(
-        kubernetes.get("server_version"), kubernetes_version, "Kubernetes API"
-    )
-    nodes = kubernetes.get("nodes")
+
+    nodes = kubernetes_nodes.get("items")
     require(
         isinstance(nodes, list) and len(nodes) == EXPECTED_NODE_COUNT,
-        f"expected exactly {EXPECTED_NODE_COUNT} Kubernetes nodes",
+        "Kubernetes proof must contain exactly the two expected OCI nodes",
     )
-    names: set[str] = set()
     for node in nodes:
         require(isinstance(node, dict), "invalid Kubernetes node evidence")
-        name = node.get("name")
-        require(
-            isinstance(name, str) and name and name not in names,
-            "missing or duplicate Kubernetes node name",
-        )
-        names.add(name)
-        require(node.get("ready") is True, f"Kubernetes node {name} is not Ready")
+        conditions = {
+            condition.get("type"): condition.get("status")
+            for condition in node.get("status", {}).get("conditions", [])
+            if isinstance(condition, dict)
+        }
+        require(conditions.get("Ready") == "True", "a Kubernetes node is not Ready")
+
+    observed_kubernetes = kubernetes_version.get("serverVersion", {}).get("gitVersion")
+    require(
+        observed_kubernetes == expected_kubernetes_version,
+        "Kubernetes API version does not equal the requested release version",
+    )
 
 
 def main() -> int:
+    """Parse workflow artifacts and return a non-zero status for any gap."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--evidence", type=Path, required=True)
+    parser.add_argument("--machine-ids", type=Path, required=True)
+    parser.add_argument("--talos-version-output", type=Path, required=True)
+    parser.add_argument("--kubernetes-nodes", type=Path, required=True)
+    parser.add_argument("--kubernetes-version", type=Path, required=True)
     parser.add_argument("--talos-version", required=True)
-    parser.add_argument("--kubernetes-version", required=True)
+    parser.add_argument("--expected-kubernetes-version", required=True)
     args = parser.parse_args()
     try:
-        evidence = json.loads(args.evidence.read_text(encoding="utf-8"))
-        require(isinstance(evidence, dict), "evidence must be a JSON object")
-        verify(evidence, args.talos_version, args.kubernetes_version)
+        verify(
+            machine_ids(args.machine_ids),
+            json_stream(args.talos_version_output),
+            json.loads(args.kubernetes_nodes.read_text(encoding="utf-8")),
+            json.loads(args.kubernetes_version.read_text(encoding="utf-8")),
+            args.talos_version,
+            args.expected_kubernetes_version,
+        )
     except (OSError, ValueError, HealthError) as error:
         print(f"ERROR: release health verification failed: {error}", file=sys.stderr)
         return 1
     print(
-        "OCI release health verified: exact Omni/Talos/Kubernetes versions and two-node topology"
+        "OCI release health verified: exact selected Talos UUIDs and Kubernetes readiness"
     )
     return 0
 
