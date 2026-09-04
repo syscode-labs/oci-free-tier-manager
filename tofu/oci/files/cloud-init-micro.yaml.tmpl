@@ -26,22 +26,23 @@ packages:
 %{ endif ~}
 
 write_files:
-  # Prefer OCI's local VCN resolver on both Micros, with the home resolver as
-  # backup. Disable the stub listener so the router can bind dnsmasq to port 53.
+  # Prefer OCI's local VCN resolver on both Micros, then the home resolver,
+  # then Tailscale's local MagicDNS resolver. Disable the stub listener so the
+  # router can bind dnsmasq to port 53.
   - path: /etc/systemd/resolved.conf.d/no-stub.conf
     permissions: "0644"
     owner: root:root
     content: |
       [Resolve]
       DNSStubListener=no
-      DNS=169.254.169.254 10.10.210.1
+      DNS=169.254.169.254 10.10.210.1 100.100.100.100
 
   # Keep containers on the same resolver hierarchy as the host.
   - path: /etc/docker/daemon.json
     permissions: "0644"
     owner: root:root
     content: |
-      {"dns": ["169.254.169.254", "10.10.210.1"]}
+      {"dns": ["169.254.169.254", "10.10.210.1", "100.100.100.100"]}
 
 %{ if dns_forwarder ~}
   - path: /etc/dnsmasq.d/oci-talos-bootstrap.conf
@@ -54,7 +55,8 @@ write_files:
       strict-order
       server=169.254.169.254
       server=${tailnet_dns_resolver}
-      server=/${tailnet_dns_suffix}/${tailnet_dns_resolver}
+      server=100.100.100.100
+      server=/${tailnet_dns_suffix}/100.100.100.100
       cache-size=1000
       domain-needed
       bogus-priv
