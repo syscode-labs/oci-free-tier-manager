@@ -83,6 +83,7 @@ jobs:
             -f release_id="$release_id" \
             -f coordinator_release=true \
             -f talos_version="$(jq -r .talos_version release-request.json)" \
+            -f kubernetes_version="$(jq -r .kubernetes_version release-request.json)" \
             -f talos_image_ocid="$(jq -r .artifacts.oci.image_ocid release-request.json)" \
             -f talos_image_ref="$(jq -r .artifacts.oci.ref release-request.json)" \
             -f talos_image_digest="$(jq -r .artifacts.oci.digest release-request.json)" \

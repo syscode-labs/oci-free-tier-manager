@@ -76,15 +76,18 @@ The receiver reserves each `release_id` as a GitHub Deployment before dispatchin
 so a duplicate delivery is reported as failure rather than repeating a replacement.
 Coordinator deploys still use the existing plan/destructive-change gates and add a
 live-inventory plus plan-wide Always Free capacity check. After an apply, the
-GitHub-hosted runner joins the existing private tailnet and uses Omni's service-account
-API to require `oci-lab` to report `RUNNING Ready`. This is a live control-plane
-convergence check, not a hypothetical HTTP health service. It requires a Tailnet OAuth
+GitHub-hosted runner joins the existing private tailnet and uses only Omni's service-account
+API to generate short-lived Talos and Kubernetes access. It requires `oci-lab` to become
+`RUNNING Ready` within 90 seconds, then requires exactly two Talos nodes on the requested
+Talos version, a ready Kubernetes API, exactly two Ready Kubernetes nodes, and the requested
+Kubernetes server version. Missing credentials, generated access, a timed-out probe, an old
+healthy node, or a topology mismatch fails the deployment; `RUNNING Ready` alone is never a
+successful release result. This requires a Tailnet OAuth
 client stored as `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_SECRET`, authorized to create
 short-lived `tag:ci` nodes that can reach Omni, plus
 `OMNI_SERVICE_ACCOUNT_KEY` for the existing Omni service account; a missing or
-unauthorized credential fails the deployment.
-Kubernetes API/node evidence remains a separate prerequisite for declaring the overall
-release end to end.
+unauthorized credential fails the deployment. No personal Omni/PGP credentials are used or
+permitted by this workflow.
 
 ## Talos Mode
 

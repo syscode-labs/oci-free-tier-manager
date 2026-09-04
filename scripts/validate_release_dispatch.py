@@ -69,7 +69,9 @@ def validate_payload(payload: object) -> dict[str, object]:
     }
     missing = required - set(payload)
     if missing:
-        raise DispatchError(f"release payload is missing required fields: {', '.join(sorted(missing))}")
+        raise DispatchError(
+            f"release payload is missing required fields: {', '.join(sorted(missing))}"
+        )
     _exact_keys(payload, required, "release payload")
 
     release_id = _string(payload.get("release_id"), "release_id")
@@ -85,12 +87,20 @@ def validate_payload(payload: object) -> dict[str, object]:
     if not SHA_RE.fullmatch(source_sha):
         raise DispatchError("source_sha must be a lowercase 40-character SHA")
     build_run_id = payload.get("build_run_id")
-    if not isinstance(build_run_id, int) or isinstance(build_run_id, bool) or build_run_id <= 0:
+    if (
+        not isinstance(build_run_id, int)
+        or isinstance(build_run_id, bool)
+        or build_run_id <= 0
+    ):
         raise DispatchError("build_run_id must be a positive integer")
     talos_version = _string(payload.get("talos_version"), "talos_version")
     if not VERSION_RE.fullmatch(talos_version):
         raise DispatchError("invalid talos_version")
-    _string(payload.get("kubernetes_version"), "kubernetes_version")
+    kubernetes_version = _string(
+        payload.get("kubernetes_version"), "kubernetes_version"
+    )
+    if not VERSION_RE.fullmatch(kubernetes_version):
+        raise DispatchError("invalid kubernetes_version")
 
     artifacts = payload.get("artifacts")
     if not isinstance(artifacts, Mapping):
@@ -123,7 +133,9 @@ def validate_payload(payload: object) -> dict[str, object]:
     if not targets:
         raise DispatchError("oci_scope.targets must not be empty")
     if not set(targets).issubset(ALLOWED_TALOS_TARGETS):
-        raise DispatchError("oci_scope.targets contains a non-Talos or unapproved address")
+        raise DispatchError(
+            "oci_scope.targets contains a non-Talos or unapproved address"
+        )
     if not set(replacements).issubset(set(targets)):
         raise DispatchError("oci_scope.replace must be a subset of oci_scope.targets")
 

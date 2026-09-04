@@ -72,6 +72,12 @@ class ReleaseDispatchContractTests(unittest.TestCase):
         with self.assertRaisesRegex(DispatchError, "digest"):
             validate_payload(payload)
 
+    def test_rejects_invalid_kubernetes_version(self) -> None:
+        payload = valid_payload()
+        payload["kubernetes_version"] = "latest"
+        with self.assertRaisesRegex(DispatchError, "kubernetes_version"):
+            validate_payload(payload)
+
     def test_rejects_foreign_sender_or_release_identity(self) -> None:
         payload = valid_payload()
         payload["sender_repo"] = "attacker/example"
@@ -113,6 +119,13 @@ class ReleaseDispatchContractTests(unittest.TestCase):
         deploy = Path(".github/workflows/deploy.yml").read_text(encoding="utf-8")
         self.assertIn(
             "run-name: Deploy ${{ inputs.release_id || inputs.reason }}", deploy
+        )
+        self.assertIn("kubernetes_version", deploy)
+        self.assertIn("omnictl cluster status oci-lab --wait 90s", deploy)
+        self.assertIn("--service-account --user oci-release-health", deploy)
+        self.assertIn("Talos nodes do not all run the exact requested version", deploy)
+        self.assertIn(
+            "Kubernetes proof must contain exactly the two expected OCI nodes", deploy
         )
 
 
