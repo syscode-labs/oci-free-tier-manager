@@ -75,12 +75,16 @@ approved scope names the same exact Talos target.
 The receiver reserves each `release_id` as a GitHub Deployment before dispatching,
 so a duplicate delivery is reported as failure rather than repeating a replacement.
 Coordinator deploys still use the existing plan/destructive-change gates and add a
-live-inventory plus plan-wide Always Free capacity check. A coordinator result is
-successful only after the configured authenticated private health endpoint confirms
-the matching release ID/version, Omni and Talos health for exactly the scoped nodes,
-and Kubernetes API/node readiness. If `OMNI_RELEASE_HEALTHCHECK_URL` or
-`OMNI_RELEASE_HEALTHCHECK_TOKEN` is absent, the deployment fails closed instead of
-claiming completion.
+live-inventory plus plan-wide Always Free capacity check. After an apply, the
+GitHub-hosted runner joins the existing private tailnet and uses Omni's service-account
+API to require `oci-lab` to report `RUNNING Ready`. This is a live control-plane
+convergence check, not a hypothetical HTTP health service. It requires a Tailnet OAuth
+client stored as `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_SECRET`, authorized to create
+short-lived `tag:ci` nodes that can reach Omni, plus
+`OMNI_SERVICE_ACCOUNT_KEY` for the existing Omni service account; a missing or
+unauthorized credential fails the deployment.
+Kubernetes API/node evidence remains a separate prerequisite for declaring the overall
+release end to end.
 
 ## Talos Mode
 

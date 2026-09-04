@@ -457,51 +457,20 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLODUFLARE_API_TOKEN_OCI }}
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_SYSCODEUK_ID }}
 
-      - name: Verify coordinator release health through the private control plane
+      - name: Join the private control-plane network
         if: github.event.inputs.coordinator_release == 'true'
-        env:
-          RELEASE_ID: ${{ github.event.inputs.release_id }}
-          TALOS_VERSION: ${{ github.event.inputs.talos_version }}
-          TARGETS: ${{ github.event.inputs.targets }}
-          OMNI_RELEASE_HEALTHCHECK_URL: ${{ secrets.OMNI_RELEASE_HEALTHCHECK_URL }}
-          OMNI_RELEASE_HEALTHCHECK_TOKEN: ${{ secrets.OMNI_RELEASE_HEALTHCHECK_TOKEN }}
-        run: |
-          set -euo pipefail
-          test -n "$OMNI_RELEASE_HEALTHCHECK_URL" || {
-            echo 'ERROR: OMNI_RELEASE_HEALTHCHECK_URL is not configured; cannot verify private health.' >&2
-            exit 1
-          }
-          test -n "$OMNI_RELEASE_HEALTHCHECK_TOKEN" || {
-            echo 'ERROR: OMNI_RELEASE_HEALTHCHECK_TOKEN is not configured; cannot authenticate private health.' >&2
-            exit 1
-          }
-          curl --fail --silent --show-error --max-time 20 --retry 3 --retry-delay 10 \
-            -H "Authorization: Bearer $OMNI_RELEASE_HEALTHCHECK_TOKEN" \
-            "$OMNI_RELEASE_HEALTHCHECK_URL?release_id=$RELEASE_ID" > release-health.json
-          python3 - <<'PY'
-          import json
-          import os
-          import sys
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
 
-          health = json.load(open("release-health.json", encoding="utf-8"))
-          expected_targets = set(os.environ["TARGETS"].split())
-          required = {
-              "release_id": os.environ["RELEASE_ID"],
-              "talos_version": os.environ["TALOS_VERSION"],
-          }
-          for key, expected in required.items():
-              if health.get(key) != expected:
-                  sys.exit(f"ERROR: health response {key} does not match this release")
-          for phase, target_key in (
-              ("omni", "connected_targets"),
-              ("talos", "healthy_targets"),
-              ("kubernetes", "ready_targets"),
-          ):
-              result = health.get(phase)
-              if not isinstance(result, dict) or result.get("healthy") is not True:
-                  sys.exit(f"ERROR: {phase} health did not pass")
-              if set(result.get(target_key, [])) != expected_targets:
-                  sys.exit(f"ERROR: {phase} health did not verify exactly the requested targets")
-          if health.get("kubernetes", {}).get("api_healthy") is not True:
-              sys.exit("ERROR: Kubernetes API health did not pass")
-          PY
+      - name: Verify coordinator release health from Omni
+        if: github.event.inputs.coordinator_release == 'true'
+        uses: jdmcmahan/omnictl-action@v1
+        with:
+          omni-endpoint: ${{ secrets.OMNI_ENDPOINT }}
+          omni-service-account-key: ${{ secrets.OMNI_SERVICE_ACCOUNT_KEY }}
+          command: >-
+            status="$(omnictl cluster status oci-lab)" &&
+            printf '%s\n' "$status" | grep -Eq '^Cluster "oci-lab" RUNNING Ready '
