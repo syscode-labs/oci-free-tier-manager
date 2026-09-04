@@ -16,6 +16,14 @@ users:
 %{ endfor ~}
 
 write_files:
+  # Prefer OCI's local VCN resolver, with the home resolver as backup.
+  - path: /etc/systemd/resolved.conf.d/dns.conf
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Resolve]
+      DNS=169.254.169.254 10.10.210.1
+
   # knockd configuration: 4-port sequence, must complete within
   # knock_timeout; the resulting SSH-allow window then stays open for
   # ssh_window_seconds regardless of session activity (see
@@ -210,6 +218,8 @@ write_files:
 %{ endif ~}
 
 runcmd:
+  - [ systemctl, restart, systemd-resolved ]
+
   # Detect the primary NIC name and rewrite knockd config/interface.
   - >-
     NIC=$(/usr/local/bin/bastion-primary-nic);
