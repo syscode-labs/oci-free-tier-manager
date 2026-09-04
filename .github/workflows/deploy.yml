@@ -7,6 +7,30 @@ on:
         description: "Reason for manual deploy"
         required: false
         default: "manual"
+      release_id:
+        description: "Immutable coordinator release ID. Empty preserves the manual lane."
+        required: false
+        default: ""
+      coordinator_release:
+        description: "Require controller-bound artifact and post-change health verification."
+        required: false
+        default: "false"
+      talos_version:
+        description: "Approved Talos version for a coordinator release."
+        required: false
+        default: ""
+      talos_image_ocid:
+        description: "Exact OCI custom-image OCID to deploy. Required; never resolved from latest."
+        required: false
+        default: ""
+      talos_image_ref:
+        description: "Immutable OCI installer reference from the accepted build callback."
+        required: false
+        default: ""
+      talos_image_digest:
+        description: "Immutable OCI installer manifest digest from the accepted build callback."
+        required: false
+        default: ""
       targets:
         description: "Space-separated addresses passed as -target (empty = full plan). For one-off additive rollouts."
         required: false
@@ -64,19 +88,41 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Fetch Talos image OCID from oci-talos-gitops-apps
+      - name: Validate supplied Talos image identity
         id: talos_image
+        env:
+          COORDINATOR_RELEASE: ${{ github.event.inputs.coordinator_release || 'false' }}
+          RELEASE_ID: ${{ github.event.inputs.release_id || '' }}
+          TALOS_VERSION: ${{ github.event.inputs.talos_version || '' }}
+          TALOS_IMAGE_OCID: ${{ github.event.inputs.talos_image_ocid || '' }}
+          TALOS_IMAGE_REF: ${{ github.event.inputs.talos_image_ref || '' }}
+          TALOS_IMAGE_DIGEST: ${{ github.event.inputs.talos_image_digest || '' }}
         run: |
-          OCID=$(curl -fsSL \
-            "https://raw.githubusercontent.com/syscode-labs/oci-talos-gitops-apps/main/omni/talos-image.yaml" \
-            | grep '^oci_image_ocid:' | awk '{print $2}')
-          if [ -z "$OCID" ] || [ "$OCID" = '""' ] || [ "$OCID" = "null" ]; then
-            echo "ERROR: oci_image_ocid is empty in oci-talos-gitops-apps/omni/talos-image.yaml"
-            echo "Run the talos-images build workflow first to import a Talos image into OCI."
-            exit 1
-          fi
-          echo "ocid=${OCID}" >> "$GITHUB_OUTPUT"
-          echo "Talos image OCID: ${OCID}"
+          python3 - <<'PY'
+          import os
+          import re
+          import sys
+
+          coordinator = os.environ["COORDINATOR_RELEASE"]
+          release_id = os.environ["RELEASE_ID"]
+          version = os.environ["TALOS_VERSION"]
+          image_ocid = os.environ["TALOS_IMAGE_OCID"]
+          image_ref = os.environ["TALOS_IMAGE_REF"]
+          image_digest = os.environ["TALOS_IMAGE_DIGEST"]
+          if not re.fullmatch(r"ocid1\.image\.[A-Za-z0-9._-]+", image_ocid):
+              sys.exit("ERROR: talos_image_ocid must be an explicit OCI custom-image OCID")
+          if coordinator == "true":
+              if not release_id or not version:
+                  sys.exit("ERROR: coordinator_release requires release_id and talos_version")
+              if image_ref != f"ghcr.io/syscode-labs/talos-images/installer:{version}":
+                  sys.exit("ERROR: coordinator OCI image ref is not bound to the approved Talos version")
+              if not re.fullmatch(r"sha256:[0-9a-f]{64}", image_digest):
+                  sys.exit("ERROR: coordinator OCI image digest must be immutable")
+          elif bool(image_ref) != bool(image_digest):
+              sys.exit("ERROR: manual image ref and digest must be supplied together")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"ocid={image_ocid}\n")
+          PY
 
       - name: Write OCI credentials
         run: |
@@ -322,6 +368,63 @@ jobs:
           EXTRA_TFVARS: ${{ github.event.inputs.extra_tfvars || '' }}
           TF_LOG: WARN
 
+      - name: Gate plan-wide Always Free compute usage
+        working-directory: tofu/oci
+        env:
+          OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
+        run: |
+          set -euo pipefail
+          oci compute instance list --compartment-id "$OCI_COMPARTMENT_OCID" --all --output json > live-instances.json
+          tofu show -json tfplan > plan.json
+          python3 - <<'PY'
+          import json
+          import sys
+
+          live = {
+              item["id"]: item
+              for item in json.load(open("live-instances.json", encoding="utf-8")).get("data", [])
+              if item.get("lifecycle-state") not in {"TERMINATING", "TERMINATED"}
+          }
+          plan = json.load(open("plan.json", encoding="utf-8"))
+
+          def usage(instances):
+              a1 = [item for item in instances.values() if item.get("shape") == "VM.Standard.A1.Flex"]
+              micro = [item for item in instances.values() if item.get("shape") == "VM.Standard.E2.1.Micro"]
+              unsupported = [item.get("shape") for item in instances.values()
+                             if item.get("shape") not in {"VM.Standard.A1.Flex", "VM.Standard.E2.1.Micro"}]
+              return (
+                  sum((item.get("shape-config") or {}).get("ocpus", 0) for item in a1),
+                  sum((item.get("shape-config") or {}).get("memory-in-gbs", 0) for item in a1),
+                  len(micro),
+                  unsupported,
+              )
+
+          final = dict(live)
+          transient = dict(live)
+          for change in plan.get("resource_changes", []):
+              if change.get("type") != "oci_core_instance":
+                  continue
+              actions = change.get("change", {}).get("actions", [])
+              before = change.get("change", {}).get("before") or {}
+              after = change.get("change", {}).get("after") or {}
+              before_id = before.get("id")
+              if "create" in actions and "delete" in actions and actions.index("create") < actions.index("delete"):
+                  transient["planned:" + change["address"]] = after
+              if "delete" in actions and before_id:
+                  final.pop(before_id, None)
+                  transient.pop(before_id, None)
+              if "create" in actions:
+                  final[after.get("id") or "planned:" + change["address"]] = after
+          for label, instances in (("maximum transient", transient), ("final", final)):
+              ocpus, memory, micros, unsupported = usage(instances)
+              if unsupported or ocpus > 2 or memory > 12 or micros > 2:
+                  sys.exit(
+                      f"ERROR: {label} Always Free usage is unsafe: A1={ocpus} OCPU/{memory} GB, "
+                      f"Micro={micros}, unsupported={unsupported}"
+                  )
+              print(f"{label} Always Free usage accepted: A1={ocpus} OCPU/{memory} GB, Micro={micros}")
+          PY
+
       - name: Reject destructive plan
         working-directory: tofu/oci
         run: |
@@ -462,3 +565,52 @@ jobs:
         env:
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
           TF_LOG: WARN
+
+      - name: Verify coordinator release health through the private control plane
+        if: github.event.inputs.coordinator_release == 'true'
+        env:
+          RELEASE_ID: ${{ github.event.inputs.release_id }}
+          TALOS_VERSION: ${{ github.event.inputs.talos_version }}
+          TARGETS: ${{ github.event.inputs.targets }}
+          OMNI_RELEASE_HEALTHCHECK_URL: ${{ secrets.OMNI_RELEASE_HEALTHCHECK_URL }}
+          OMNI_RELEASE_HEALTHCHECK_TOKEN: ${{ secrets.OMNI_RELEASE_HEALTHCHECK_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$OMNI_RELEASE_HEALTHCHECK_URL" || {
+            echo 'ERROR: OMNI_RELEASE_HEALTHCHECK_URL is not configured; cannot verify private health.' >&2
+            exit 1
+          }
+          test -n "$OMNI_RELEASE_HEALTHCHECK_TOKEN" || {
+            echo 'ERROR: OMNI_RELEASE_HEALTHCHECK_TOKEN is not configured; cannot authenticate private health.' >&2
+            exit 1
+          }
+          curl --fail --silent --show-error --max-time 20 --retry 3 --retry-delay 10 \
+            -H "Authorization: Bearer $OMNI_RELEASE_HEALTHCHECK_TOKEN" \
+            "$OMNI_RELEASE_HEALTHCHECK_URL?release_id=$RELEASE_ID" > release-health.json
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          health = json.load(open("release-health.json", encoding="utf-8"))
+          expected_targets = set(os.environ["TARGETS"].split())
+          required = {
+              "release_id": os.environ["RELEASE_ID"],
+              "talos_version": os.environ["TALOS_VERSION"],
+          }
+          for key, expected in required.items():
+              if health.get(key) != expected:
+                  sys.exit(f"ERROR: health response {key} does not match this release")
+          for phase, target_key in (
+              ("omni", "connected_targets"),
+              ("talos", "healthy_targets"),
+              ("kubernetes", "ready_targets"),
+          ):
+              result = health.get(phase)
+              if not isinstance(result, dict) or result.get("healthy") is not True:
+                  sys.exit(f"ERROR: {phase} health did not pass")
+              if set(result.get(target_key, [])) != expected_targets:
+                  sys.exit(f"ERROR: {phase} health did not verify exactly the requested targets")
+          if health.get("kubernetes", {}).get("api_healthy") is not True:
+              sys.exit("ERROR: Kubernetes API health did not pass")
+          PY

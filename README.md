@@ -45,7 +45,7 @@ omni_ready = false
 
 # Talos + Omni enrollment
 omni_ready       = true
-talos_image_ocid = "ocid1.image.oc1..."   # auto-fetched from syscode-homelab-gitops-apps in CI
+talos_image_ocid = "ocid1.image.oc1..."   # explicit immutable custom-image identity
 omni_endpoint    = "omni.example.com:8090"
 omni_join_token  = "..."                  # or pass via -var / TF_VAR_omni_join_token
 
@@ -61,6 +61,26 @@ tofu init
 tofu plan
 tofu apply
 ```
+
+### Coordinator release receiver
+
+`.github/workflows/release-dispatch.yml` accepts only a complete, controller-originated
+`talos-release-request`. It binds the approved source SHA, Talos version, build run,
+OCI image OCID, installer reference, and manifest digest before it can dispatch
+`deploy.yml`. The request must carry an explicit `oci_scope` whose targets are only
+the two `oci_core_instance.ampere_instance` Talos addresses; Micro instances,
+networking, and empty scopes are rejected. Replacements are disabled unless the
+approved scope names the same exact Talos target.
+
+The receiver reserves each `release_id` as a GitHub Deployment before dispatching,
+so a duplicate delivery is reported as failure rather than repeating a replacement.
+Coordinator deploys still use the existing plan/destructive-change gates and add a
+live-inventory plus plan-wide Always Free capacity check. A coordinator result is
+successful only after the configured authenticated private health endpoint confirms
+the matching release ID/version, Omni and Talos health for exactly the scoped nodes,
+and Kubernetes API/node readiness. If `OMNI_RELEASE_HEALTHCHECK_URL` or
+`OMNI_RELEASE_HEALTHCHECK_TOKEN` is absent, the deployment fails closed instead of
+claiming completion.
 
 ## Talos Mode
 
