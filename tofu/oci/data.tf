@@ -221,12 +221,13 @@ locals {
   # VPN Micro cloud-init: Docker/Tailscale, with route advertisement only for
   # the node explicitly marked vpn_router.
   _micro_user_data = [for n in local._micro_nodes : base64encode(templatefile("${path.module}/files/cloud-init-micro.yaml.tmpl", {
+    node_name            = n.name
     ssh_public_key       = length(local._ssh_authorized_keys) > 0 ? local._ssh_authorized_keys[0] : ""
     extra_ssh_keys       = length(local._ssh_authorized_keys) > 1 ? slice(local._ssh_authorized_keys, 1, length(local._ssh_authorized_keys)) : []
     bastion_ip           = var.create_bastion ? oci_core_instance.bastion[0].private_ip : "0.0.0.0/0"
     advertise_routes     = n.vpn_router
+    advertised_route     = var.vpn_subnet_cidr
     dns_forwarder        = n.vpn_router
-    dns_listen_ip        = n.private_ip != null ? n.private_ip : ""
     tailnet_dns_suffix   = var.omni_search_domain
     tailnet_dns_resolver = var.tailnet_dns_resolver
   }))]
