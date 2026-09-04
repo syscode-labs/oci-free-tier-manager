@@ -6,6 +6,8 @@
 #   - All budget checks still pass
 #   - Missing prerequisites trigger check failures
 
+mock_provider "cloudflare" {}
+
 mock_provider "oci" {
   mock_data "oci_core_images" {
     defaults = {
@@ -56,6 +58,7 @@ mock_provider "oci" {
 }
 
 variables {
+  cloudflare_zone_id  = "test-cloudflare-zone-id"
   compartment_ocid    = "ocid1.compartment.test"
   tenancy_ocid        = "ocid1.tenancy.test"
   budget_alert_email  = "test@example.com"
