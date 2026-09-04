@@ -154,6 +154,20 @@ resource "oci_core_security_list" "vpn_security_list" {
     source   = var.vpn_subnet_cidr
   }
 
+  # Ingress: SSH from the public bastion for private-router management.
+  dynamic "ingress_security_rules" {
+    for_each = var.create_bastion ? [data.oci_core_private_ips.bastion_private_ip[0].private_ips[0].ip_address] : []
+    content {
+      protocol    = "6" # TCP
+      source      = "${ingress_security_rules.value}/32"
+      description = "SSH from public bastion"
+      tcp_options {
+        min = 22
+        max = 22
+      }
+    }
+  }
+
   # Ingress: temporary SSH from the home network for the VPN probe.
   dynamic "ingress_security_rules" {
     for_each = local.vpn_probe_enabled && var.ssh_public_key != null ? [var.vpn_probe_home_cidr] : []
