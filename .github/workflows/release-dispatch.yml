@@ -18,6 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       execute: ${{ steps.reserve.outputs.execute }}
+      duplicate: ${{ steps.reserve.outputs.duplicate || 'false' }}
       deployment_id: ${{ steps.reserve.outputs.deployment_id }}
       deploy_run_id: ${{ steps.deploy.outputs.run_id }}
     steps:
@@ -42,6 +43,7 @@ jobs:
             --jq '.[0].id // empty')
           if [ -n "$existing" ]; then
             echo "execute=false" >> "$GITHUB_OUTPUT"
+            echo "duplicate=true" >> "$GITHUB_OUTPUT"
             echo "deployment_id=$existing" >> "$GITHUB_OUTPUT"
             echo "Release ${RELEASE_ID} was already reserved; refusing to repeat it."
             exit 0
@@ -90,8 +92,10 @@ jobs:
             -f apply=true
           for _ in $(seq 1 30); do
             run_id=$(gh run list --repo "$GITHUB_REPOSITORY" \
-              --workflow deploy.yml --event workflow_dispatch --limit 1 \
-              --json databaseId --jq '.[0].databaseId // empty')
+              --workflow deploy.yml --event workflow_dispatch --limit 30 \
+              --json databaseId,displayTitle \
+              --jq ".[] | select(.displayTitle == \"Deploy ${release_id}\") | .databaseId" \
+              | head -n 1)
             [ -n "$run_id" ] && break
             sleep 2
           done
@@ -131,6 +135,7 @@ jobs:
           PAYLOAD: ${{ toJson(github.event.client_payload) }}
           OUTCOME: ${{ needs.dispatch-deploy.result == 'success' && 'success' || 'failure' }}
           EXECUTED: ${{ needs.dispatch-deploy.outputs.execute || 'false' }}
+          DUPLICATE: ${{ needs.dispatch-deploy.outputs.duplicate || 'false' }}
           DEPLOY_RUN_ID: ${{ needs.dispatch-deploy.outputs.deploy_run_id || '' }}
         run: |
           set -euo pipefail
@@ -157,6 +162,7 @@ jobs:
               "source_sha": payload.get("source_sha"),
               "build_run_id": payload.get("build_run_id"),
               "artifacts": payload.get("artifacts"),
+              "duplicate": os.environ["DUPLICATE"] == "true",
               "run_id": int(os.environ["GITHUB_RUN_ID"]),
               "details_url": details_url,
           }

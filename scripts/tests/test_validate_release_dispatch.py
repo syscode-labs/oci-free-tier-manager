@@ -58,7 +58,10 @@ class ReleaseDispatchContractTests(unittest.TestCase):
 
     def test_rejects_network_or_micro_target(self) -> None:
         payload = valid_payload()
-        payload["oci_scope"] = {"targets": ["oci_core_instance.micro_instance[0]"], "replace": []}
+        payload["oci_scope"] = {
+            "targets": ["oci_core_instance.micro_instance[0]"],
+            "replace": [],
+        }
         with self.assertRaisesRegex(DispatchError, "unapproved"):
             validate_payload(payload)
 
@@ -88,14 +91,29 @@ class ReleaseDispatchContractTests(unittest.TestCase):
         with self.assertRaisesRegex(DispatchError, "subset"):
             validate_payload(payload)
 
-    def test_receiver_callback_keeps_artifacts_and_fails_duplicate_delivery(self) -> None:
-        workflow = Path(".github/workflows/release-dispatch.yml").read_text(encoding="utf-8")
+    def test_receiver_callback_keeps_artifacts_and_fails_duplicate_delivery(
+        self,
+    ) -> None:
+        workflow = Path(".github/workflows/release-dispatch.yml").read_text(
+            encoding="utf-8"
+        )
         self.assertIn("Reserve this release ID exactly once", workflow)
-        self.assertIn("Release ${RELEASE_ID} was already reserved; refusing to repeat it.", workflow)
+        self.assertIn(
+            "Release ${RELEASE_ID} was already reserved; refusing to repeat it.",
+            workflow,
+        )
         self.assertIn('if os.environ["EXECUTED"] != "true":', workflow)
         self.assertIn('outcome = "failure"', workflow)
         self.assertIn('"build_run_id": payload.get("build_run_id")', workflow)
         self.assertIn('"artifacts": payload.get("artifacts")', workflow)
+        self.assertIn('"duplicate": os.environ["DUPLICATE"] == "true"', workflow)
+        self.assertIn('"duplicate=true" >> "$GITHUB_OUTPUT"', workflow)
+        self.assertIn("displayTitle", workflow)
+        self.assertIn('select(.displayTitle == \\"Deploy ${release_id}\\")', workflow)
+        deploy = Path(".github/workflows/deploy.yml").read_text(encoding="utf-8")
+        self.assertIn(
+            "run-name: Deploy ${{ inputs.release_id || inputs.reason }}", deploy
+        )
 
 
 if __name__ == "__main__":
