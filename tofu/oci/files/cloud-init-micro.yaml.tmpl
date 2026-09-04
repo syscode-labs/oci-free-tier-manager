@@ -52,7 +52,9 @@ write_files:
       interface=ens3
       bind-dynamic
       no-resolv
+      strict-order
       server=169.254.169.254
+      server=${tailnet_dns_resolver}
       server=/${tailnet_dns_suffix}/${tailnet_dns_resolver}
       cache-size=1000
       domain-needed
