@@ -456,16 +456,6 @@ resource "oci_budget_alert_rule" "free_tier_alert" {
   recipients     = var.budget_alert_email
 }
 
-# Clean up failed launch artifacts on every Terraform apply. The helper only
-# deletes boot volumes already in TERMINATED state; attached or AVAILABLE
-# volumes are never eligible.
-resource "terraform_data" "cleanup_stale_boot_volumes" {
-  triggers_replace = timestamp()
-
-  provisioner "local-exec" {
-    command = "python3 ${path.module}/../../scripts/cleanup_stale_boot_volumes.py --tenancy-ocid ${var.tenancy_ocid} --profile ${var.oci_config_profile}"
-  }
-}
 
 # Reserved IPs for legacy Ubuntu Ampere nodes only. Omni/Talos nodes are private.
 resource "oci_core_public_ip" "ampere_instance" {
