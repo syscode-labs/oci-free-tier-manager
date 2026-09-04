@@ -28,7 +28,7 @@ output "ampere_instance_names" {
 
 output "ampere_instance_public_ips" {
   description = "Public IP addresses of Ampere A1 instances (explicit reserved IP resources)"
-  value       = [for i in range(length(local._ampere_nodes)) : oci_core_public_ip.ampere_instance[i].ip_address]
+  value       = oci_core_public_ip.ampere_instance[*].ip_address
 }
 
 output "ampere_private_ips" {
