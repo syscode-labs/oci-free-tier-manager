@@ -53,6 +53,12 @@ variable "region" {
   default     = "uk-london-1"
 }
 
+variable "cloudflare_zone_id" {
+  description = "Cloudflare zone ID for syscode.uk. Supplied by CI from BWS-backed GitHub Secrets."
+  type        = string
+  sensitive   = true
+}
+
 variable "availability_domain" {
   description = "Availability domain for Ampere A1 instances"
   type        = string

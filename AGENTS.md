@@ -15,23 +15,34 @@
    design instead. Do not commit, plan, or apply a change that introduces a billable
    resource. Do not "fix" a failed free-tier constraint by upgrading the shape.
 
-2. **Cost disclosure gate.** If a requested change cannot be met within Always Free,
+2. **Live usage comes first.** Before any plan that can create or replace a resource,
+   query the current tenancy-wide OCI inventory. Check active compute shapes and counts,
+   A1 OCPUs and RAM, all reserved public IPs, load balancers, public DNS zones, and all
+   boot/block-volume storage, including unattached volumes. Calculate both the final and
+   maximum temporary usage caused by the plan. Do not rely only on Terraform
+   configuration or state. If OCI cannot be queried, the check fails, or either total
+   exceeds Always Free, STOP: do not commit, plan, or apply. CI must run
+   this check before planning and must reject a plan that exceeds the limits.
+
+3. **Cost disclosure gate.** If a requested change cannot be met within Always Free,
    STOP. Ask the user for explicit approval and present, before any commit/plan/apply:
 
    - exact resource type and shape,
    - estimated monthly cost in GBP (list price + VAT) and per-day rate,
    - which free-tier constraint blocks the free option.
-   No mutation (commit, plan, or apply) until the user approves that exact cost.
+   No mutation (commit, plan, or apply) until the user approves that exact cost. There
+   is no standing `allow_paid` bypass: an approved exception must be a separate, narrowly
+   scoped, reviewed change that records the user's approval and expected removal date.
    A budget alert firing is a post-failure signal, not approval.
 
-3. **Golden images — keep 1 per type.** The tenancy includes 10 free custom-image
+4. **Golden images — keep 1 per type.** The tenancy includes 10 free custom-image
    slots. Always retain exactly ONE golden image per image type (e.g. `golden-micro`
    x86, `golden-micro-arm64`); a new version REPLACES the old one (build → update
    instance/tfvars → delete superseded image). Never accumulate unused golden images:
    unused custom images are a cost risk once the free 10-slot allowance is exceeded.
    Deleting the last remaining image of a type is also forbidden.
 
-Any code review, plan, or PR in this repo must check rules 1–3. Violations block merge.
+Any code review, plan, or PR in this repo must check rules 1–4. Violations block merge.
 
 ## HARD RULE — PRIVATE NETWORK DATA
 

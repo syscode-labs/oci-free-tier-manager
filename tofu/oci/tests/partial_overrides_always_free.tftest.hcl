@@ -3,6 +3,8 @@
 # Verifies that omitted node fields fall back to the defaults,
 # and that users can mix custom and default values freely.
 
+mock_provider "cloudflare" {}
+
 mock_provider "oci" {
   mock_data "oci_core_images" {
     defaults = {
@@ -56,6 +58,7 @@ mock_provider "oci" {
 }
 
 variables {
+  cloudflare_zone_id = "test-cloudflare-zone-id"
   compartment_ocid   = "ocid1.compartment.test"
   tenancy_ocid       = "ocid1.tenancy.test"
   budget_alert_email = "test@example.com"
