@@ -60,6 +60,15 @@ write_files:
 %{ endif ~}
 
 runcmd:
+  # Establish working public DNS before package or repository access. The VPN
+  # subnet's DHCP resolver may not be reachable until this router is online.
+  - systemctl restart systemd-resolved
+  - ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+
+  # Keep the private management path available even if later bootstrap fails.
+  - [ ufw, allow, from, ${bastion_ip}, to, any, port, 22, proto, tcp ]
+  - [ ufw, reload ]
+
   # ── Docker: official apt repo ──────────────────────────────────────────────
   - install -m 0755 -d /etc/apt/keyrings
   - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
@@ -73,10 +82,6 @@ runcmd:
   - apt-get update -qq
   - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   - systemctl enable --now containerd docker
-
-  # ── DNS: apply resolved drop-in and fix resolv.conf symlink ───────────────
-  - systemctl restart systemd-resolved
-  - ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
 
   # ── Docker daemon: restart with new daemon.json ───────────────────────────
   - systemctl restart docker
@@ -111,10 +116,6 @@ runcmd:
 %{ if dns_forwarder ~}
   - [ systemctl, enable, --now, dnsmasq ]
 %{ endif ~}
-
-  # ── Firewall: restrict SSH to the bastion only ────────────────────────────
-  - [ ufw, allow, from, ${bastion_ip}, to, any, port, 22, proto, tcp ]
-  - [ ufw, reload ]
 
 final_message: |
   Micro workload host configured.
