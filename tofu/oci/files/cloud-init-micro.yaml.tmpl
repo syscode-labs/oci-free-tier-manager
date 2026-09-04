@@ -49,14 +49,23 @@ write_files:
     permissions: "0644"
     owner: root:root
     content: |
-      listen-address=127.0.0.1,${dns_listen_ip}
-      bind-interfaces
+      interface=ens3
+      bind-dynamic
       no-resolv
       server=169.254.169.254
       server=/${tailnet_dns_suffix}/${tailnet_dns_resolver}
       cache-size=1000
       domain-needed
       bogus-priv
+%{ endif ~}
+
+%{ if advertise_routes ~}
+  - path: /etc/sysctl.d/99-tailscale-router.conf
+    permissions: "0644"
+    owner: root:root
+    content: |
+      net.ipv4.ip_forward = 1
+      net.ipv6.conf.all.forwarding = 1
 %{ endif ~}
 
 runcmd:
@@ -68,6 +77,9 @@ runcmd:
   # Keep the private management path available even if later bootstrap fails.
   - [ ufw, allow, from, ${bastion_ip}, to, any, port, "22", proto, tcp ]
   - [ ufw, reload ]
+%{ if advertise_routes ~}
+  - sysctl --system
+%{ endif ~}
 
   # ── Docker: official apt repo ──────────────────────────────────────────────
   - install -m 0755 -d /etc/apt/keyrings
@@ -89,7 +101,7 @@ runcmd:
   # ── Tailscale: join tailnet so the Micro is operator-reachable ────────────
   - >-
     curl --retry 3 --retry-delay 2 -fsSL
-    https://pkgs.tailscale.com/stable/ubuntu/noble.gpg
+    https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg
     -o /usr/share/keyrings/tailscale-archive-keyring.gpg
   - >-
     echo
@@ -103,7 +115,7 @@ runcmd:
     http://169.254.169.254/opc/v2/instance/metadata/tailscale_auth_key);
     echo "[boot] TS_KEY_len=$${#TS_KEY}" >> /var/log/tailscale-boot.log;
     for i in 1 2 3 4 5; do
-      if [ -n "$TS_KEY" ] && tailscale up --auth-key="$TS_KEY" --hostname="$(hostname)"; then
+      if [ -n "$TS_KEY" ] && tailscale up --auth-key="$TS_KEY" --hostname="${node_name}"%{ if advertise_routes } --advertise-routes="${advertised_route}"%{ endif }; then
         echo "[boot] tailscale up OK on attempt $i" >> /var/log/tailscale-boot.log;
         break;
       fi;
