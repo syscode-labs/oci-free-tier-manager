@@ -47,7 +47,7 @@ jobs:
           retention-days: 1
 
   report:
-    if: always() && github.event.client_payload.source_repo == 'syscode-labs/talos-release-controller'
+    if: always() && github.event.client_payload.source_repo == 'syscode-labs/syscode-homelab-gitops-apps'
     needs: dispatch-deploy
     runs-on: ubuntu-latest
     steps:
