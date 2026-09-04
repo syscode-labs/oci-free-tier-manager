@@ -1,0 +1,81 @@
+name: Talos release receiver
+
+on:
+  repository_dispatch:
+    types: [talos-release-request]
+
+concurrency:
+  group: talos-release-oci-${{ github.event.client_payload.release_id }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch-deploy:
+    if: github.event.client_payload.source_repo == 'syscode-labs/talos-release-controller'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start existing guarded OCI deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ github.event.client_payload.release_id }}
+          TARGETS: ${{ github.event.client_payload.oci_targets || '' }}
+          REPLACE: ${{ github.event.client_payload.oci_replace || '' }}
+        run: |
+          set -euo pipefail
+          gh workflow run deploy.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f reason="Talos release ${RELEASE_ID}" \
+            -f apply=true \
+            -f targets="$TARGETS" \
+            -f replace="$REPLACE" \
+            -f allow_replace=true
+          for _ in $(seq 1 30); do
+            run_id=$(gh run list --repo "$GITHUB_REPOSITORY" \
+              --workflow deploy.yml --event workflow_dispatch --limit 1 \
+              --json databaseId --jq '.[0].databaseId // empty')
+            [ -n "$run_id" ] && break
+            sleep 2
+          done
+          test -n "${run_id:-}" || { echo 'could not find dispatched OCI workflow run' >&2; exit 1; }
+          gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status
+          echo "$run_id" > run-id
+      - name: Upload run identifier
+        uses: actions/upload-artifact@v4
+        with:
+          name: oci-run-id
+          path: run-id
+          retention-days: 1
+
+  report:
+    if: always() && github.event.client_payload.source_repo == 'syscode-labs/talos-release-controller'
+    needs: dispatch-deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.RELEASE_CONTROLLER_APP_ID }}
+          private-key: ${{ secrets.RELEASE_CONTROLLER_APP_PRIVATE_KEY }}
+          owner: syscode-labs
+          repositories: talos-release-controller
+      - name: Report result
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          RELEASE_ID: ${{ github.event.client_payload.release_id }}
+          OUTCOME: ${{ needs.dispatch-deploy.result == 'success' && 'success' || 'failure' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' > dispatch.json
+          import json, os
+          details_url = (os.environ['GITHUB_SERVER_URL'] + '/' +
+                         os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' +
+                         os.environ['GITHUB_RUN_ID'])
+          print(json.dumps({'event_type': 'talos-release-result', 'client_payload': {
+              'release_id': os.environ['RELEASE_ID'],
+              'provider': 'oci-free-tier-manager',
+              'outcome': os.environ['OUTCOME'],
+              'run_id': int(os.environ['GITHUB_RUN_ID']),
+              'details_url': details_url,
+          }}))
+          PY
+          gh api repos/syscode-labs/talos-release-controller/dispatches --method POST --input dispatch.json
