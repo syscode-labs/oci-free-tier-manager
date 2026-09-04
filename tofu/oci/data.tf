@@ -162,6 +162,11 @@ locals {
   _omni_machine_config = var.omni_machine_config != null ? trimspace(var.omni_machine_config) : ""
   _tailscale_auth_key  = var.tailscale_auth_key != null ? var.tailscale_auth_key : ""
 
+  # This is Talos machine configuration, not cloud-init. Talos reads it from
+  # OCI instance metadata during boot. OCI does not update user_data in place,
+  # so a changed machine configuration reaches a node only through a controlled
+  # instance replacement.
+
   _siderolink_user_data = var.omni_ready ? [local._omni_machine_config] : []
 
   _tailscale_user_data = var.tailscale_auth_key != null ? [
