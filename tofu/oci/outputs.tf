@@ -142,7 +142,7 @@ output "budget_target_compartment_id" {
 output "ssh_connection_commands" {
   description = "SSH commands to connect to instances (Ubuntu mode only; Talos nodes use Talos API)"
   value = concat(
-    [for i in range(length(local._ampere_nodes)) : "ssh ubuntu@${oci_core_public_ip.ampere_instance[i].ip_address}  # ${local._ampere_nodes[i].name}"],
+    [for i, public_ip in oci_core_public_ip.ampere_instance : "ssh ubuntu@${public_ip.ip_address}  # ${local._ampere_nodes[i].name}"],
     length(oci_core_public_ip.bastion) > 0 ? [
       "# Knock sequence: ${join(", ", [for p in var.bastion_knock_ports : "${p}/tcp"])}",
       "ssh ubuntu@${oci_core_public_ip.bastion[0].ip_address}  # ${var.bastion_name}",

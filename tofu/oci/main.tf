@@ -382,10 +382,11 @@ resource "oci_core_instance" "micro_instance" {
   }
 
   create_vnic_details {
-    subnet_id        = local._micro_nodes[count.index].vpn_router && local.vpn_enabled ? oci_core_subnet.vpn_subnet[0].id : local.subnet_id
-    assign_public_ip = false # reserved public IP is attached separately to the public bastion
-    display_name     = "micro-vnic-${count.index + 1}"
-    private_ip       = local._micro_nodes[count.index].private_ip
+    subnet_id              = local._micro_nodes[count.index].vpn_router && local.vpn_enabled ? oci_core_subnet.vpn_subnet[0].id : local.subnet_id
+    assign_public_ip       = false # reserved public IP is attached separately to the public bastion
+    display_name           = "micro-vnic-${count.index + 1}"
+    private_ip             = local._micro_nodes[count.index].private_ip
+    skip_source_dest_check = local._micro_nodes[count.index].vpn_router
   }
 
   metadata = merge(
