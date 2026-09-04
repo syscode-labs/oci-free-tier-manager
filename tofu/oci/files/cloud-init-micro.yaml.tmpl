@@ -26,23 +26,22 @@ packages:
 %{ endif ~}
 
 write_files:
-  # Disable systemd-resolved stub listener — it holds port 53, conflicting with
-  # the acme-dns container which binds 0.0.0.0:53.
+  # Prefer OCI's local VCN resolver on both Micros, with the home resolver as
+  # backup. Disable the stub listener so the router can bind dnsmasq to port 53.
   - path: /etc/systemd/resolved.conf.d/no-stub.conf
     permissions: "0644"
     owner: root:root
     content: |
       [Resolve]
       DNSStubListener=no
-      DNS=8.8.8.8 1.1.1.1
+      DNS=169.254.169.254 10.10.210.1
 
-  # Docker daemon: point at real resolvers. After disabling the stub listener,
-  # Docker's internal 127.0.0.11 DNS can no longer reach upstream — fix it here.
+  # Keep containers on the same resolver hierarchy as the host.
   - path: /etc/docker/daemon.json
     permissions: "0644"
     owner: root:root
     content: |
-      {"dns": ["8.8.8.8", "1.1.1.1"]}
+      {"dns": ["169.254.169.254", "10.10.210.1"]}
 
 %{ if dns_forwarder ~}
   - path: /etc/dnsmasq.d/oci-talos-bootstrap.conf
