@@ -18,6 +18,7 @@ SPEC.loader.exec_module(check_free_tier_plan)
 def instance(
     address: str, shape: str, *, ocpus: int = 0, memory: int = 0, storage: int = 50
 ) -> dict:
+    """Build a minimal planned compute resource for a test."""
     return {
         "address": address,
         "type": "oci_core_instance",
@@ -34,6 +35,7 @@ def plan(
     changes: list[dict] | None = None,
     checks: list[dict] | None = None,
 ) -> dict:
+    """Build a minimal OpenTofu plan JSON object for a test."""
     return {
         "planned_values": {"root_module": {"resources": resources}},
         "resource_changes": changes or [],
@@ -43,6 +45,7 @@ def plan(
 
 class FreeTierPlanTests(unittest.TestCase):
     def test_accepts_full_always_free_allocation(self) -> None:
+        """Accept a plan that exactly consumes the free allocation."""
         candidate = plan(
             [
                 instance("a1[0]", "VM.Standard.A1.Flex", ocpus=1, memory=6),
@@ -54,6 +57,7 @@ class FreeTierPlanTests(unittest.TestCase):
         self.assertEqual(check_free_tier_plan.validate(candidate), [])
 
     def test_rejects_non_free_compute_shape(self) -> None:
+        """Reject a compute shape outside the free allowlist."""
         errors = check_free_tier_plan.validate(
             plan([instance("vm", "VM.Standard.E4.Flex")])
         )
@@ -62,6 +66,7 @@ class FreeTierPlanTests(unittest.TestCase):
         )
 
     def test_rejects_storage_above_200_gb(self) -> None:
+        """Reject final storage above the free limit."""
         candidate = plan(
             [
                 instance("a1[0]", "VM.Standard.A1.Flex", ocpus=1, memory=6, storage=50),
@@ -74,6 +79,7 @@ class FreeTierPlanTests(unittest.TestCase):
         self.assertIn("planned storage_gb=201 exceeds Always Free limit=200", errors)
 
     def test_rejects_failed_tofu_check(self) -> None:
+        """Reject a plan containing a failed OpenTofu check."""
         candidate = plan(
             [],
             checks=[
@@ -86,6 +92,7 @@ class FreeTierPlanTests(unittest.TestCase):
         )
 
     def test_rejects_create_before_destroy_compute(self) -> None:
+        """Reject overlapping compute replacement."""
         candidate = plan(
             [],
             changes=[
@@ -100,6 +107,7 @@ class FreeTierPlanTests(unittest.TestCase):
         self.assertTrue(any("create-before-destroy" in error for error in errors))
 
     def test_rejects_create_when_live_storage_has_no_headroom(self) -> None:
+        """Reject new storage when live usage is already full."""
         new_micro = instance("micro[1]", "VM.Standard.E2.1.Micro")
         candidate = plan(
             [new_micro],
@@ -123,6 +131,7 @@ class FreeTierPlanTests(unittest.TestCase):
         )
 
     def test_accepts_destroy_before_create_with_no_net_increase(self) -> None:
+        """Accept destroy-before-create replacement without a peak increase."""
         old_micro = instance("micro[0]", "VM.Standard.E2.1.Micro")
         candidate = plan(
             [old_micro],
@@ -143,6 +152,7 @@ class FreeTierPlanTests(unittest.TestCase):
         self.assertEqual(check_free_tier_plan.validate(candidate, current), [])
 
     def test_rejects_storage_replacement_overlap(self) -> None:
+        """Reject storage replacement whose overlap exceeds the free limit."""
         current = check_free_tier_plan.empty_usage()
         current["storage_gb"] = 200
         candidate = plan(
@@ -166,6 +176,7 @@ class FreeTierPlanTests(unittest.TestCase):
         )
 
     def test_rejects_load_balancer_above_free_bandwidth(self) -> None:
+        """Reject a load balancer above the free bandwidth allowance."""
         candidate = plan(
             [
                 {
@@ -184,6 +195,7 @@ class FreeTierPlanTests(unittest.TestCase):
         )
 
     def test_rejects_unreviewed_reserved_public_ip_creation(self) -> None:
+        """Reject unreviewed reserved public IP creation."""
         candidate = plan(
             [],
             changes=[
@@ -204,6 +216,7 @@ class FreeTierPlanTests(unittest.TestCase):
         )
 
     def test_rejects_oci_public_dns_creation(self) -> None:
+        """Reject creation of paid OCI public DNS."""
         candidate = plan(
             [],
             changes=[
@@ -220,6 +233,7 @@ class FreeTierPlanTests(unittest.TestCase):
         )
 
     def test_live_paid_dns_must_be_removed(self) -> None:
+        """Require exact removal of a live paid DNS zone."""
         current = check_free_tier_plan.empty_usage()
         current["paid_resources"] = [
             {"type": "oci_dns_zone", "id": "zone-id", "name": "example.test"}
@@ -231,6 +245,7 @@ class FreeTierPlanTests(unittest.TestCase):
         )
 
     def test_accepts_removal_of_live_paid_dns(self) -> None:
+        """Accept exact removal of a reported paid DNS zone."""
         current = check_free_tier_plan.empty_usage()
         current["paid_resources"] = [
             {"type": "oci_dns_zone", "id": "zone-id", "name": "example.test"}

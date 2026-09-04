@@ -43,6 +43,7 @@ ALLOWED_OCI_CREATE_TYPES = {
 
 
 def resources(module: dict[str, Any] | None) -> Iterator[dict[str, Any]]:
+    """Yield every resource from the nested planned-values tree."""
     if not module:
         return
     yield from module.get("resources", [])
@@ -51,11 +52,13 @@ def resources(module: dict[str, Any] | None) -> Iterator[dict[str, Any]]:
 
 
 def first_block(values: dict[str, Any], name: str) -> dict[str, Any]:
+    """Return the first expanded provider block value, or an empty mapping."""
     blocks = values.get(name) or []
     return blocks[0] if blocks else {}
 
 
 def instance_usage(values: dict[str, Any]) -> tuple[str, float, float, float]:
+    """Return Always Free usage contributed by one compute instance."""
     shape = values.get("shape")
     source = first_block(values, "source_details")
     storage = float(source.get("boot_volume_size_in_gbs") or 0)
@@ -71,6 +74,7 @@ def instance_usage(values: dict[str, Any]) -> tuple[str, float, float, float]:
 
 
 def empty_usage() -> dict[str, float]:
+    """Return zeroed numeric usage counters."""
     return {
         "a1_instances": 0.0,
         "a1_ocpus": 0.0,
@@ -85,6 +89,7 @@ def empty_usage() -> dict[str, float]:
 def resource_usage(
     resource_type: str, values: dict[str, Any] | None
 ) -> dict[str, float]:
+    """Return Always Free usage contributed by one planned resource."""
     usage = empty_usage()
     if not values:
         return usage
@@ -117,6 +122,7 @@ def resource_usage(
 
 
 def planned_usage(plan: dict[str, Any]) -> dict[str, float]:
+    """Calculate final usage represented by planned values."""
     usage = empty_usage()
     for resource in resources(plan.get("planned_values", {}).get("root_module")):
         resource_type = resource.get("type")
@@ -132,6 +138,7 @@ def planned_usage(plan: dict[str, Any]) -> dict[str, float]:
 
 
 def projected_usage(plan: dict[str, Any], current: dict[str, Any]) -> dict[str, float]:
+    """Apply plan deltas to live usage to calculate the final usage."""
     projected = {key: float(current.get(key, 0)) for key in empty_usage()}
     for change in plan.get("resource_changes", []):
         resource_type = str(change.get("type"))
@@ -145,6 +152,7 @@ def projected_usage(plan: dict[str, Any], current: dict[str, Any]) -> dict[str, 
 def maximum_transient_usage(
     plan: dict[str, Any], current: dict[str, Any]
 ) -> dict[str, float]:
+    """Calculate conservative peak usage from plan action ordering."""
     maximum = {key: float(current.get(key, 0)) for key in empty_usage()}
     final = projected_usage(plan, current)
     for change in plan.get("resource_changes", []):
@@ -168,6 +176,7 @@ def maximum_transient_usage(
 
 
 def validate(plan: dict[str, Any], current: dict[str, Any] | None = None) -> list[str]:
+    """Return policy violations found in the plan and live inventory."""
     errors: list[str] = []
     for check in plan.get("checks", []):
         failed = check.get("status") == "fail" or any(
@@ -244,6 +253,7 @@ def validate(plan: dict[str, Any], current: dict[str, Any] | None = None) -> lis
 
 
 def main() -> int:
+    """Parse arguments, evaluate the plan, and return a process exit code."""
     parser = argparse.ArgumentParser()
     parser.add_argument("plan_json", type=Path)
     parser.add_argument("--current-usage", type=Path)

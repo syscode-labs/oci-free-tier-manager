@@ -24,6 +24,7 @@ TERMINAL_STATES = {"TERMINATING", "TERMINATED"}
 
 
 def oci(profile: str, *args: str) -> Any:
+    """Run an OCI CLI query and return its parsed JSON object."""
     result = subprocess.run(
         ["oci", "--profile", profile, *args],
         check=True,
@@ -36,6 +37,7 @@ def oci(profile: str, *args: str) -> Any:
 def inventory(
     profile: str, tenancy_ocid: str
 ) -> tuple[list[dict], list[dict], list[dict], list[dict], list[dict], list[dict]]:
+    """Collect tenancy-wide resources relevant to Always Free enforcement."""
     compartments = [tenancy_ocid]
     compartments.extend(
         item["id"]
@@ -147,6 +149,7 @@ def validate_inventory(
     public_dns_zones: list[dict],
     reserved_public_ips: list[dict],
 ) -> tuple[dict[str, object], list[str]]:
+    """Calculate live usage and return any policy violations."""
     live_instances = [
         item for item in instances if item.get("lifecycle-state") not in TERMINAL_STATES
     ]
@@ -217,6 +220,7 @@ def validate_inventory(
 
 
 def main() -> int:
+    """Collect live inventory, emit usage JSON, and return a process exit code."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile", default="DEFAULT")
     parser.add_argument("--tenancy-ocid", required=True)

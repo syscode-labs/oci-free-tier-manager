@@ -21,6 +21,7 @@ SPEC.loader.exec_module(check_free_tier_usage)
 
 
 def instance(name: str, shape: str, ocpus: int = 0, memory: int = 0) -> dict:
+    """Build a minimal live compute instance for a test."""
     return {
         "display-name": name,
         "shape": shape,
@@ -31,6 +32,7 @@ def instance(name: str, shape: str, ocpus: int = 0, memory: int = 0) -> dict:
 
 class FreeTierUsageTests(unittest.TestCase):
     def test_accepts_full_live_allocation(self) -> None:
+        """Accept live usage at all free limits."""
         instances = [
             instance("a1-1", "VM.Standard.A1.Flex", 1, 6),
             instance("a1-2", "VM.Standard.A1.Flex", 1, 6),
@@ -45,17 +47,20 @@ class FreeTierUsageTests(unittest.TestCase):
         self.assertEqual(usage["storage_gb"], 200)
 
     def test_rejects_unattached_storage_overage(self) -> None:
+        """Count unattached storage toward the free limit."""
         boot = [{"size-in-gbs": 50, "lifecycle-state": "AVAILABLE"} for _ in range(5)]
         _, errors = check_free_tier_usage.validate_inventory([], boot, [], [], [], [])
         self.assertIn("live storage_gb=250 exceeds Always Free limit=200", errors)
 
     def test_rejects_non_free_shape(self) -> None:
+        """Reject a live compute shape outside the free allowlist."""
         _, errors = check_free_tier_usage.validate_inventory(
             [instance("paid", "VM.Standard.E4.Flex", 1, 8)], [], [], [], [], []
         )
         self.assertTrue(any("non-Always-Free shape" in error for error in errors))
 
     def test_fails_closed_when_oci_query_fails(self) -> None:
+        """Propagate OCI query failures instead of using partial inventory."""
         with mock.patch(
             "subprocess.run",
             side_effect=__import__("subprocess").CalledProcessError(1, ["oci"]),
@@ -64,11 +69,13 @@ class FreeTierUsageTests(unittest.TestCase):
                 check_free_tier_usage.oci("DEFAULT", "compute", "instance", "list")
 
     def test_rejects_more_than_one_load_balancer(self) -> None:
+        """Reject live load balancers above the free count."""
         lbs = [{"lifecycle-state": "ACTIVE"}, {"lifecycle-state": "ACTIVE"}]
         _, errors = check_free_tier_usage.validate_inventory([], [], [], lbs, [], [])
         self.assertIn("live load_balancers=2 exceeds Always Free limit=1", errors)
 
     def test_reports_public_dns_as_paid_resource(self) -> None:
+        """Report live public DNS with its exact identity."""
         zone = {"id": "zone-id", "name": "example.test", "lifecycle-state": "ACTIVE"}
         usage, errors = check_free_tier_usage.validate_inventory(
             [], [], [], [], [zone], []
@@ -80,6 +87,7 @@ class FreeTierUsageTests(unittest.TestCase):
         )
 
     def test_counts_only_reserved_public_ips(self) -> None:
+        """Count reserved but not ephemeral public IPs."""
         public_ips = [
             {"lifetime": "RESERVED", "lifecycle-state": "ASSIGNED"},
             {"lifetime": "EPHEMERAL", "lifecycle-state": "ASSIGNED"},
