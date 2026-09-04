@@ -357,6 +357,7 @@ resource "oci_core_instance" "ampere_instance" {
       source_details[0].source_id, # image OCID changes on new OCI image releases
       availability_domain,         # may differ from var if instance was imported
       shape_config,                # OCPUs/memory set at launch; resize via OCI console
+      metadata,                    # bootstrap drift is reconciled only by explicit Omni credential replacement
     ]
   }
 }
