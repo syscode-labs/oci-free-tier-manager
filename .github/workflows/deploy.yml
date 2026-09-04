@@ -226,8 +226,7 @@ jobs:
           fi
           if ! tofu state show 'oci_budget_alert_rule.free_tier_alert[0]' >/dev/null 2>&1; then
             tofu import "${IMPORT_ARGS[@]}" \
-              'oci_budget_alert_rule.free_tier_alert[0]' \
-              "budgets/$BUDGET_ID/alertRules/${ALERT_IDS[0]}"
+              'oci_budget_alert_rule.free_tier_alert[0]' "${ALERT_IDS[0]}"
           fi
         env:
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
