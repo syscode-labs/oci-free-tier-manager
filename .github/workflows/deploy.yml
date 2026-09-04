@@ -50,7 +50,6 @@ on:
         description: "Extra -var key=value pairs, one per line, for one-off targeted resources."
         required: false
         default: ""
-
 permissions:
   contents: read
   pull-requests: write
@@ -166,6 +165,64 @@ jobs:
       - name: Tofu Init
         working-directory: tofu/oci
         run: tofu init -backend-config=backend-config.tfvars
+
+      - name: Import existing Cloudflare bastion record
+        if: github.event.inputs.reason == 'adopt-existing-cloudflare-bastion'
+        working-directory: tofu/oci
+        run: |
+          if tofu state show 'cloudflare_dns_record.bastion[0]' >/dev/null 2>&1; then
+            echo "Cloudflare bastion record is already managed."
+            exit 0
+          fi
+          if [ -z "$CLOUDFLARE_BASTION_RECORD_ID" ]; then
+            echo "ERROR: CLOUDFLARE_BASTION_RECORD_ID is not configured."
+            exit 1
+          fi
+          tofu import \
+            -input=false \
+            -lock-timeout=5m \
+            -var="tenancy_ocid=$OCI_TENANCY_OCID" \
+            -var="compartment_ocid=$OCI_COMPARTMENT_OCID" \
+            -var="talos_image_ocid=${{ steps.talos_image.outputs.ocid }}" \
+            -var="omni_machine_config=$OMNI_MACHINE_CONFIG" \
+            -var="omni_join_token=$OMNI_JOIN_TOKEN" \
+            -var="omni_endpoint=$OMNI_ENDPOINT" \
+            -var="tailscale_auth_key=$NODES_TAILSCALE_AUTHKEY" \
+            -var="oci_config_profile=DEFAULT" \
+            -var="enable_oci_vpn=true" \
+            -var="enable_oci_vpn_probe=$VPN_PROBE" \
+            -var="cpe_remediator_mode=$CPE_REMEDIATOR_MODE" \
+            -var="openwrt_resolver_ip=$OPENWRT_RESOLVER_IP" \
+            -var="home_cpe_public_ip=$HOME_CPE_PUBLIC_IP" \
+            -var="cpe_local_identifier=$CPE_LOCAL_IDENTIFIER" \
+            -var="omni_target_ip=$OMNI_TARGET_IP" \
+            -var="ddns_hostname=$DDNS_HOSTNAME" \
+            -var="cpe_recreate_fn_push_user_ocid=$CPE_RECREATE_FN_PUSH_USER_OCID" \
+            -var="ssh_public_key=$SSH_PUBLIC_KEY" \
+            -var="temp_diag_password=$TEMP_DIAG_PASSWORD" \
+            -var-file=terraform.tfvars \
+            'cloudflare_dns_record.bastion[0]' \
+            "$TF_VAR_cloudflare_zone_id/$CLOUDFLARE_BASTION_RECORD_ID"
+        env:
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
+          OMNI_MACHINE_CONFIG: ${{ secrets.OMNI_MACHINE_CONFIG }}
+          OMNI_JOIN_TOKEN: ${{ secrets.OMNI_JOIN_TOKEN }}
+          OMNI_ENDPOINT: ${{ secrets.OMNI_ENDPOINT }}
+          NODES_TAILSCALE_AUTHKEY: ${{ secrets.NODES_TAILSCALE_AUTHKEY }}
+          OPENWRT_RESOLVER_IP: ${{ secrets.OPENWRT_RESOLVER_IP }}
+          HOME_CPE_PUBLIC_IP: ${{ secrets.HOME_CPE_PUBLIC_IP }}
+          CPE_LOCAL_IDENTIFIER: ${{ secrets.CPE_LOCAL_IDENTIFIER }}
+          OMNI_TARGET_IP: ${{ secrets.OMNI_TARGET_IP }}
+          DDNS_HOSTNAME: ${{ secrets.DDNS_HOSTNAME }}
+          CPE_RECREATE_FN_PUSH_USER_OCID: ${{ secrets.CPE_RECREATE_FN_PUSH_USER_OCID }}
+          VPN_PROBE: ${{ github.event.inputs.vpn_probe || 'false' }}
+          CPE_REMEDIATOR_MODE: ${{ github.event.inputs.cpe_remediator_mode || 'function' }}
+          SSH_PUBLIC_KEY: ${{ github.event.inputs.ssh_public_key || secrets.SSH_PUBLIC_KEY }}
+          TEMP_DIAG_PASSWORD: ${{ github.event.inputs.temp_diag_password || '' }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLODUFLARE_API_TOKEN_OCI }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_SYSCODEUK_ID }}
+          CLOUDFLARE_BASTION_RECORD_ID: ${{ secrets.CLOUDFLARE_BASTION_RECORD_ID }}
 
       - name: Tofu Plan
         working-directory: tofu/oci
