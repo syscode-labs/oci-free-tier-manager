@@ -461,16 +461,29 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLODUFLARE_API_TOKEN_OCI }}
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_SYSCODEUK_ID }}
 
-      - name: Join the private control-plane network
-        if: github.event.inputs.coordinator_release == 'true'
-        uses: tailscale/github-action@v4
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
+  health:
+    name: Verify OCI release health
+    # Health is private-network-only. OCI provisioning remains GitHub-hosted above.
+    runs-on:
+      group: omni-runner
+      labels: self-hosted
+    needs: apply
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.apply == 'true' &&
+      github.event.inputs.coordinator_release == 'true' &&
+      needs.apply.result == 'success'
+    steps:
+      # A self-hosted runner has no prior job workspace: regenerate all evidence here.
+      - name: Checkout health verifier
+        uses: actions/checkout@v4
+
+      - name: Prepare private health evidence directory
+        run: |
+          rm -rf .release-health
+          mkdir -m 700 .release-health
 
       - name: Verify coordinator release health from Omni
-        if: github.event.inputs.coordinator_release == 'true'
         uses: jdmcmahan/omnictl-action@v1
         with:
           omni-endpoint: ${{ secrets.OMNI_ENDPOINT }}
@@ -479,7 +492,6 @@ jobs:
             set -eu &&
             test -n "$OMNI_ENDPOINT" &&
             test -n "$OMNI_SERVICE_ACCOUNT_KEY" &&
-            rm -rf .release-health && mkdir -m 700 .release-health &&
             omnictl cluster status oci-lab --wait 90s > .release-health/omni-status.txt &&
             omnictl get clustermachine -l 'omni.sidero.dev/cluster=oci-lab' -o json \
               > .release-health/cluster-machines.json &&
@@ -487,8 +499,22 @@ jobs:
             omnictl kubeconfig -c oci-lab --service-account --user oci-release-health --ttl 15m \
               --force --merge=false .release-health/kubeconfig
 
+      - name: Install verified Kubernetes client
+        env:
+          KUBERNETES_VERSION: ${{ github.event.inputs.kubernetes_version }}
+        run: |
+          set -euo pipefail
+          test -n "$KUBERNETES_VERSION" || { echo 'ERROR: missing approved Kubernetes version' >&2; exit 1; }
+          curl --fail --silent --show-error --location --retry 3 \
+            "https://dl.k8s.io/release/${KUBERNETES_VERSION}/bin/linux/amd64/kubectl" \
+            --output .release-health/kubectl
+          curl --fail --silent --show-error --location --retry 3 \
+            "https://dl.k8s.io/release/${KUBERNETES_VERSION}/bin/linux/amd64/kubectl.sha256" \
+            --output .release-health/kubectl.sha256
+          (cd .release-health && echo "$(cat kubectl.sha256)  kubectl" | sha256sum -c -)
+          chmod 700 .release-health/kubectl
+
       - name: Verify exact Talos and Kubernetes release health
-        if: github.event.inputs.coordinator_release == 'true'
         env:
           TALOS_VERSION: ${{ github.event.inputs.talos_version }}
           KUBERNETES_VERSION: ${{ github.event.inputs.kubernetes_version }}
@@ -546,10 +572,10 @@ jobs:
             --nodes "$(paste -sd, .release-health/machine-ids.txt)" \
             --output json \
             > .release-health/talos-version.json
-          KUBECONFIG=.release-health/kubeconfig timeout 30s kubectl get --raw=/readyz >/dev/null
-          KUBECONFIG=.release-health/kubeconfig timeout 30s kubectl get nodes -o json \
+          KUBECONFIG=.release-health/kubeconfig timeout 30s .release-health/kubectl get --raw=/readyz >/dev/null
+          KUBECONFIG=.release-health/kubeconfig timeout 30s .release-health/kubectl get nodes -o json \
             > .release-health/kubernetes-nodes.json
-          KUBECONFIG=.release-health/kubeconfig timeout 30s kubectl version -o json \
+          KUBECONFIG=.release-health/kubeconfig timeout 30s .release-health/kubectl version -o json \
             > .release-health/kubernetes-version.json
           python3 scripts/verify_oci_release_health.py \
             --machine-ids .release-health/machine-ids.txt \
@@ -558,4 +584,7 @@ jobs:
             --kubernetes-version .release-health/kubernetes-version.json \
             --talos-version "$TALOS_VERSION" \
             --expected-kubernetes-version "$KUBERNETES_VERSION"
-          rm -rf .release-health
+
+      - name: Remove private health evidence
+        if: always()
+        run: rm -rf .release-health

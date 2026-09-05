@@ -121,6 +121,13 @@ class ReleaseDispatchContractTests(unittest.TestCase):
             "run-name: Deploy ${{ inputs.release_id || inputs.reason }}", deploy
         )
         self.assertIn("kubernetes_version", deploy)
+        self.assertIn("needs: apply", deploy)
+        self.assertIn("needs.apply.result == 'success'", deploy)
+        self.assertIn("group: omni-runner", deploy)
+        self.assertIn(
+            'gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status',
+            workflow,
+        )
         self.assertIn("omnictl cluster status oci-lab --wait 90s", deploy)
         self.assertIn("--service-account --user oci-release-health", deploy)
         self.assertIn("python3 scripts/verify_oci_release_health.py", deploy)

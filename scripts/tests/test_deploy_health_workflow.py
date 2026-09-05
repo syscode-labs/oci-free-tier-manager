@@ -8,28 +8,42 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import yaml
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPOSITORY_ROOT / ".github/workflows/deploy.yml"
 
 
 def health_script() -> str:
     """Extract the actual shell executed by the release-health workflow step."""
-    workflow = WORKFLOW.read_text(encoding="utf-8")
-    match = re.search(
-        r"      - name: Verify exact Talos and Kubernetes release health\n.*?        run: \|\n"
-        r"(?P<script>(?:          .*\n)+)",
-        workflow,
-        flags=re.DOTALL,
-    )
-    if match is None:
-        raise AssertionError("release-health run script is missing")
-    return "".join(
-        line.removeprefix("          ")
-        for line in match.group("script").splitlines(keepends=True)
-    )
+    workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    for step in workflow["jobs"]["health"]["steps"]:
+        if step.get("name") == "Verify exact Talos and Kubernetes release health":
+            return step["run"]
+    raise AssertionError("release-health run script is missing")
 
 
 class DeployHealthWorkflowTests(unittest.TestCase):
+    def test_health_is_a_post_apply_self_hosted_job_without_tailscale_oauth(
+        self,
+    ) -> None:
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        health = yaml.safe_load(workflow)["jobs"]["health"]
+        self.assertEqual(
+            health["runs-on"], {"group": "omni-runner", "labels": "self-hosted"}
+        )
+        self.assertEqual(health["needs"], "apply")
+        self.assertIn("needs.apply.result == 'success'", health["if"])
+        self.assertTrue(
+            any(
+                step.get("name") == "Checkout health verifier"
+                for step in health["steps"]
+            )
+        )
+        self.assertNotIn("tailscale/github-action", workflow)
+        self.assertNotIn("TS_OAUTH_CLIENT_ID", workflow)
+        self.assertNotIn("TS_OAUTH_SECRET", workflow)
+
     def test_actual_workflow_shell_and_embedded_python_compile(self) -> None:
         script = health_script()
         with tempfile.NamedTemporaryFile("w", suffix=".sh") as shell:
@@ -90,6 +104,16 @@ class DeployHealthWorkflowTests(unittest.TestCase):
         self.assertIn("chmod 700 .release-health/talosctl-linux-amd64", script)
         self.assertIn(".release-health/talosctl-linux-amd64 get version", script)
         self.assertNotIn("talosctl-linux-amd64 version", script)
+
+    def test_health_job_installs_a_verified_job_local_kubectl_and_cleans_evidence(
+        self,
+    ) -> None:
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("Install verified Kubernetes client", workflow)
+        self.assertIn("kubectl.sha256", workflow)
+        self.assertIn(".release-health/kubectl", workflow)
+        self.assertIn("Remove private health evidence", workflow)
+        self.assertIn("if: always()", workflow)
 
     def test_actual_workflow_uses_sa_only_and_selected_omni_nodes(self) -> None:
         workflow = WORKFLOW.read_text(encoding="utf-8")
