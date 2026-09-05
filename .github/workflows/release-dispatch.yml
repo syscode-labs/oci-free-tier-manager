@@ -1,0 +1,174 @@
+name: Talos release receiver
+
+on:
+  repository_dispatch:
+    types: [talos-release-request]
+
+permissions:
+  actions: write
+  deployments: write
+  contents: read
+
+concurrency:
+  group: talos-release-oci-${{ github.event.client_payload.release_id }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch-deploy:
+    runs-on: ubuntu-latest
+    outputs:
+      execute: ${{ steps.reserve.outputs.execute }}
+      duplicate: ${{ steps.reserve.outputs.duplicate || 'false' }}
+      deployment_id: ${{ steps.reserve.outputs.deployment_id }}
+      deploy_run_id: ${{ steps.deploy.outputs.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate controller request before any deployment is reserved
+        env:
+          PAYLOAD: ${{ toJson(github.event.client_payload) }}
+          RELEASE_REQUEST_PATH: release-request.json
+        run: python3 scripts/validate_release_dispatch.py
+
+      - name: Reserve this release ID exactly once
+        id: reserve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ github.event.client_payload.release_id }}
+        run: |
+          set -euo pipefail
+          environment="talos-release-oci-${RELEASE_ID}"
+          existing=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/deployments?environment=${environment}&per_page=1" \
+            --jq '.[0].id // empty')
+          if [ -n "$existing" ]; then
+            echo "execute=false" >> "$GITHUB_OUTPUT"
+            echo "duplicate=true" >> "$GITHUB_OUTPUT"
+            echo "deployment_id=$existing" >> "$GITHUB_OUTPUT"
+            echo "Release ${RELEASE_ID} was already reserved; refusing to repeat it."
+            exit 0
+          fi
+          python3 - <<'PY' > deployment.json
+          import json
+          import os
+          print(json.dumps({
+              "ref": "main",
+              "environment": "talos-release-oci-" + os.environ["RELEASE_ID"],
+              "description": "Coordinator-owned, at-most-once OCI Talos release",
+              "required_contexts": [],
+              "auto_merge": False,
+          }))
+          PY
+          deployment_id=$(gh api "repos/${GITHUB_REPOSITORY}/deployments" \
+            --method POST --input deployment.json --jq .id)
+          echo "execute=true" >> "$GITHUB_OUTPUT"
+          echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
+
+      - name: Start exact guarded OCI deployment
+        id: deploy
+        if: steps.reserve.outputs.execute == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          release_id=$(jq -r .release_id release-request.json)
+          targets=$(jq -r '.oci_scope.targets | join(" ")' release-request.json)
+          replacements=$(jq -r '.oci_scope.replace | join(" ")' release-request.json)
+          allow_replace=false
+          [ -z "$replacements" ] || allow_replace=true
+          gh workflow run deploy.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f reason="Talos coordinator release ${release_id}" \
+            -f release_id="$release_id" \
+            -f coordinator_release=true \
+            -f talos_version="$(jq -r .talos_version release-request.json)" \
+            -f kubernetes_version="$(jq -r .kubernetes_version release-request.json)" \
+            -f talos_image_ocid="$(jq -r .artifacts.oci.image_ocid release-request.json)" \
+            -f talos_image_ref="$(jq -r .artifacts.oci.ref release-request.json)" \
+            -f talos_image_digest="$(jq -r .artifacts.oci.digest release-request.json)" \
+            -f targets="$targets" \
+            -f replace="$replacements" \
+            -f allow_replace="$allow_replace" \
+            -f apply=true
+          for _ in $(seq 1 30); do
+            run_id=$(gh run list --repo "$GITHUB_REPOSITORY" \
+              --workflow deploy.yml --event workflow_dispatch --limit 30 \
+              --json databaseId,displayTitle \
+              --jq ".[] | select(.displayTitle == \"Deploy ${release_id}\") | .databaseId" \
+              | head -n 1)
+            [ -n "$run_id" ] && break
+            sleep 2
+          done
+          test -n "${run_id:-}" || { echo 'could not find dispatched OCI workflow run' >&2; exit 1; }
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status
+
+      - name: Mark deployment result
+        if: always() && steps.reserve.outputs.execute == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOYMENT_ID: ${{ steps.reserve.outputs.deployment_id }}
+          RESULT: ${{ steps.deploy.outcome }}
+        run: |
+          set -euo pipefail
+          state=failure
+          [ "$RESULT" = success ] && state=success
+          gh api "repos/${GITHUB_REPOSITORY}/deployments/${DEPLOYMENT_ID}/statuses" \
+            --method POST -f state="$state" -f description="OCI Talos coordinator deployment ${state}" >/dev/null
+
+  report:
+    if: always()
+    needs: dispatch-deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.RELEASE_CONTROLLER_APP_ID }}
+          private-key: ${{ secrets.RELEASE_CONTROLLER_APP_PRIVATE_KEY }}
+          owner: syscode-labs
+          repositories: talos-release-controller
+
+      - name: Report a fully correlated result
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PAYLOAD: ${{ toJson(github.event.client_payload) }}
+          OUTCOME: ${{ needs.dispatch-deploy.result == 'success' && 'success' || 'failure' }}
+          EXECUTED: ${{ needs.dispatch-deploy.outputs.execute || 'false' }}
+          DUPLICATE: ${{ needs.dispatch-deploy.outputs.duplicate || 'false' }}
+          DEPLOY_RUN_ID: ${{ needs.dispatch-deploy.outputs.deploy_run_id || '' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' > dispatch.json
+          import json
+          import os
+
+          payload = json.loads(os.environ["PAYLOAD"] or "{}")
+          details_url = (
+              os.environ["GITHUB_SERVER_URL"]
+              + "/"
+              + os.environ["GITHUB_REPOSITORY"]
+              + "/actions/runs/"
+              + os.environ["GITHUB_RUN_ID"]
+          )
+          outcome = os.environ["OUTCOME"]
+          if os.environ["EXECUTED"] != "true":
+              outcome = "failure"
+          callback = {
+              "release_id": payload.get("release_id"),
+              "provider": "oci-free-tier-manager",
+              "outcome": outcome,
+              "source_repo": payload.get("source_repo"),
+              "source_sha": payload.get("source_sha"),
+              "build_run_id": payload.get("build_run_id"),
+              "artifacts": payload.get("artifacts"),
+              "duplicate": os.environ["DUPLICATE"] == "true",
+              "run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "details_url": details_url,
+          }
+          if os.environ["DEPLOY_RUN_ID"]:
+              callback["deploy_run_id"] = int(os.environ["DEPLOY_RUN_ID"])
+          print(json.dumps({"event_type": "talos-release-result", "client_payload": callback}))
+          PY
+          gh api repos/syscode-labs/talos-release-controller/dispatches --method POST --input dispatch.json

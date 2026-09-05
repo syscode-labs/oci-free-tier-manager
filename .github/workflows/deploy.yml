@@ -1,4 +1,5 @@
 name: Deploy
+run-name: Deploy ${{ inputs.release_id || inputs.reason }}
 
 on:
   workflow_dispatch:
@@ -7,6 +8,34 @@ on:
         description: "Reason for manual deploy"
         required: false
         default: "manual"
+      release_id:
+        description: "Immutable coordinator release ID. Empty preserves the manual lane."
+        required: false
+        default: ""
+      coordinator_release:
+        description: "Require controller-bound artifact and post-change health verification."
+        required: false
+        default: "false"
+      talos_version:
+        description: "Approved Talos version for a coordinator release."
+        required: false
+        default: ""
+      kubernetes_version:
+        description: "Approved Kubernetes version for a coordinator release."
+        required: false
+        default: ""
+      talos_image_ocid:
+        description: "Exact OCI custom-image OCID to deploy. Required; never resolved from latest."
+        required: false
+        default: ""
+      talos_image_ref:
+        description: "Immutable OCI installer reference from the accepted build callback."
+        required: false
+        default: ""
+      talos_image_digest:
+        description: "Immutable OCI installer manifest digest from the accepted build callback."
+        required: false
+        default: ""
       targets:
         description: "Space-separated addresses passed as -target (empty = full plan). For one-off additive rollouts."
         required: false
@@ -64,19 +93,41 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Fetch Talos image OCID from oci-talos-gitops-apps
+      - name: Validate supplied Talos image identity
         id: talos_image
+        env:
+          COORDINATOR_RELEASE: ${{ github.event.inputs.coordinator_release || 'false' }}
+          RELEASE_ID: ${{ github.event.inputs.release_id || '' }}
+          TALOS_VERSION: ${{ github.event.inputs.talos_version || '' }}
+          TALOS_IMAGE_OCID: ${{ github.event.inputs.talos_image_ocid || '' }}
+          TALOS_IMAGE_REF: ${{ github.event.inputs.talos_image_ref || '' }}
+          TALOS_IMAGE_DIGEST: ${{ github.event.inputs.talos_image_digest || '' }}
         run: |
-          OCID=$(curl -fsSL \
-            "https://raw.githubusercontent.com/syscode-labs/oci-talos-gitops-apps/main/omni/talos-image.yaml" \
-            | grep '^oci_image_ocid:' | awk '{print $2}')
-          if [ -z "$OCID" ] || [ "$OCID" = '""' ] || [ "$OCID" = "null" ]; then
-            echo "ERROR: oci_image_ocid is empty in oci-talos-gitops-apps/omni/talos-image.yaml"
-            echo "Run the talos-images build workflow first to import a Talos image into OCI."
-            exit 1
-          fi
-          echo "ocid=${OCID}" >> "$GITHUB_OUTPUT"
-          echo "Talos image OCID: ${OCID}"
+          python3 - <<'PY'
+          import os
+          import re
+          import sys
+
+          coordinator = os.environ["COORDINATOR_RELEASE"]
+          release_id = os.environ["RELEASE_ID"]
+          version = os.environ["TALOS_VERSION"]
+          image_ocid = os.environ["TALOS_IMAGE_OCID"]
+          image_ref = os.environ["TALOS_IMAGE_REF"]
+          image_digest = os.environ["TALOS_IMAGE_DIGEST"]
+          if not re.fullmatch(r"ocid1\.image\.[A-Za-z0-9._-]+", image_ocid):
+              sys.exit("ERROR: talos_image_ocid must be an explicit OCI custom-image OCID")
+          if coordinator == "true":
+              if not release_id or not version:
+                  sys.exit("ERROR: coordinator_release requires release_id and talos_version")
+              if image_ref != f"ghcr.io/syscode-labs/talos-images/installer:{version}":
+                  sys.exit("ERROR: coordinator OCI image ref is not bound to the approved Talos version")
+              if not re.fullmatch(r"sha256:[0-9a-f]{64}", image_digest):
+                  sys.exit("ERROR: coordinator OCI image digest must be immutable")
+          elif bool(image_ref) != bool(image_digest):
+              sys.exit("ERROR: manual image ref and digest must be supplied together")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"ocid={image_ocid}\n")
+          PY
 
       - name: Write OCI credentials
         run: |
@@ -259,8 +310,6 @@ jobs:
           TEMP_DIAG_PASSWORD: ${{ github.event.inputs.temp_diag_password || '' }}
           EXTRA_TFVARS: ${{ github.event.inputs.extra_tfvars || '' }}
           TF_LOG: WARN
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLODUFLARE_API_TOKEN_OCI }}
-          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_SYSCODEUK_ID }}
 
       - name: Enforce Always Free plan
         working-directory: tofu/oci
@@ -411,3 +460,132 @@ jobs:
           TF_LOG: WARN
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLODUFLARE_API_TOKEN_OCI }}
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_SYSCODEUK_ID }}
+
+  health:
+    name: Verify OCI release health
+    # Health is private-network-only. OCI provisioning remains GitHub-hosted above.
+    runs-on:
+      group: omni-runner
+      labels: self-hosted
+    needs: apply
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.apply == 'true' &&
+      github.event.inputs.coordinator_release == 'true' &&
+      needs.apply.result == 'success'
+    steps:
+      # A self-hosted runner has no prior job workspace: regenerate all evidence here.
+      - name: Checkout health verifier
+        uses: actions/checkout@v4
+
+      - name: Prepare private health evidence directory
+        run: |
+          rm -rf .release-health
+          mkdir -m 700 .release-health
+
+      - name: Verify coordinator release health from Omni
+        # v1 does not exist; pin the inspected v1.95.0 commit.
+        uses: jdmcmahan/omnictl-action@3904a0719b14aa388c445cae7084a19d928a317b
+        with:
+          omni-endpoint: ${{ secrets.OMNI_ENDPOINT }}
+          omni-service-account-key: ${{ secrets.OMNI_SERVICE_ACCOUNT_KEY }}
+          command: >-
+            set -eu &&
+            test -n "$OMNI_ENDPOINT" &&
+            test -n "$OMNI_SERVICE_ACCOUNT_KEY" &&
+            omnictl cluster status oci-lab --wait 90s > .release-health/omni-status.txt &&
+            omnictl get clustermachine -l 'omni.sidero.dev/cluster=oci-lab' -o json \
+              > .release-health/cluster-machines.json &&
+            omnictl talosconfig -c oci-lab --force --merge=false .release-health/talosconfig &&
+            omnictl kubeconfig -c oci-lab --service-account --user oci-release-health --ttl 15m \
+              --force --merge=false .release-health/kubeconfig
+
+      - name: Install verified Kubernetes client
+        env:
+          KUBERNETES_VERSION: ${{ github.event.inputs.kubernetes_version }}
+        run: |
+          set -euo pipefail
+          test -n "$KUBERNETES_VERSION" || { echo 'ERROR: missing approved Kubernetes version' >&2; exit 1; }
+          curl --fail --silent --show-error --location --retry 3 \
+            "https://dl.k8s.io/release/${KUBERNETES_VERSION}/bin/linux/amd64/kubectl" \
+            --output .release-health/kubectl
+          curl --fail --silent --show-error --location --retry 3 \
+            "https://dl.k8s.io/release/${KUBERNETES_VERSION}/bin/linux/amd64/kubectl.sha256" \
+            --output .release-health/kubectl.sha256
+          (cd .release-health && echo "$(cat kubectl.sha256)  kubectl" | sha256sum -c -)
+          chmod 700 .release-health/kubectl
+
+      - name: Verify exact Talos and Kubernetes release health
+        env:
+          TALOS_VERSION: ${{ github.event.inputs.talos_version }}
+          KUBERNETES_VERSION: ${{ github.event.inputs.kubernetes_version }}
+          OMNI_ENDPOINT: ${{ secrets.OMNI_ENDPOINT }}
+          OMNI_SERVICE_ACCOUNT_KEY: ${{ secrets.OMNI_SERVICE_ACCOUNT_KEY }}
+        run: |
+          set -euo pipefail
+          set +x
+          test -n "$TALOS_VERSION" || { echo 'ERROR: missing approved Talos version' >&2; exit 1; }
+          test -n "$KUBERNETES_VERSION" || { echo 'ERROR: missing approved Kubernetes version' >&2; exit 1; }
+          test -n "$OMNI_ENDPOINT" || { echo 'ERROR: missing Omni service-account endpoint' >&2; exit 1; }
+          test -n "$OMNI_SERVICE_ACCOUNT_KEY" || { echo 'ERROR: missing Omni service-account key' >&2; exit 1; }
+          test -s .release-health/omni-status.txt || { echo 'ERROR: Omni status evidence is absent' >&2; exit 1; }
+          test -s .release-health/cluster-machines.json || {
+            echo 'ERROR: Omni machine evidence is absent' >&2
+            exit 1
+          }
+          test -s .release-health/talosconfig || { echo 'ERROR: SA-generated talosconfig is absent' >&2; exit 1; }
+          test -s .release-health/kubeconfig || { echo 'ERROR: SA-generated kubeconfig is absent' >&2; exit 1; }
+          grep -Eq '^Cluster "oci-lab" RUNNING Ready ' .release-health/omni-status.txt || {
+            echo 'ERROR: oci-lab did not reach RUNNING Ready within the bounded Omni wait.' >&2
+            exit 1
+          }
+          python3 - <<'PY'
+          import sys
+          from pathlib import Path
+          from scripts.verify_oci_release_health import json_stream
+
+          entries = json_stream(Path('.release-health/cluster-machines.json'))
+          node_ids = []
+          for entry in entries:
+              metadata = entry.get('metadata', {}) if isinstance(entry, dict) else {}
+              labels = metadata.get('labels', {})
+              node_id = metadata.get('id')
+              if labels.get('omni.sidero.dev/cluster') == 'oci-lab' and isinstance(node_id, str):
+                  node_ids.append(node_id)
+          if len(node_ids) != 2 or len(set(node_ids)) != 2:
+              sys.exit('ERROR: Omni must select exactly two distinct oci-lab machine UUIDs')
+          with open('.release-health/machine-ids.txt', 'w', encoding='utf-8') as output:
+              output.write('\n'.join(sorted(node_ids)) + '\n')
+          PY
+          curl --fail --silent --show-error --location --retry 3 \
+            "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/talosctl-linux-amd64" \
+            --output .release-health/talosctl-linux-amd64
+          curl --fail --silent --show-error --location --retry 3 \
+            "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/sha256sum.txt" \
+            --output .release-health/sha256sum.txt
+          (cd .release-health && grep ' talosctl-linux-amd64$' sha256sum.txt | sha256sum -c -)
+          chmod 700 .release-health/talosctl-linux-amd64
+          mkdir -m 700 .release-health/empty-siderov1-keys
+          SIDEROV1_KEY="$OMNI_SERVICE_ACCOUNT_KEY" \
+          SIDEROV1_KEYS_DIR=.release-health/empty-siderov1-keys \
+          timeout 90s .release-health/talosctl-linux-amd64 get version \
+            --talosconfig .release-health/talosconfig \
+            --nodes "$(paste -sd, .release-health/machine-ids.txt)" \
+            --output json \
+            > .release-health/talos-version.json
+          KUBECONFIG=.release-health/kubeconfig timeout 30s .release-health/kubectl get --raw=/readyz >/dev/null
+          KUBECONFIG=.release-health/kubeconfig timeout 30s .release-health/kubectl get nodes -o json \
+            > .release-health/kubernetes-nodes.json
+          KUBECONFIG=.release-health/kubeconfig timeout 30s .release-health/kubectl version -o json \
+            > .release-health/kubernetes-version.json
+          python3 scripts/verify_oci_release_health.py \
+            --machine-ids .release-health/machine-ids.txt \
+            --talos-version-output .release-health/talos-version.json \
+            --kubernetes-nodes .release-health/kubernetes-nodes.json \
+            --kubernetes-version .release-health/kubernetes-version.json \
+            --talos-version "$TALOS_VERSION" \
+            --expected-kubernetes-version "$KUBERNETES_VERSION"
+
+      - name: Remove private health evidence
+        if: always()
+        run: rm -rf .release-health
