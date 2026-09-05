@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 import copy
+import json
+import os
+import re
+import subprocess
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -137,6 +142,67 @@ class ReleaseDispatchContractTests(unittest.TestCase):
         self.assertIn(
             "--kubernetes-nodes .release-health/kubernetes-nodes.json", deploy
         )
+
+    def test_plan_receives_the_required_cloudflare_zone_input(self) -> None:
+        deploy = Path(".github/workflows/deploy.yml").read_text(encoding="utf-8")
+        plan = deploy.split("      - name: Tofu Plan", 1)[1].split(
+            "      - name: Enforce Always Free plan", 1
+        )[0]
+        self.assertIn(
+            "TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_SYSCODEUK_ID }}",
+            plan,
+        )
+
+    def test_callback_payload_is_compact_and_keeps_controller_correlation_fields(
+        self,
+    ) -> None:
+        workflow = Path(".github/workflows/release-dispatch.yml").read_text(
+            encoding="utf-8"
+        )
+        report = workflow.split("      - name: Report a fully correlated result", 1)[1]
+        match = re.search(
+            r"python3 - <<'PY' > dispatch\.json\n(?P<code>.*?)^          PY$",
+            report,
+            flags=re.DOTALL | re.MULTILINE,
+        )
+        self.assertIsNotNone(match, "callback payload producer is missing")
+        payload = valid_payload()
+        completed = subprocess.run(
+            ["python3", "-c", textwrap.dedent(match.group("code"))],  # type: ignore[union-attr]
+            check=True,
+            capture_output=True,
+            text=True,
+            env={
+                **os.environ,
+                "PAYLOAD": json.dumps(payload),
+                "OUTCOME": "failure",
+                "EXECUTED": "true",
+                "DUPLICATE": "false",
+                "GITHUB_SERVER_URL": "https://github.com",
+                "GITHUB_REPOSITORY": "syscode-labs/oci-free-tier-manager",
+                "GITHUB_RUN_ID": "456",
+            },
+        )
+        callback = json.loads(completed.stdout)["client_payload"]
+        self.assertEqual(len(callback), 10)
+        self.assertEqual(
+            set(callback),
+            {
+                "release_id",
+                "provider",
+                "outcome",
+                "source_repo",
+                "source_sha",
+                "build_run_id",
+                "artifacts",
+                "duplicate",
+                "run_id",
+                "details_url",
+            },
+        )
+        self.assertEqual(callback["build_run_id"], payload["build_run_id"])
+        self.assertEqual(callback["artifacts"], payload["artifacts"])
+        self.assertNotIn("deploy_run_id", callback)
 
 
 if __name__ == "__main__":

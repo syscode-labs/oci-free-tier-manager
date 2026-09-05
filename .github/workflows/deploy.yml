@@ -290,6 +290,9 @@ jobs:
         env:
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
           OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
+          # Keep the plan's required DNS input aligned with the apply lane.
+          # TF_VAR avoids placing the value in command output.
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_SYSCODEUK_ID }}
           OMNI_MACHINE_CONFIG: ${{ secrets.OMNI_MACHINE_CONFIG }}
           OMNI_JOIN_TOKEN: ${{ secrets.OMNI_JOIN_TOKEN }}
           OMNI_ENDPOINT: ${{ secrets.OMNI_ENDPOINT }}
