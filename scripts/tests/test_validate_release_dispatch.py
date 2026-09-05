@@ -118,9 +118,10 @@ class ReleaseDispatchContractTests(unittest.TestCase):
         self.assertIn('"build_run_id": payload.get("build_run_id")', workflow)
         self.assertIn('"artifacts": payload.get("artifacts")', workflow)
         self.assertIn(
-            '"attempt_state": "existing_claim" if os.environ["DUPLICATE"] == "true" else None',
-            workflow,
+            "Check whether the durable deployment reservation exists", workflow
         )
+        self.assertIn('"RESERVATION_EXISTS"] == "true"', workflow)
+        self.assertIn('attempt_state = "failed_pre_mutation"', workflow)
         self.assertIn('"duplicate=true" >> "$GITHUB_OUTPUT"', workflow)
         self.assertIn("displayTitle", workflow)
         self.assertIn('select(.displayTitle == \\"Deploy ${release_id}\\")', workflow)
@@ -186,7 +187,7 @@ class ReleaseDispatchContractTests(unittest.TestCase):
                 "PAYLOAD": json.dumps(payload),
                 "OUTCOME": "failure",
                 "EXECUTED": "true",
-                "DUPLICATE": "false",
+                "RESERVATION_EXISTS": "false",
                 "GITHUB_SERVER_URL": "https://github.com",
                 "GITHUB_REPOSITORY": "syscode-labs/oci-free-tier-manager",
                 "GITHUB_RUN_ID": "456",
@@ -223,7 +224,7 @@ class ReleaseDispatchContractTests(unittest.TestCase):
                 "PAYLOAD": json.dumps(payload),
                 "OUTCOME": "failure",
                 "EXECUTED": "false",
-                "DUPLICATE": "true",
+                "RESERVATION_EXISTS": "true",
                 "GITHUB_SERVER_URL": "https://github.com",
                 "GITHUB_REPOSITORY": "syscode-labs/oci-free-tier-manager",
                 "GITHUB_RUN_ID": "457",
@@ -232,6 +233,25 @@ class ReleaseDispatchContractTests(unittest.TestCase):
         duplicate_callback = json.loads(duplicate.stdout)["client_payload"]
         self.assertEqual(len(duplicate_callback), 10)
         self.assertEqual(duplicate_callback["attempt_state"], "existing_claim")
+
+        pre_mutation = subprocess.run(
+            ["python3", "-c", textwrap.dedent(match.group("code"))],  # type: ignore[union-attr]
+            check=True,
+            capture_output=True,
+            text=True,
+            env={
+                **os.environ,
+                "PAYLOAD": json.dumps(payload),
+                "OUTCOME": "failure",
+                "EXECUTED": "false",
+                "RESERVATION_EXISTS": "false",
+                "GITHUB_SERVER_URL": "https://github.com",
+                "GITHUB_REPOSITORY": "syscode-labs/oci-free-tier-manager",
+                "GITHUB_RUN_ID": "458",
+            },
+        )
+        pre_mutation_callback = json.loads(pre_mutation.stdout)["client_payload"]
+        self.assertEqual(pre_mutation_callback["attempt_state"], "failed_pre_mutation")
 
 
 if __name__ == "__main__":

@@ -121,6 +121,22 @@ jobs:
     needs: dispatch-deploy
     runs-on: ubuntu-latest
     steps:
+      - name: Check whether the durable deployment reservation exists
+        id: reservation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ github.event.client_payload.release_id }}
+        run: |
+          set -euo pipefail
+          environment="talos-release-oci-${RELEASE_ID}"
+          reservation_id=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/deployments?environment=${environment}&per_page=1" \
+            --jq '.[0].id // empty')
+          if [ -n "$reservation_id" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/create-github-app-token@v2
         id: app-token
         with:
@@ -135,7 +151,7 @@ jobs:
           PAYLOAD: ${{ toJson(github.event.client_payload) }}
           OUTCOME: ${{ needs.dispatch-deploy.result == 'success' && 'success' || 'failure' }}
           EXECUTED: ${{ needs.dispatch-deploy.outputs.execute || 'false' }}
-          DUPLICATE: ${{ needs.dispatch-deploy.outputs.duplicate || 'false' }}
+          RESERVATION_EXISTS: ${{ steps.reservation.outputs.exists }}
         run: |
           set -euo pipefail
           python3 - <<'PY' > dispatch.json
@@ -153,6 +169,15 @@ jobs:
           outcome = os.environ["OUTCOME"]
           if os.environ["EXECUTED"] != "true":
               outcome = "failure"
+          attempt_state = None
+          # The deployment reservation is the durable OCI claim. A failed
+          # receiver may be retried only when that claim is absent and the
+          # child deployment was never started. Otherwise the controller must
+          # inspect the original reservation rather than repeat a mutation.
+          if os.environ["RESERVATION_EXISTS"] == "true":
+              attempt_state = "existing_claim"
+          elif outcome == "failure" and os.environ["EXECUTED"] != "true":
+              attempt_state = "failed_pre_mutation"
           callback = {
               "release_id": payload.get("release_id"),
               "provider": "oci-free-tier-manager",
@@ -161,10 +186,7 @@ jobs:
               "source_sha": payload.get("source_sha"),
               "build_run_id": payload.get("build_run_id"),
               "artifacts": payload.get("artifacts"),
-              # An existing reservation has no authenticated original workflow
-              # identity in older records; report it so the controller blocks
-              # rather than treating duplicate delivery as a terminal outcome.
-              "attempt_state": "existing_claim" if os.environ["DUPLICATE"] == "true" else None,
+              "attempt_state": attempt_state,
               "run_id": int(os.environ["GITHUB_RUN_ID"]),
               "details_url": details_url,
           }
