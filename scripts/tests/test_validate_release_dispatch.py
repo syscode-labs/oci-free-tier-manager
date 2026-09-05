@@ -133,7 +133,10 @@ class ReleaseDispatchContractTests(unittest.TestCase):
             'gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status',
             workflow,
         )
-        self.assertIn("omnictl cluster status oci-lab --wait 90s", deploy)
+        self.assertIn(
+            ".release-health/omnictl-linux-amd64 cluster status oci-lab --wait 90s",
+            deploy,
+        )
         self.assertIn("--service-account --user oci-release-health", deploy)
         self.assertIn("python3 scripts/verify_oci_release_health.py", deploy)
         self.assertIn(
