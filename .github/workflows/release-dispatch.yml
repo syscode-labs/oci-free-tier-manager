@@ -134,8 +134,22 @@ jobs:
             --jq '.[0].id // empty')
           if [ -n "$reservation_id" ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "unreached=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "exists=false" >> "$GITHUB_OUTPUT"
+          reservation_filter='.jobs[] | select(.name == "dispatch-deploy")
+            | .steps[] | select(.name == "Reserve this release ID exactly once")
+            | .conclusion // empty'
+          reservation_step=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?per_page=100" \
+            --jq "$reservation_filter")
+          # Only a skipped reservation step proves this run never attempted the
+          # durable claim. A failed or unknown reservation step is ambiguous.
+          if [ "$reservation_step" = "skipped" ]; then
+            echo "unreached=true" >> "$GITHUB_OUTPUT"
           else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "unreached=false" >> "$GITHUB_OUTPUT"
           fi
       - uses: actions/create-github-app-token@v2
         id: app-token
@@ -152,6 +166,7 @@ jobs:
           OUTCOME: ${{ needs.dispatch-deploy.result == 'success' && 'success' || 'failure' }}
           EXECUTED: ${{ needs.dispatch-deploy.outputs.execute || 'false' }}
           RESERVATION_EXISTS: ${{ steps.reservation.outputs.exists }}
+          RESERVATION_UNREACHED: ${{ steps.reservation.outputs.unreached }}
         run: |
           set -euo pipefail
           python3 - <<'PY' > dispatch.json
@@ -170,13 +185,16 @@ jobs:
           if os.environ["EXECUTED"] != "true":
               outcome = "failure"
           attempt_state = None
-          # The deployment reservation is the durable OCI claim. A failed
-          # receiver may be retried only when that claim is absent and the
-          # child deployment was never started. Otherwise the controller must
-          # inspect the original reservation rather than repeat a mutation.
+          # A retry is safe only when the durable reservation is absent and the
+          # reservation step was skipped. A failed or unknown reservation step
+          # may have created the claim before its result became observable.
           if os.environ["RESERVATION_EXISTS"] == "true":
               attempt_state = "existing_claim"
-          elif outcome == "failure" and os.environ["EXECUTED"] != "true":
+          elif (
+              outcome == "failure"
+              and os.environ["EXECUTED"] != "true"
+              and os.environ["RESERVATION_UNREACHED"] == "true"
+          ):
               attempt_state = "failed_pre_mutation"
           callback = {
               "release_id": payload.get("release_id"),
