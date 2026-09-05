@@ -44,6 +44,43 @@ class DeployHealthWorkflowTests(unittest.TestCase):
         self.assertIsNotNone(python, "machine UUID selection Python is missing")
         compile(python.group("code"), "deploy-health-machine-selection", "exec")  # type: ignore[union-attr]
 
+    def test_machine_selection_accepts_omni_json_stream(self) -> None:
+        import json
+        import os
+        import sys
+
+        python = re.search(
+            r"python3 - <<'PY'\n(?P<code>.*?)^PY$",
+            health_script(),
+            flags=re.DOTALL | re.MULTILINE,
+        )
+        assert python is not None
+        with tempfile.TemporaryDirectory() as directory:
+            evidence = Path(directory) / ".release-health"
+            evidence.mkdir()
+            records = [
+                {
+                    "metadata": {
+                        "id": identity,
+                        "labels": {"omni.sidero.dev/cluster": "oci-lab"},
+                    }
+                }
+                for identity in ("node-a", "node-b")
+            ]
+            (evidence / "cluster-machines.json").write_text(
+                "\n".join(json.dumps(record) for record in records),
+                encoding="utf-8",
+            )
+            subprocess.run(
+                [sys.executable, "-c", python.group("code")],
+                check=True,
+                cwd=directory,
+                env={**os.environ, "PYTHONPATH": str(REPOSITORY_ROOT)},
+            )
+            self.assertEqual(
+                (evidence / "machine-ids.txt").read_text(), "node-a\nnode-b\n"
+            )
+
     def test_actual_workflow_downloads_and_checks_the_same_talosctl_name(self) -> None:
         script = health_script()
         self.assertIn("--output .release-health/talosctl-linux-amd64", script)

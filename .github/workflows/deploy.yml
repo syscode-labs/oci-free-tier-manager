@@ -513,11 +513,11 @@ jobs:
             exit 1
           }
           python3 - <<'PY'
-          import json
           import sys
+          from pathlib import Path
+          from scripts.verify_oci_release_health import json_stream
 
-          raw = json.load(open('.release-health/cluster-machines.json', encoding='utf-8'))
-          entries = raw if isinstance(raw, list) else [raw]
+          entries = json_stream(Path('.release-health/cluster-machines.json'))
           node_ids = []
           for entry in entries:
               metadata = entry.get('metadata', {}) if isinstance(entry, dict) else {}
