@@ -117,7 +117,10 @@ class ReleaseDispatchContractTests(unittest.TestCase):
         self.assertIn('outcome = "failure"', workflow)
         self.assertIn('"build_run_id": payload.get("build_run_id")', workflow)
         self.assertIn('"artifacts": payload.get("artifacts")', workflow)
-        self.assertIn('"duplicate": os.environ["DUPLICATE"] == "true"', workflow)
+        self.assertIn(
+            '"attempt_state": "existing_claim" if os.environ["DUPLICATE"] == "true" else None',
+            workflow,
+        )
         self.assertIn('"duplicate=true" >> "$GITHUB_OUTPUT"', workflow)
         self.assertIn("displayTitle", workflow)
         self.assertIn('select(.displayTitle == \\"Deploy ${release_id}\\")', workflow)
@@ -137,7 +140,10 @@ class ReleaseDispatchContractTests(unittest.TestCase):
             ".release-health/omnictl-linux-amd64 cluster status oci-lab --wait 90s",
             deploy,
         )
-        self.assertIn("--service-account --user oci-release-health", deploy)
+        self.assertIn(
+            "omnictl-linux-amd64 kubeconfig -c oci-lab --service-account", deploy
+        )
+        self.assertIn("--user oci-release-health --ttl 15m", deploy)
         self.assertIn("python3 scripts/verify_oci_release_health.py", deploy)
         self.assertIn(
             "--talos-version-output .release-health/talos-version.json", deploy
@@ -198,14 +204,34 @@ class ReleaseDispatchContractTests(unittest.TestCase):
                 "source_sha",
                 "build_run_id",
                 "artifacts",
-                "duplicate",
+                "attempt_state",
                 "run_id",
                 "details_url",
             },
         )
         self.assertEqual(callback["build_run_id"], payload["build_run_id"])
         self.assertEqual(callback["artifacts"], payload["artifacts"])
-        self.assertNotIn("deploy_run_id", callback)
+        self.assertIsNone(callback["attempt_state"])
+
+        duplicate = subprocess.run(
+            ["python3", "-c", textwrap.dedent(match.group("code"))],  # type: ignore[union-attr]
+            check=True,
+            capture_output=True,
+            text=True,
+            env={
+                **os.environ,
+                "PAYLOAD": json.dumps(payload),
+                "OUTCOME": "failure",
+                "EXECUTED": "false",
+                "DUPLICATE": "true",
+                "GITHUB_SERVER_URL": "https://github.com",
+                "GITHUB_REPOSITORY": "syscode-labs/oci-free-tier-manager",
+                "GITHUB_RUN_ID": "457",
+            },
+        )
+        duplicate_callback = json.loads(duplicate.stdout)["client_payload"]
+        self.assertEqual(len(duplicate_callback), 10)
+        self.assertEqual(duplicate_callback["attempt_state"], "existing_claim")
 
 
 if __name__ == "__main__":

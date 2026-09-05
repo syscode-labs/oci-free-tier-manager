@@ -161,7 +161,10 @@ jobs:
               "source_sha": payload.get("source_sha"),
               "build_run_id": payload.get("build_run_id"),
               "artifacts": payload.get("artifacts"),
-              "duplicate": os.environ["DUPLICATE"] == "true",
+              # An existing reservation has no authenticated original workflow
+              # identity in older records; report it so the controller blocks
+              # rather than treating duplicate delivery as a terminal outcome.
+              "attempt_state": "existing_claim" if os.environ["DUPLICATE"] == "true" else None,
               "run_id": int(os.environ["GITHUB_RUN_ID"]),
               "details_url": details_url,
           }
