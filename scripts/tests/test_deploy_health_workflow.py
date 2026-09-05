@@ -43,10 +43,13 @@ class DeployHealthWorkflowTests(unittest.TestCase):
         self.assertNotIn("tailscale/github-action", workflow)
         self.assertNotIn("TS_OAUTH_CLIENT_ID", workflow)
         self.assertNotIn("TS_OAUTH_SECRET", workflow)
-        self.assertIn(
-            "jdmcmahan/omnictl-action@3904a0719b14aa388c445cae7084a19d928a317b",
-            workflow,
-        )
+        self.assertNotIn("jdmcmahan/omnictl-action", workflow)
+        for name in (
+            "Install verified Omni client",
+            "Verify coordinator release health from Omni",
+        ):
+            step = next(step for step in health["steps"] if step.get("name") == name)
+            self.assertNotIn("uses", step)
 
     def test_actual_workflow_shell_and_embedded_python_compile(self) -> None:
         script = health_script()
@@ -109,6 +112,43 @@ class DeployHealthWorkflowTests(unittest.TestCase):
         self.assertIn(".release-health/talosctl-linux-amd64 get version", script)
         self.assertNotIn("talosctl-linux-amd64 version", script)
 
+    def test_health_job_installs_a_verified_native_omnictl_with_sa_environment(
+        self,
+    ) -> None:
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        health = yaml.safe_load(workflow)["jobs"]["health"]
+        install = next(
+            step
+            for step in health["steps"]
+            if step.get("name") == "Install verified Omni client"
+        )
+        self.assertEqual(install["env"]["OMNICTL_VERSION"], "v1.10.5")
+        self.assertIn("omnictl-linux-amd64", install["run"])
+        self.assertIn("omni-sha256sum.txt", install["run"])
+        self.assertIn(
+            "grep ' omnictl-linux-amd64$' omni-sha256sum.txt | sha256sum -c -",
+            install["run"],
+        )
+        self.assertIn("chmod 700 .release-health/omnictl-linux-amd64", install["run"])
+        omni = next(
+            step
+            for step in health["steps"]
+            if step.get("name") == "Verify coordinator release health from Omni"
+        )
+        self.assertEqual(omni["env"]["OMNI_ENDPOINT"], "${{ secrets.OMNI_ENDPOINT }}")
+        self.assertEqual(
+            omni["env"]["OMNI_SERVICE_ACCOUNT_KEY"],
+            "${{ secrets.OMNI_SERVICE_ACCOUNT_KEY }}",
+        )
+        self.assertIn('test -n "$OMNI_ENDPOINT"', omni["run"])
+        self.assertIn('test -n "$OMNI_SERVICE_ACCOUNT_KEY"', omni["run"])
+        self.assertIn(".release-health/omnictl-linux-amd64 cluster status", omni["run"])
+        self.assertIn(
+            ".release-health/omnictl-linux-amd64 get clustermachine", omni["run"]
+        )
+        self.assertIn(".release-health/omnictl-linux-amd64 talosconfig", omni["run"])
+        self.assertIn(".release-health/omnictl-linux-amd64 kubeconfig", omni["run"])
+
     def test_health_job_installs_a_verified_job_local_kubectl_and_cleans_evidence(
         self,
     ) -> None:
@@ -123,7 +163,8 @@ class DeployHealthWorkflowTests(unittest.TestCase):
         workflow = WORKFLOW.read_text(encoding="utf-8")
         script = health_script()
         self.assertIn(
-            "omnictl get clustermachine -l 'omni.sidero.dev/cluster=oci-lab' -o json",
+            ".release-health/omnictl-linux-amd64 get clustermachine "
+            "-l 'omni.sidero.dev/cluster=oci-lab' -o json",
             workflow,
         )
         self.assertIn(
