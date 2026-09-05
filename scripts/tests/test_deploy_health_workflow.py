@@ -43,6 +43,10 @@ class DeployHealthWorkflowTests(unittest.TestCase):
         self.assertNotIn("tailscale/github-action", workflow)
         self.assertNotIn("TS_OAUTH_CLIENT_ID", workflow)
         self.assertNotIn("TS_OAUTH_SECRET", workflow)
+        self.assertIn(
+            "jdmcmahan/omnictl-action@3904a0719b14aa388c445cae7084a19d928a317b",
+            workflow,
+        )
 
     def test_actual_workflow_shell_and_embedded_python_compile(self) -> None:
         script = health_script()

@@ -484,7 +484,8 @@ jobs:
           mkdir -m 700 .release-health
 
       - name: Verify coordinator release health from Omni
-        uses: jdmcmahan/omnictl-action@v1
+        # v1 does not exist; pin the inspected v1.95.0 commit.
+        uses: jdmcmahan/omnictl-action@3904a0719b14aa388c445cae7084a19d928a317b
         with:
           omni-endpoint: ${{ secrets.OMNI_ENDPOINT }}
           omni-service-account-key: ${{ secrets.OMNI_SERVICE_ACCOUNT_KEY }}
