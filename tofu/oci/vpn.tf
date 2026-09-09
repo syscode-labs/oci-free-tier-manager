@@ -155,6 +155,20 @@ resource "oci_core_security_list" "vpn_security_list" {
   }
 
   # Ingress: SSH from the public bastion for private-router management.
+  # Subnet routing uses Tailscale's default SNAT to this same private host.
+  dynamic "ingress_security_rules" {
+    for_each = var.create_bastion ? toset([6443, 50000, 50001]) : toset([])
+    content {
+      protocol    = "6"
+      source      = "${data.oci_core_private_ips.bastion_private_ip[0].private_ips[0].ip_address}/32"
+      description = "Talos management from public subnet router"
+      tcp_options {
+        min = ingress_security_rules.value
+        max = ingress_security_rules.value
+      }
+    }
+  }
+
   dynamic "ingress_security_rules" {
     for_each = var.create_bastion ? [data.oci_core_private_ips.bastion_private_ip[0].private_ips[0].ip_address] : []
     content {

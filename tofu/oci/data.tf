@@ -194,6 +194,8 @@ locals {
 
   # The mode renders exactly one executor, or zero during retirement.
   _bastion_user_data = base64encode(templatefile("${path.module}/files/cloud-init-bastion.yaml.tmpl", {
+    router_script                   = indent(6, file("${path.module}/../../scripts/configure-bastion-router.sh"))
+    advertised_route                = var.vpn_subnet_cidr
     ssh_public_key                  = length(local._ssh_authorized_keys) > 0 ? local._ssh_authorized_keys[0] : ""
     extra_ssh_keys                  = length(local._ssh_authorized_keys) > 1 ? slice(local._ssh_authorized_keys, 1, length(local._ssh_authorized_keys)) : []
     primary_nic                     = "ens3"

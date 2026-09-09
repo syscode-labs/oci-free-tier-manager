@@ -49,14 +49,16 @@ resource "oci_core_instance" "bastion" {
   }
 
   create_vnic_details {
-    subnet_id        = local.public_subnet_id
-    assign_public_ip = false # reserved IP attached explicitly below
-    display_name     = "${var.bastion_name}-vnic"
+    subnet_id              = local.public_subnet_id
+    assign_public_ip       = false # reserved IP attached explicitly below
+    display_name           = "${var.bastion_name}-vnic"
+    skip_source_dest_check = true
   }
 
   metadata = {
     user_data           = local._bastion_user_data
     ssh_authorized_keys = join("\n", local._ssh_authorized_keys)
+    tailscale_auth_key  = local._tailscale_auth_key
   }
 
   defined_tags = {

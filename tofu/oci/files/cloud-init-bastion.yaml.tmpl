@@ -16,6 +16,11 @@ users:
 %{ endfor ~}
 
 write_files:
+  - path: /usr/local/sbin/configure-bastion-router
+    permissions: "0700"
+    owner: root:root
+    content: |
+      ${router_script}
   # Prefer OCI's local VCN resolver, with the home resolver as backup.
   - path: /etc/systemd/resolved.conf.d/dns.conf
     permissions: "0644"
@@ -239,6 +244,7 @@ runcmd:
   - [ systemctl, daemon-reload ]
   - [ systemctl, enable, --now, knockd ]
   - [ systemctl, restart, knockd ]
+  - [ /usr/local/sbin/configure-bastion-router, "${advertised_route}" ]
 
 %{ if enable_oci_cli ~}
   # pip install (not pipx) fails on Ubuntu 24.04 with PEP 668's
