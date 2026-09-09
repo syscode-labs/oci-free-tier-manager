@@ -10,6 +10,7 @@ python3 -c 'import ipaddress,sys; ipaddress.IPv4Network(sys.argv[1])' "$route"
 if ! command -v tailscale >/dev/null; then
   curl --retry 3 --retry-delay 2 -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg -o /usr/share/keyrings/tailscale-archive-keyring.gpg
   printf '%s\n' 'deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/ubuntu noble main' > /etc/apt/sources.list.d/tailscale.list
+  chmod 0644 /usr/share/keyrings/tailscale-archive-keyring.gpg /etc/apt/sources.list.d/tailscale.list
   apt-get update -qq
   apt-get install -y tailscale
 fi
