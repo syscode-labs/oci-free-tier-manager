@@ -353,7 +353,7 @@ class CpeRemediatorDeliveryTests(unittest.TestCase):
         expression = textwrap.dedent(
             """\
             templatefile("files/cloud-init-bastion.yaml.tmpl", {
-              router_script = "#!/bin/bash\\n      true"
+              router_script = indent(6, file("__ROUTER_SCRIPT__"))
               advertised_route = "192.0.2.0/24"
               ssh_public_key = "ssh-ed25519 AAAATEST fixture"
               extra_ssh_keys = []
@@ -386,6 +386,10 @@ class CpeRemediatorDeliveryTests(unittest.TestCase):
         expression = expression.replace(
             'templatefile("files/cloud-init-bastion.yaml.tmpl"',
             f'templatefile("{CLOUD_INIT_PATH}"',
+        )
+        expression = expression.replace(
+            "__ROUTER_SCRIPT__",
+            str(REPOSITORY_ROOT / "scripts" / "configure-bastion-router.sh"),
         )
         for mode, drift_check, local_timer in (
             ("function", True, False),
