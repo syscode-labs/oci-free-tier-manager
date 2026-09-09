@@ -49,9 +49,10 @@ resource "oci_core_instance" "bastion" {
   }
 
   create_vnic_details {
-    subnet_id        = local.public_subnet_id
-    assign_public_ip = false # reserved IP attached explicitly below
-    display_name     = "${var.bastion_name}-vnic"
+    subnet_id              = local.public_subnet_id
+    assign_public_ip       = false # reserved IP attached explicitly below
+    display_name           = "${var.bastion_name}-vnic"
+    skip_source_dest_check = true
   }
 
   metadata = {

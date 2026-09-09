@@ -255,23 +255,13 @@ resource "oci_core_security_list" "free_tier_security_list" {
     source   = "0.0.0.0/0"
   }
 
-  # Ingress: Talos API (apid)
+  # Public router transport. Talos APIs remain on the private subnet.
   ingress_security_rules {
-    protocol = "6" # TCP
+    protocol = "17" # UDP
     source   = "0.0.0.0/0"
-    tcp_options {
-      min = 50000
-      max = 50000
-    }
-  }
-
-  # Ingress: Kubernetes API server
-  ingress_security_rules {
-    protocol = "6" # TCP
-    source   = "0.0.0.0/0"
-    tcp_options {
-      min = 6443
-      max = 6443
+    udp_options {
+      min = 41641
+      max = 41641
     }
   }
 
