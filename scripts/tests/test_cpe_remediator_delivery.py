@@ -353,6 +353,8 @@ class CpeRemediatorDeliveryTests(unittest.TestCase):
         expression = textwrap.dedent(
             """\
             templatefile("files/cloud-init-bastion.yaml.tmpl", {
+              router_script = "#!/bin/bash\\n      true"
+              advertised_route = "192.0.2.0/24"
               ssh_public_key = "ssh-ed25519 AAAATEST fixture"
               extra_ssh_keys = []
               primary_nic = "ens3"
