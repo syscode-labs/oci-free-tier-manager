@@ -48,7 +48,10 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          pip install flake8 black pylint
+          pip install flake8 black pylint oci
+
+      - name: Test preservation-only CPE handler and schedule identity
+        run: python -m unittest scripts.tests.test_cpe_preservation scripts.tests.test_cpe_scheduler_identity -v
 
       - name: Lint Python
         run: |
