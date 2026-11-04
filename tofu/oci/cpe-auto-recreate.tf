@@ -201,6 +201,27 @@ resource "oci_resource_scheduler_schedule" "cpe_recreate" {
   }
 }
 
+# Resource Scheduler invokes as the schedule's resource principal, not the
+# Function's principal or the bastion. Without this distinct grant, scheduled
+# invocation fails with NotAuthorizedOrNotFound even while the Function is ACTIVE.
+resource "oci_identity_dynamic_group" "cpe_recreate_schedule" {
+  count          = local.vpn_enabled && contains(["function", "verify-local"], var.cpe_remediator_mode) ? 1 : 0
+  compartment_id = var.tenancy_ocid
+  name           = "oci-lab-cpe-recreate-schedule"
+  description    = "Matches only the CPE drift-check schedule resource principal"
+  matching_rule  = "ALL {resource.type = 'resourceschedule', resource.id = '${oci_resource_scheduler_schedule.cpe_recreate[0].id}'}"
+}
+
+resource "oci_identity_policy" "cpe_recreate_schedule" {
+  count          = local.vpn_enabled && contains(["function", "verify-local"], var.cpe_remediator_mode) ? 1 : 0
+  compartment_id = var.tenancy_ocid
+  name           = "oci-lab-cpe-recreate-schedule-policy"
+  description    = "Allow the CPE schedule to invoke only its target Function"
+  statements = [
+    "Allow dynamic-group ${oci_identity_dynamic_group.cpe_recreate_schedule[0].name} to use functions-family in compartment id ${local.compartment_id} where target.function.id = '${oci_functions_function.cpe_recreate[0].id}'",
+  ]
+}
+
 # OCIR push auth. Docker-API-compatible registries authenticate with an OCI
 # Auth Token, not the API signing key used elsewhere in this repo. The token
 # value is only ever returned once, at creation -- captured into state here
